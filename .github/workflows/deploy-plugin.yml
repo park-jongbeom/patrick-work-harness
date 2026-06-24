@@ -1,0 +1,43 @@
+name: Deploy Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate plugin.json
+        run: |
+          jq empty plugin.json
+          echo "plugin.json 유효"
+
+      - name: Validate marketplace.json
+        run: |
+          jq empty .claude-plugin/marketplace.json
+          echo "marketplace.json 유효"
+
+      - name: Check required fields in plugin.json
+        run: |
+          jq -e '.name and .version and .description and .keywords and .repository' plugin.json > /dev/null
+          echo "plugin.json 필수 필드 확인 완료"
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG.md
+          files: |
+            plugin.json
+            .claude-plugin/marketplace.json

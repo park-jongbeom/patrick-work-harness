@@ -1,0 +1,29 @@
+# Secrets & credentials
+.env
+.env.*
+*.secret
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Claude Code session state (local only)
+.claude/state/
+session-dashboard.html
