@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.1] - 2026-06-26
+
+### Added
+- `README.md` 신규 작성 — 영/한 이중 언어 (앵커 링크 전환), 459줄
+  - 소개·스킬 13종·훅 10종·설치 3방법·사용법·업데이트 이력
+- `/harness-update` 스킬 신설: 전체 업그레이드 표준 경로 (버전 비교 → CHANGELOG → 4 axis 체크리스트 → 승인 → 일괄 갱신 → `_engine_version` 갱신)
+- `/harness-update --check` 모드: 읽기 전용 체크리스트 출력
+
+### Changed
+- `/doc-update`는 HARNESS zone 전용으로 역할 분리; 전체 업그레이드는 `/harness-update` 사용
+
+---
+
 ## [1.0.0] - 2026-06-24
 
 ### Added
