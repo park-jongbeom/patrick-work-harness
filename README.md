@@ -26,9 +26,36 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 
 ```
 /gate-a  →  user approval  →  /gate-b  →  /gate-c  →  (/gate-d)  →  /gate-e
-  plan            ↑             implement    verify      refactor      record
+  plan            ↑            comprehend  implement    verify        record
             no code change
 ```
+
+| Gate | Role | Description |
+|------|------|-------------|
+| A | **Plan** | Per-file change plan — scope, steps, risks. No code until approved. |
+| B | **Comprehend** | Comprehension gate — free-form flow explanation, expiring evidence ledger. Pass-through for trivial work. |
+| C | **Implement** | Code implementation — follow Gate A plan exactly. Closes on external signals only (test PASS/FAIL). |
+| D | **Verify + refactor** | Verification loop, then conditional refactor (triggered only on 3+ code-review issues or explicit request). |
+| E | **Record** | WORKLOG + long-form archive. Flip all 3 docs to ✅E. |
+
+#### Inspiration & Attribution
+
+This harness incorporates the **minimalism ladder** decision framework from the open-source project [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) (MIT License, ~48k★).
+
+The ladder philosophy: **"The best code is the code you never wrote."**
+
+When planning features or changes (Gate A), the harness checks 7 rungs top-down before writing new code:
+1. Does it need to exist? → skip (YAGNI)
+2. Already in codebase? → reuse
+3. Stdlib does it? → use stdlib
+4. Native platform feature? → use native
+5. Installed dependency? → use dependency
+6. One line? → one line
+7. Only then → write the minimum that works
+
+The ladder is applied at every Gate A via the `0-Ladder` check step — each new file, method, or abstraction in the plan must justify which rung it stops at before implementation begins.
+
+> **License notice**: The minimalism ladder concept is from `DietrichGebert/ponytail`, used under the MIT License. This harness is itself MIT-licensed (see [License](#license) below).
 
 ---
 
@@ -69,7 +96,16 @@ Stop hooks and PreToolUse hooks run automatically before/after each Claude Code 
 
 ### Installation
 
-#### Method 1 — install.sh (recommended)
+#### Method 1 — Claude Code Marketplace (easiest)
+
+Claude Code 커뮤니티 마켓플레이스에서 직접 설치:
+
+```
+/plugin marketplace add park-jongbeom/patrick-work-harness
+/plugin install patrick-work-harness
+```
+
+#### Method 2 — install.sh (recommended)
 
 ```bash
 # Install latest release into the current project
@@ -194,6 +230,12 @@ Version history lives in [`CHANGELOG.md`](CHANGELOG.md) and [GitHub Releases](ht
 
 MIT
 
+**Third-party attributions**
+
+| Component | Source | License |
+|-----------|--------|---------|
+| Minimalism Ladder (7-rung decision framework) | [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) | MIT |
+
 ---
 
 ## 한국어
@@ -218,9 +260,37 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 
 ```
 /gate-a  →  사용자 승인  →  /gate-b  →  /gate-c  →  (/gate-d)  →  /gate-e
-  계획           ↑              구현         검증         리팩터        기록
+  계획           ↑             이해도      구현       검증+리팩터      기록
              변경 없음
 ```
+
+| Gate | 역할 | 설명 |
+|------|------|------|
+| A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음. |
+| B | **이해도 게이트** | 자유형 흐름 설명, 만료형 증적 원장. 단순 작업은 pass-through. |
+| C | **구현** | 코드 구현 — Gate A 계획 그대로. 외부 실행 신호(테스트 PASS/FAIL)로만 종료. |
+| D | **검증 + 리팩터** | 검증 루프, 이후 조건부 리팩터 (코드리뷰 3건 이상 또는 명시적 요청 시 실행). |
+| E | **기록** | WORKLOG + 장문 archive 생성. 3문서 ✅E 전환. |
+
+#### 영감의 원천 및 저작권 고지
+
+이 하네스는 오픈소스 프로젝트 [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail)(MIT 라이선스, ~48k★)의 **미니멀리즘 래더(minimalism ladder)** 의사결정 프레임워크를 적용합니다.
+
+래더 철학: **"가장 좋은 코드는 안 쓴 코드다."**
+
+기능이나 변경을 계획할 때(Gate A) 새 코드를 작성하기 전에 7칸 래더를 위에서 아래로 확인하며 첫 충족 칸에서 멈춥니다:
+
+1. 이 코드가 필요한가? → 필요 없으면 스킵 (YAGNI)
+2. 이미 코드베이스에 있는가? → 재사용
+3. 표준 라이브러리가 이미 할 수 있는가? → 표준 라이브러리 사용
+4. 플랫폼 네이티브 기능이 있는가? → 네이티브 기능 사용
+5. 이미 설치된 의존성이 할 수 있는가? → 의존성 사용
+6. 한 줄로 충분한가? → 한 줄
+7. 이 모두가 아니면 → 최소한으로 동작하는 코드만 작성
+
+래더는 모든 Gate A의 `0-Ladder` 점검 단계에서 적용됩니다 — 계획에 포함된 새 파일·메서드·추상화마다 어느 칸에서 멈추는지 구현 전에 정당화해야 합니다.
+
+> **라이선스 고지**: 미니멀리즘 래더 개념은 `DietrichGebert/ponytail`(MIT 라이선스)에서 가져왔습니다. 이 하네스 자체도 MIT 라이선스입니다(아래 [라이선스](#라이선스-1) 참고).
 
 ---
 
@@ -385,3 +455,9 @@ Gate A 승인
 ### 라이선스
 
 MIT
+
+**서드파티 저작권 고지**
+
+| 구성 요소 | 출처 | 라이선스 |
+|-----------|------|---------|
+| 미니멀리즘 래더 (7칸 의사결정 프레임워크) | [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) | MIT |

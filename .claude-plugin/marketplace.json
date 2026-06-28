@@ -7,20 +7,15 @@
   "plugins": [
     {
       "name": "patrick-work-harness",
-      "source": "./",
-      "description": "Claude Code harness — Gate A~E process automation skills + hooks integration plugin",
-      "version": "1.0.0",
-      "category": "Development",
-      "tags": ["gate-process", "harness", "automation", "workflow", "skills", "hooks"],
-      "compatibility": {
-        "claudeCode": ">=1.0.0"
+      "source": {
+        "source": "github",
+        "repo": "park-jongbeom/patrick-work-harness",
+        "ref": "main"
       },
-      "documentation": "https://github.com/park-jongbeom/patrick-work-harness/blob/main/README.md",
-      "repository": "https://github.com/park-jongbeom/patrick-work-harness",
-      "skills": [
-        "/gate-a", "/gate-b", "/gate-c", "/gate-d", "/gate-e",
-        "/doc-cleanup", "/audit"
-      ]
+      "description": "Claude Code harness — Gate A~E process automation skills + hooks integration plugin",
+      "version": "1.0.7",
+      "category": "development",
+      "tags": ["gate-process", "harness", "automation", "workflow", "skills", "hooks"]
     }
   ]
 }
