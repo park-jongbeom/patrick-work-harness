@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.5] - 2026-06-28
+
+### Fixed
+- `claude-gate-guard.py` (+ Cursor `gate-guard.py` 쌍둥이) Gate 강제 백스톱의 **실파일 fail-open 복구** (HARNESS-GATEGUARD-FIX-1 · 하네스 검증 HARNESS_VERIFICATION_V1 P1)
+  - ① `find_session_file`이 stale `plans/current_work/` 대신 **리포 루트 `{repo}/CURRENT_SESSION.md` 우선** 탐색 (그동안 엉뚱한 stale 파일을 읽던 것 교정)
+  - ② `parse_gate_status`가 실 표 포맷(`| 현재 Gate | **A (승인 대기)** |`, `| Gate 진행 | A✅ → C⏸ … |` 글자선행) 인식 — 구 헤더 포맷 하위호환 유지
+  - 효과: Gate A 미승인 코드편집·Gate<D 테스트명령이 차단 안 되던 것(EXIT 0)을 차단(EXIT 2)으로 복구. 전용 단위테스트 `test_claude_gate_guard.py` 신설 + `test_gate_guard.py` 실 포맷 갱신 (회귀 107 PASS).
+
 ## [1.0.4] - 2026-06-28
 
 ### Fixed

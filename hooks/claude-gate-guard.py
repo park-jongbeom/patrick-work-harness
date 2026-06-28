@@ -55,10 +55,20 @@ EXEMPT_PATH_PATTERNS = [
 
 
 def find_session_file(cwd):
-    """CURRENT_SESSION.md를 여러 경로에서 탐색."""
+    """CURRENT_SESSION.md를 여러 경로에서 탐색.
+
+    정본은 리포 루트(`{repo}/CURRENT_SESSION.md`)이므로 루트 후보를 먼저 검사한다.
+    구 `plans/current_work/` 위치는 레거시 폴백 — 과거 stale 파일이 잔존할 수 있어 후순위.
+    """
     candidates = []
 
-    # cwd 기준 상대 경로
+    # 1순위: 리포 루트 CURRENT_SESSION.md (정본 위치)
+    if cwd:
+        candidates.append(os.path.join(cwd, "CURRENT_SESSION.md"))
+    for base in SESSION_SEARCH_DIRS:
+        candidates.append(os.path.join(base, "CURRENT_SESSION.md"))
+
+    # 2순위(레거시): plans/current_work/ (구 위치 — stale 잔존 가능, 후순위)
     if cwd:
         candidates.append(
             os.path.join(cwd, "..", "plans", "current_work", "CURRENT_SESSION.md")
@@ -66,8 +76,6 @@ def find_session_file(cwd):
         candidates.append(
             os.path.join(cwd, "plans", "current_work", "CURRENT_SESSION.md")
         )
-
-    # 절대 폴백 경로
     for base in SESSION_SEARCH_DIRS:
         candidates.append(
             os.path.join(base, "plans", "current_work", "CURRENT_SESSION.md")
@@ -98,8 +106,12 @@ def parse_gate_status(content):
     """
     대시보드에서 현재 Gate 상태 파싱.
     Returns: (gate_letter, status_emoji, description)
+
+    실 CURRENT_SESSION.md는 표 포맷(`| 현재 Gate | **A (승인 대기)** |`,
+    `| Gate 진행 | A✅ → B✅ → C⏸ → ... |`)을 쓴다. 구 헤더 포맷
+    (`> **현재 Gate**: ⏸A`, `**Gate 진행**| ✅A → ...`)도 하위호환 유지.
     """
-    # 패턴 1: > **현재 Gate**: ✅E (세션 완료) / ⏸A — 승인 대기
+    # 패턴 1 (구·하위호환): > **현재 Gate**: ⏸A — 승인 대기
     m = re.search(
         r'\*\*현재 Gate\*\*:\s*(✅|⏸|☐)?\s*([A-E])\s*[\-—]?\s*(.*?)$',
         content,
@@ -108,16 +120,43 @@ def parse_gate_status(content):
     if m:
         return m.group(2), m.group(1) or "", m.group(3).strip()
 
-    # 패턴 2: Gate 진행 행 — ✅A → ✅B → ⏸C → ☐D → ☐E
-    m = re.search(r'\*\*Gate 진행\*\*\s*\|\s*(.+?)\s*\|', content)
+    # 패턴 2 (신·정본): 표 셀 | 현재 Gate | **A (승인 대기)** | / | **✅E 완료** |
+    m = re.search(
+        r'현재 Gate\s*\|\s*\*{0,2}\s*(✅|⏸|☐)?\s*([A-E])\s*([^|*]*?)\s*\*{0,2}\s*\|',
+        content,
+    )
     if m:
-        progress = m.group(1).strip()
-        paused = re.search(r'⏸\s*([A-E])', progress)
+        emoji = m.group(1) or ""
+        letter = m.group(2)
+        desc = m.group(3).strip()
+        if not emoji and "대기" in desc:
+            emoji = "⏸"
+        return letter, emoji, desc
+
+    # 패턴 3 (신·정본): 표 행 | Gate 진행 | A✅ → B✅ → C⏸ → D☐ → E☐ |
+    #   글자→이모지(A✅)·구 이모지→글자(✅A) 모두 허용. ⏸=현재, 없으면 마지막 ✅.
+    m = re.search(r'Gate 진행\s*\*{0,2}\s*\|\s*(.+?)\s*\|', content)
+    if m:
+        progress = m.group(1)
+        paused = re.search(r'([A-E])\s*⏸|⏸\s*([A-E])', progress)
         if paused:
-            return paused.group(1), "⏸", "대기"
-        done = re.findall(r'✅\s*([A-E])', progress)
+            return (paused.group(1) or paused.group(2)), "⏸", "대기"
+        done = re.findall(r'([A-E])\s*✅|✅\s*([A-E])', progress)
         if done:
-            return done[-1], "✅", "완료"
+            return (done[-1][0] or done[-1][1]), "✅", "완료"
+
+    # 패턴 4 (폴백): > **현재 상태**: A (승인 대기) / ✅E 완료
+    m = re.search(
+        r'\*\*현재 상태\*\*:\s*(✅|⏸|☐)?\s*([A-E])\s*([^\n]*)',
+        content,
+    )
+    if m:
+        emoji = m.group(1) or ""
+        letter = m.group(2)
+        desc = m.group(3).strip()
+        if not emoji and "대기" in desc:
+            emoji = "⏸"
+        return letter, emoji, desc
 
     return None, None, None
 
