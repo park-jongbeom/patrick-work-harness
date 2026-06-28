@@ -20,9 +20,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from session_dashboard_parsers import parse_current_session, parse_session_index  # noqa: E402
 from session_dashboard_renderer import generate_html  # noqa: E402
 
-# R-4-2-a: CLAUDE_PROJECT_DIR 기반 이식성 폴백 (env 부재 시 절대경로 유지)
+# R-4-2-b: 3단 우선순위 (① custom env[테스트] → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
+#   error-topics-guard.py:38-43·gate-e-sync-guard.py:39-44와 동일 패턴 (정본 재사용)
 PROJECT_ROOT = Path(
-    os.environ.get("CLAUDE_PROJECT_DIR", os.environ.get("CLAUDE_PROJECT_DIR", "."))
+    os.environ.get("DASHBOARD_SYNC_BASE")
+    or os.environ.get("CLAUDE_PROJECT_DIR")
+    or os.environ.get("CLAUDE_PROJECT_DIR", ".")
 )
 CURRENT_SESSION_FILE = PROJECT_ROOT / "CURRENT_SESSION.md"
 SESSION_INDEX_FILE = PROJECT_ROOT / "SESSION_INDEX.md"

@@ -103,7 +103,7 @@ Execute only the axes marked ❌ in Step 3. Axes already ✅ are skipped silentl
 
 ### Axis A — HARNESS zone reconcile
 
-Reuse `/doc-update` Step 4 logic:
+Reconcile the HARNESS zone:
 - Locate `<!-- HARNESS:START` … `<!-- HARNESS:END -->` sentinels in `CLAUDE.md`
 - Overwrite the zone wholesale with the current engine template, substituting `project_repo` from `harness-answers.yml`
 - Update version tag to `<!-- HARNESS:START v{latest} -->`
@@ -150,7 +150,7 @@ CLAUDE_PROJECT_DIR=<repo root> python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session-dash
 
 If `CLAUDE_PLUGIN_ROOT` is unavailable, use the source path:
 ```bash
-CLAUDE_PROJECT_DIR=<repo root> python3 /media/ubuntu/data120g/plans/hooks/session-dashboard-sync.py
+CLAUDE_PROJECT_DIR=<repo root> python3 ${HARNESS_PLANS_DIR}/hooks/session-dashboard-sync.py
 ```
 
 Confirm `session-dashboard.html` exists at the repo root after execution.
@@ -214,7 +214,7 @@ All other fields remain unchanged.
 
 ## Notes
 
-- `/harness-update` is **explicit-invoke only** — same trust-boundary as `/doc-update` (D-4 decision). The SessionStart hook may detect version mismatch and *notify*, but reconciliation requires explicit invocation.
+- `/harness-update` is **explicit-invoke only** (D-4 decision). The SessionStart hook may detect version mismatch and *notify*, but reconciliation requires explicit invocation.
 - Idempotent: re-running when already up to date exits cleanly at Step 1 or reports all-✅ at Step 3.
-- **Relation to `/doc-update`**: `/doc-update` is narrow (CLAUDE.md HARNESS zone only). `/harness-update` is the full upgrade (HARNESS zone + hooks + dashboard + stubs). Use `/harness-update` as the standard upgrade path; `/doc-update` is retained for HARNESS-zone-only reconciliation.
+- **Scope**: `/harness-update` is the full upgrade path — HARNESS zone + hooks + dashboard + stubs in one run (HARNESS-zone reconcile is Axis A).
 - **Relation to `/init`**: `/init` is for new repos. `/harness-update` is for existing init'd repos. Never run `/init` on an existing repo to apply updates — use `/harness-update`.

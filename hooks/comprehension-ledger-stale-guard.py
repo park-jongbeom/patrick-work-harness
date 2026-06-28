@@ -40,13 +40,14 @@ import os
 import re
 import sys
 from datetime import date
+from pathlib import Path
 
 # R-4-2-a: CLAUDE_PROJECT_DIR 기반 이식성 폴백 (env 부재 시 절대경로 유지)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 _default_ledger = (
     str(Path(_proj).parent / "plans" / "learning" / "comprehension_ledger.md")
     if _proj
-    else os.environ.get("COMPREHENSION_LEDGER_PATH", "plans/learning/comprehension_ledger.md")
+    else "/media/ubuntu/data120g/plans/learning/comprehension_ledger.md"
 )
 LEDGER_PATH = os.environ.get("COMPREHENSION_LEDGER_PATH", _default_ledger)
 
@@ -91,10 +92,12 @@ def expired_entries(ledger_text, today):
     """
     증적 표에서 만료된(exp 'N개월' 경과) 항목 목록 반환.
 
-    각 행 형식: | verified | scope | exp | 설명 주체 | 결과 | 설명 요약 |
+    구 스키마: | verified | scope | exp | 설명 주체 | 결과 | 설명 요약 |
+    신 스키마: | verified | tech_tags | scope | exp | 설명 주체 | 결과 | 설명 요약 |
     - verified 가 YYYY-MM-DD 로 파싱되고 exp 에 'N개월'이 있는 행만 평가.
+    - tech_tags 컬럼 추가(HARNESS-COMPREHEND-REDESIGN-1): cells[3]이 exp, cells[2]가 scope.
     - 헤더·구분선·템플릿(_..._)·'실질변경 시'(월수 없음) 행은 자동 skip.
-    반환: [(verified_str, scope, n_months, expiry, days_over), ...]
+    반환: [(verified_str, tech_tags, scope, n_months, expiry, days_over), ...]
     """
     expired = []
     for line in ledger_text.splitlines():
@@ -106,14 +109,23 @@ def expired_entries(ledger_text, today):
         verified = parse_iso_date(cells[0])
         if verified is None:
             continue  # 헤더·구분선·템플릿 행
-        m = re.search(r"(\d+)\s*개월", cells[2])
+        # 신 스키마(tech_tags 컬럼): cells[3]=exp / 구 스키마: cells[2]=exp
+        if len(cells) >= 4 and re.search(r"(\d+)\s*개월", cells[3]):
+            exp_cell = cells[3]
+            tech_tags = cells[1]
+            scope = cells[2]
+        else:
+            exp_cell = cells[2]
+            tech_tags = ""
+            scope = cells[1]
+        m = re.search(r"(\d+)\s*개월", exp_cell)
         if not m:
             continue  # 'N개월' 만료 조건 없음 (scope 변경형 → 수동 판정)
         n_months = int(m.group(1))
         expiry = add_months(verified, n_months)
         if today > expiry:
             expired.append(
-                (cells[0], cells[1], n_months, expiry, (today - expiry).days)
+                (cells[0], tech_tags, scope, n_months, expiry, (today - expiry).days)
             )
     return expired
 
@@ -148,9 +160,10 @@ def main():
         f"[COMPREHENSION-LEDGER-STALE] 이해도 ledger 만료 항목 {len(expired)}건 "
         f"— 재검증 권장 (비차단·종료 막지 않음)"
     ]
-    for verified, scope, n_months, expiry, days_over in expired:
+    for verified, tech_tags, scope, n_months, expiry, days_over in expired:
+        tag_str = f"[{tech_tags}] " if tech_tags else ""
         lines.append(
-            f"  - scope '{scope}': verified {verified} + {n_months}개월 "
+            f"  - {tag_str}scope '{scope}': verified {verified} + {n_months}개월 "
             f"→ 만료 {expiry.isoformat()} ({days_over}일 경과)"
         )
     lines.append(

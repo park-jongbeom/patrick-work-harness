@@ -1,6 +1,6 @@
 {
   "name": "patrick-work-harness",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Claude Code harness — Gate A~E process automation skills + hooks integration plugin",
   "keywords": ["gate-process", "harness", "automation", "claude-code", "skills"],
   "homepage": "https://github.com/park-jongbeom/patrick-work-harness",

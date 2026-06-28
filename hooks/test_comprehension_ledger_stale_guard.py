@@ -28,6 +28,10 @@ def run_hook(ledger_content, session_id="test-sess", write_ledger=True,
             with open(ledger_path, "w", encoding="utf-8") as f:
                 f.write(ledger_content)
         env = os.environ.copy()
+        # 운영 조건 재현: Claude Code 가 Stop 훅 실행 시 항상 설정하는 env.
+        # 미설정 시 모듈 로드 시점의 _default_ledger 분기(Path(_proj))를
+        # 타지 못해 import-time 크래시(Path 미정의)를 놓친다(과거 위양성 통과 원인).
+        env["CLAUDE_PROJECT_DIR"] = os.environ.get("CLAUDE_PROJECT_DIR", ".")
         env["COMPREHENSION_LEDGER_PATH"] = ledger_path
         payload = {"session_id": session_id}
         if stop_hook_active:
@@ -140,6 +144,30 @@ def test_stop_hook_active_allows():
     print("  PASS: stop_hook_active → 만료 있어도 알림 생략")
 
 
+def test_operational_env_no_import_crash():
+    """회귀: CLAUDE_PROJECT_DIR 설정(=운영 조건) + LEDGER_PATH 오버라이드 없이
+    실행해도 import-time 크래시(Path 미정의)가 나지 않는다.
+
+    `Path` import 누락 버그는 _default_ledger 분기(Path(_proj))에서만
+    터지고, 그 분기는 CLAUDE_PROJECT_DIR 가 있고 LEDGER_PATH 오버라이드가
+    없을 때만 평가된다. 다른 테스트는 LEDGER_PATH 를 항상 세팅하지만
+    _default_ledger 식 자체는 모듈 로드 시 무조건 계산되므로, 이 테스트는
+    오버라이드를 빼서 import-time 평가 경로를 명시적으로 가드한다.
+    """
+    env = os.environ.copy()
+    env["CLAUDE_PROJECT_DIR"] = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    env.pop("COMPREHENSION_LEDGER_PATH", None)
+    proc = subprocess.run(
+        [sys.executable, SCRIPT],
+        input=json.dumps({"session_id": "test-sess"}),
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, f"expected 0, got {proc.returncode}: {proc.stderr}"
+    assert "Traceback" not in proc.stderr, f"import-time 크래시 재발: {proc.stderr}"
+    assert "NameError" not in proc.stderr, f"Path 미정의 재발: {proc.stderr}"
+    print("  PASS: 운영 env(CLAUDE_PROJECT_DIR) → import-time 크래시 없음")
+
+
 if __name__ == "__main__":
     tests = [
         test_empty_ledger_allows,
@@ -150,6 +178,7 @@ if __name__ == "__main__":
         test_malformed_rows_allow,
         test_one_month_expiry_notifies,
         test_stop_hook_active_allows,
+        test_operational_env_no_import_crash,
     ]
     print(f"comprehension-ledger-stale-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)

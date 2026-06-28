@@ -25,7 +25,7 @@ import sys
 # R-4-2-a: CLAUDE_PROJECT_DIR 존재 시 선두 삽입, 절대경로는 폴백으로 유지
 _proj_dir = os.environ.get("CLAUDE_PROJECT_DIR")
 SESSION_SEARCH_DIRS = (
-    [_proj_dir] if _proj_dir else ["."]
+    [_proj_dir, os.environ.get("HARNESS_ROOT_DIR", ".")] if _proj_dir else [os.environ.get("HARNESS_ROOT_DIR", ".")]
 )
 
 TEST_CMD_PATTERNS = [

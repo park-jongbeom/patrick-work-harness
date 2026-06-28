@@ -9,11 +9,16 @@ HSA-2-b(2026-05-28): CSS 393줄을 `dashboard.css` 외부 파일로 추출하고
 (byte 동등성 보존) + 본 모듈 줄 수는 KPI ≤ 250 충족.
 """
 
+import os
 from datetime import datetime
 from pathlib import Path
 
 _HOOKS_DIR = Path(__file__).resolve().parent
 _CSS_PATH = _HOOKS_DIR / "dashboard.css"
+
+# 정본 저장소(아카이브) 경로 — env 폴백(skill-usage-auto.py 동일 변수 규약 재사용).
+# 미설정 시 본가 절대경로 폴백 → 정본 footer byte-equivalent + plugin sync 시 정의 동반(NameError 해소).
+HARNESS_PLANS_DIR = os.environ.get("HARNESS_PLANS_DIR", "/media/ubuntu/data120g/plans")
 
 
 def _load_css():

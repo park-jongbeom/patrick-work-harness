@@ -18,10 +18,19 @@ Returns:
   2 = error (CI config changed, block)
 """
 
+import os
 import sys
 import subprocess
 import re
 from pathlib import Path
+
+# R-4-2-b: 3단 우선순위 (① custom env → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
+_proj = os.environ.get("CLAUDE_PROJECT_DIR")
+_REPO_ROOT = (
+    os.environ.get("TEST_TAMPERING_GUARD_REPO_ROOT")
+    or (str(Path(_proj).parent) if _proj else None)
+    or os.environ.get("HARNESS_ROOT_DIR", ".")
+)
 
 
 def get_git_diff_tests():
@@ -29,7 +38,7 @@ def get_git_diff_tests():
     try:
         result = subprocess.run(
             ["git", "diff", "tests/", "--unified=0"],
-            cwd=os.environ.get("HARNESS_ROOT_DIR", "."),
+            cwd=_REPO_ROOT,
             capture_output=True,
             text=True,
             timeout=10
@@ -57,7 +66,7 @@ def get_git_diff_ci_config():
         for pattern in ci_patterns:
             result = subprocess.run(
                 ["git", "diff", pattern],
-                cwd=os.environ.get("HARNESS_ROOT_DIR", "."),
+                cwd=_REPO_ROOT,
                 capture_output=True,
                 text=True,
                 timeout=10

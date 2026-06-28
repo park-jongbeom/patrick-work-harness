@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.3] - 2026-06-28
+
+### Removed
+- `/doc-update` 스킬 폐기 — `/harness-update`로 통합. doc-update(좁음·HARNESS zone 전용) 기능은 harness-update Axis A(HARNESS zone reconcile) + `_engine_version` 갱신이 이미 포섭. harness-update/init/README의 doc-update 참조 정리
+
+### Fixed
+- 세션 대시보드 렌더러 footer 경로 `HARNESS_PLANS_DIR` 미정의 `NameError` 해소 — env 폴백 변수 정의(HARNESS-DASH-RENDER-FIX-1). `/init` 후 플러그인/배포본에서 대시보드가 silent 미생성되던 버그 수정
+
+### Changed
+- `/init` Step 6/7 플러그인 반영 — Stop hook 배선 + session-dashboard.html 1회 생성(INIT-COMPLETE-1, 소스 기반 전파)
+
+---
+
 ## [1.0.2] - 2026-06-26
 
 ### Removed
@@ -11,13 +24,15 @@
 ## [1.0.1] - 2026-06-26
 
 ### Added
-- `README.md` 신규 작성 — 영/한 이중 언어 (앵커 링크 전환), 459줄
-  - 소개·스킬 13종·훅 10종·설치 3방법·사용법·업데이트 이력
-- `/harness-update` 스킬 신설: 전체 업그레이드 표준 경로 (버전 비교 → CHANGELOG → 4 axis 체크리스트 → 승인 → 일괄 갱신 → `_engine_version` 갱신)
-- `/harness-update --check` 모드: 읽기 전용 체크리스트 출력
+- `/harness-update` 스킬: 하네스 전체 업그레이드 (버전 확인 → CHANGELOG 표시 → 체크리스트 → 사용자 승인 → 일괄 갱신)
+  - Axis A: CLAUDE.md HARNESS zone 갱신 (`/doc-update` 로직 재사용)
+  - Axis B: Stop hook 3종 배선 자동 적용 (session-dashboard-sync → gate-e-sync-guard → error-topics-guard, prepend 방식으로 기존 항목 보존)
+  - Axis C: session-dashboard.html 생성 (미존재 시)
+  - Axis D: SESSION_INDEX.md / CURRENT_SESSION.md stub 생성 (session_docs: true 레포, 미존재 시)
+- `/harness-update --check` 모드: 파일 쓰기 없이 체크리스트만 출력
 
 ### Changed
-- `/doc-update`는 HARNESS zone 전용으로 역할 분리; 전체 업그레이드는 `/harness-update` 사용
+- `/doc-update`는 HARNESS zone 전용으로 유지; `/harness-update`가 전체 업그레이드 표준 경로로 지정
 
 ---
 

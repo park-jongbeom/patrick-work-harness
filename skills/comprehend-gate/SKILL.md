@@ -26,8 +26,12 @@ Classify gate-a's produced 「이해도 게이트 발동 판정」 (AI auto + us
 
 ## Step 1. Ledger expiry·re-verification prerequisite lookup
 
-**Before** requiring an explanation, look up the same `scope` entry in `plans/learning/comprehension_ledger.md`:
+**Before** requiring an explanation, look up entries in `plans/learning/comprehension_ledger.md` **by `tech_tags` match first**, then fall back to `scope` text match:
 
+- **tech_tags matching (primary)**: if any tag in the ledger row's `tech_tags` column overlaps with this Gate A plan's technology area (library·system·pattern), treat it as the same technology domain → apply the expiry check below
+- **scope text match (fallback)**: if no tech_tags match found, fall back to `scope` substring match (backward-compatible with entries that have no tech_tags)
+
+Expiry verdict:
 - **Not expired** (within exp **AND** no material change to scope files) → **skip** (do not ask again). Pass the gate·record a 1-line reason
 - **Expired** (exp elapsed **OR** material change to scope files occurred) → **proceed with re-verification** (spaced re-retrieval = memory reinforcement·two birds with one stone)
 - **No record** → proceed with new verification
@@ -57,6 +61,7 @@ Add 1 row to the `plans/learning/comprehension_ledger.md` table:
 | Item | Value |
 |------|-----|
 | `verified` | Verification date (absolute date) |
+| `tech_tags` | Comma-separated technology/library/system tags (e.g. `"R2DBC tx 경계, Spring WebFlux"`). Used for cross-session dedup: if a future Gate A shares ≥1 tag, the gate skips re-asking |
 | `scope` | Verification scope (module/feature/file glob) |
 | `exp` | Expiry condition (`N개월` or `{scope} 실질변경 시`) |
 | 설명 주체 | User / AI |

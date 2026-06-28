@@ -63,6 +63,7 @@ if [[ -d "$HOOKS_SRC" ]]; then
     --exclude="*.pyc" \
     --exclude="fixtures/" \
     --exclude="progress-report-stale-guard.py" \
+    --exclude="test_progress_report_stale_guard.py" \
     "$HOOKS_SRC/" "$DEST/hooks/"
   # Sanitize: replace absolute paths in synced hook files
   find "$DEST/hooks" -name "*.py" | xargs sed -i \

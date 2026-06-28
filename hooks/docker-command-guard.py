@@ -41,7 +41,7 @@ _CANON = (
     "    - react-web-ga      : docker exec react-web-ga npm test -- --run\n"
     "    - college-crawler   : docker exec college-crawler-local pytest tests/\n"
     "    - ga-api-platform   : sg docker -c \"docker compose -f "
-    "<your-project>/docker-compose-test.yml run --rm <your-service>\"\n"
+    "/media/ubuntu/data120g/ga-api-platform/docker-compose-test.yml run --rm ga-test\"\n"
     "  ※ TTY 금지(-it) · 호스트 직접 실행 금지 · 권한 오류 시 sg docker -c \"...\" 우회"
 )
 

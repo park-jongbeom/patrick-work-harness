@@ -43,8 +43,7 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
-| `/doc-update` | Update HARNESS zone — `_engine_version` + HARNESS section refresh |
-| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 4-axis checklist → approve → batch update |
+| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 4-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks |
 | `/comprehend-gate` | Comprehension gate — risk-based self-explanation check · expiring ledger |
 
@@ -188,6 +187,22 @@ Compares the current `_engine_version` with the latest, shows the CHANGELOG, and
 
 ### Changelog
 
+#### [1.0.3] — 2026-06-28
+
+**Removed**
+- `/doc-update` skill — merged into `/harness-update` (HARNESS-zone reconcile is Axis A; `_engine_version` bump already covered)
+
+**Fixed**
+- Session dashboard renderer footer `HARNESS_PLANS_DIR` `NameError` — env-fallback variable defined; dashboard no longer silently fails to generate after `/init`
+
+**Changed**
+- `/init` Step 6/7 propagated to plugin — Stop hook wiring + initial `session-dashboard.html` generation
+
+#### [1.0.2] — 2026-06-26
+
+**Removed**
+- `/error-log`, `/export-roles` skills — 0 cumulative uses (HARNESS-SELF-AUDIT-1); error-log absorbed into Gate E inline recording
+
 #### [1.0.1] — 2026-06-26
 
 **Added**
@@ -269,8 +284,7 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | `/gate-e` | 세션 정리 — WORKLOG·archive 생성·3문서 ✅E 갱신 |
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
-| `/doc-update` | HARNESS zone 갱신 — `_engine_version` + HARNESS 구역 최신화 |
-| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→4 axis 체크리스트→승인→일괄 갱신 |
+| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→4 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·hook 배선 |
 | `/comprehend-gate` | 이해도 게이트 — 위험 기반 자기설명 검증·만료형 ledger |
 
@@ -413,6 +427,22 @@ Gate A 승인
 ---
 
 ### 업데이트 이력
+
+#### [1.0.3] — 2026-06-28
+
+**제거**
+- `/doc-update` 스킬 폐기 — `/harness-update`로 통합(HARNESS zone 갱신은 Axis A·`_engine_version` 갱신 이미 포섭)
+
+**수정**
+- 세션 대시보드 렌더러 footer `HARNESS_PLANS_DIR` `NameError` 해소 — env 폴백 변수 정의·`/init` 후 대시보드 silent 미생성 버그 수정
+
+**변경**
+- `/init` Step 6/7 플러그인 반영 — Stop hook 배선 + `session-dashboard.html` 1회 생성
+
+#### [1.0.2] — 2026-06-26
+
+**제거**
+- `/error-log`·`/export-roles` 스킬 폐기 — 누적 사용 0회(HARNESS-SELF-AUDIT-1)·error-log는 Gate E 인라인 기록으로 흡수
 
 #### [1.0.1] — 2026-06-26
 
