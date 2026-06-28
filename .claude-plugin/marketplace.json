@@ -19,7 +19,7 @@
       "repository": "https://github.com/park-jongbeom/patrick-work-harness",
       "skills": [
         "/gate-a", "/gate-b", "/gate-c", "/gate-d", "/gate-e",
-        "/doc-cleanup", "/audit", "/comprehend-gate"
+        "/doc-cleanup", "/audit"
       ]
     }
   ]

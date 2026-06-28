@@ -20,7 +20,7 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | Tests disabled to fake a pass | `test-tampering-guard` Stop hook detects reward-hacking in real time |
 | Completion records scattered and untraceable | Gate E — auto-generates WORKLOG + archive |
 | Documents go stale every session | 5 guard hooks including `master-plan-stale-guard` |
-| Re-explaining the same concept every session | `comprehend-gate` — expiring evidence ledger |
+| Re-explaining the same concept every session | Gate B (comprehension gate) — expiring evidence ledger |
 
 #### Process flow
 
@@ -45,7 +45,6 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
 | `/harness-update` | Full upgrade — compare version → show CHANGELOG → 4-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks |
-| `/comprehend-gate` | Comprehension gate — risk-based self-explanation check · expiring ledger |
 
 ---
 
@@ -60,7 +59,7 @@ Stop hooks and PreToolUse hooks run automatically before/after each Claude Code 
 | `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E |
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns during Gate B→C transition (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) |
-| `comprehension-ledger-stale-guard.py` | Stop | Detects expired comprehend-gate evidence ledger entries |
+| `comprehension-ledger-stale-guard.py` | Stop | Detects expired comprehension-gate (Gate B) evidence ledger entries |
 | `session-dashboard-sync.py` | Stop | Auto-regenerates `session-dashboard.html` |
 | `skill-usage-auto.py` | Stop | Auto-records skill usage history markers |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
@@ -213,7 +212,7 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | 테스트를 무력화해 통과 위장 | `test-tampering-guard` Stop hook 실시간 감지 |
 | 완료 기록이 흩어져 추적 불가 | Gate E — WORKLOG + archive 자동 생성 |
 | 문서가 세션마다 스테일 | `master-plan-stale-guard` 등 5종 가드 훅 |
-| 같은 기술 이해도 재질문 반복 | `comprehend-gate` 만료형 증적 원장 |
+| 같은 기술 이해도 재질문 반복 | Gate B(이해도 게이트) 만료형 증적 원장 |
 
 #### 프로세스 흐름
 
@@ -238,7 +237,6 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
 | `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→4 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·hook 배선 |
-| `/comprehend-gate` | 이해도 게이트 — 위험 기반 자기설명 검증·만료형 ledger |
 
 ---
 
@@ -253,7 +251,7 @@ Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니
 | `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지 |
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | Gate B→C 전환 시 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조) |
-| `comprehension-ledger-stale-guard.py` | Stop | comprehend-gate 증적 원장 만료 감지 |
+| `comprehension-ledger-stale-guard.py` | Stop | 이해도 게이트(Gate B) 증적 원장 만료 감지 |
 | `session-dashboard-sync.py` | Stop | `session-dashboard.html` 자동 재생성 |
 | `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |

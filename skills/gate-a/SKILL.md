@@ -184,7 +184,7 @@ Verdict: record the per-new-item rung number in the required output item "미니
    - Execution order (based on dependencies)
    - Risks and responses (concrete cause + response method)
    - **시스템 적합성 점검** (architecture·Phase·prohibited-pattern 3 axes, 1 line; the "0-Fitness" result above — HARNESS-PLAN-AUGMENT-1)
-   - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — produce 1 line by risk heuristic (AI auto + user override): 「발동(폭발반경 大→사용자 설명 / 일반 위험→AI 자기설명)」 or 「미발동(사소 CRUD·문서·정형 변경)」. On firing, after Gate A approval `/comprehend-gate` precedes gate-b. Criteria → `comprehend-gate/SKILL.md §Step 0` (the comprehend-gate skill body is not auto-loaded — if the firing-criteria detail is needed, load it directly via the `Skill` tool.)
+   - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — produce 1 line by risk heuristic (AI auto + user override): 「발동(폭발반경 大→사용자 설명 / 일반 위험→AI 자기설명)」 or 「미발동(사소 CRUD·문서·정형 변경)」. On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **Gate D (refactor) expectation and basis** (needed/not needed + 1-line reason)

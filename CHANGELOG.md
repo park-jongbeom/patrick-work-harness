@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.7] - 2026-06-29
+
+### Removed
+- `/comprehend-gate` 스킬 폐기 — 이해도 게이트가 Gate B(`/gate-b`)로 통합되어 단독 호출 use case 소멸 (HARNESS-COMPREHEND-REMOVE-1). comprehend-gate와 gate-b는 동일 Step 0~4 절차이고 gate-b가 더 완전(3문서 갱신·STOP 포함)·자립·통합 정본. `skills/comprehend-gate/` 삭제, `gate-a/SKILL.md`의 트리거 정본·선행 안내를 `gate-b/SKILL.md §Step 0`로 재지정, `comprehension-ledger-stale-guard.py`의 소문자 `comprehend-gate` 참조 4건 → `gate-b`(대문자 세션ID는 이력 보존). 훅 로직 불변(회귀 9/9·무회귀).
+
+### Changed
+- 플러그인 배포 문서 comprehend-gate 참조 정리 — `README.md`·`.claude-plugin/marketplace.json`·`install.sh`의 `/comprehend-gate` 안내 제거 + 이해도 게이트 = Gate B 일원화 표기 (`RELEASE_POLICY.md`의 v1.0.0 baseline 기록은 이력이므로 보존). `comprehension-ledger-stale-guard` 훅 설명은 gate-b 기준으로 갱신(훅 자체는 유지).
+
 ## [1.0.6] - 2026-06-28
 
 ### Removed
