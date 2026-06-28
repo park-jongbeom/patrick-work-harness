@@ -187,55 +187,7 @@ Compares the current `_engine_version` with the latest, shows the CHANGELOG, and
 
 ### Changelog
 
-#### [1.0.3] — 2026-06-28
-
-**Removed**
-- `/doc-update` skill — merged into `/harness-update` (HARNESS-zone reconcile is Axis A; `_engine_version` bump already covered)
-
-**Fixed**
-- Session dashboard renderer footer `HARNESS_PLANS_DIR` `NameError` — env-fallback variable defined; dashboard no longer silently fails to generate after `/init`
-
-**Changed**
-- `/init` Step 6/7 propagated to plugin — Stop hook wiring + initial `session-dashboard.html` generation
-
-#### [1.0.2] — 2026-06-26
-
-**Removed**
-- `/error-log`, `/export-roles` skills — 0 cumulative uses (HARNESS-SELF-AUDIT-1); error-log absorbed into Gate E inline recording
-
-#### [1.0.1] — 2026-06-26
-
-**Added**
-- `/harness-update` skill: standard upgrade path (version compare → CHANGELOG → 4-axis checklist → approve → batch update → `_engine_version` bump)
-- `/harness-update --check` mode: read-only checklist output
-
-**Changed**
-- `/doc-update` scoped to HARNESS zone only; full upgrades use `/harness-update`
-
----
-
-#### [1.0.0] — 2026-06-24
-
-**Added**
-- 8 Gate A~E process skills (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`, `/comprehend-gate`)
-- `/harness-update`, `/init`, `/doc-update` skills
-- Hook system: `master-plan-stale-guard`, `docker-command-guard`, `gate-e-sync-guard`, `test-tampering-guard`, `comprehension-ledger-stale-guard` + 5 more
-- `plugin.json` v1.0.0 metadata
-- `install.sh` automated installer
-- `.github/workflows/deploy-plugin.yml` CI/CD pipeline
-
-**Fixed**
-- 13 skill failure cases verified (HARNESS-REVIEW-4-R-4-6, 2026-06-21)
-- Plugin E2E verification passed (PLUGIN-TEST-1, C1~C5 PASS, 2026-06-23)
-
----
-
-#### [0.1.0] — 2026-06-15
-
-**Initial**
-- Initial `plugin.json` metadata definition
-- 7 core skills (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`)
-- `CLAUDE.md`-based harness specification
+Version history lives in [`CHANGELOG.md`](CHANGELOG.md) and [GitHub Releases](https://github.com/park-jongbeom/patrick-work-harness/releases) (both derived from commit history). It is intentionally **not duplicated here** to keep this README concise.
 
 ---
 
@@ -428,55 +380,7 @@ Gate A 승인
 
 ### 업데이트 이력
 
-#### [1.0.3] — 2026-06-28
-
-**제거**
-- `/doc-update` 스킬 폐기 — `/harness-update`로 통합(HARNESS zone 갱신은 Axis A·`_engine_version` 갱신 이미 포섭)
-
-**수정**
-- 세션 대시보드 렌더러 footer `HARNESS_PLANS_DIR` `NameError` 해소 — env 폴백 변수 정의·`/init` 후 대시보드 silent 미생성 버그 수정
-
-**변경**
-- `/init` Step 6/7 플러그인 반영 — Stop hook 배선 + `session-dashboard.html` 1회 생성
-
-#### [1.0.2] — 2026-06-26
-
-**제거**
-- `/error-log`·`/export-roles` 스킬 폐기 — 누적 사용 0회(HARNESS-SELF-AUDIT-1)·error-log는 Gate E 인라인 기록으로 흡수
-
-#### [1.0.1] — 2026-06-26
-
-**추가**
-- `/harness-update` 스킬 신설: 전체 업그레이드 표준 경로 (버전 비교 → CHANGELOG → 4 axis 체크리스트 → 승인 → 일괄 갱신 → `_engine_version` 갱신)
-- `/harness-update --check` 모드: 읽기 전용 체크리스트 출력
-
-**변경**
-- `/doc-update`는 HARNESS zone 전용으로 역할 분리; 전체 업그레이드는 `/harness-update` 사용
-
----
-
-#### [1.0.0] — 2026-06-24
-
-**추가**
-- Gate A~E 프로세스 스킬 8종 (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`, `/comprehend-gate`)
-- `/harness-update`, `/init`, `/doc-update` 스킬 추가
-- 훅 시스템: `master-plan-stale-guard`, `docker-command-guard`, `gate-e-sync-guard`, `test-tampering-guard`, `comprehension-ledger-stale-guard` 외 5종
-- `plugin.json` v1.0.0 메타 완성
-- `install.sh` 자동 설치 스크립트
-- `.github/workflows/deploy-plugin.yml` CI/CD 파이프라인
-
-**수정**
-- 스킬 실패케이스 13건 검증 완료 (HARNESS-REVIEW-4-R-4-6, 2026-06-21)
-- 플러그인화 E2E 검증 통과 (PLUGIN-TEST-1, C1~C5 PASS, 2026-06-23)
-
----
-
-#### [0.1.0] — 2026-06-15
-
-**초기 릴리즈**
-- 초기 `plugin.json` 메타 정의
-- 핵심 스킬 7종 (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`)
-- `CLAUDE.md` 기반 하네스 명세 완성
+버전 이력은 [`CHANGELOG.md`](CHANGELOG.md)와 [GitHub Releases](https://github.com/park-jongbeom/patrick-work-harness/releases)에 있습니다(둘 다 커밋 이력 기반). README 비대화 방지를 위해 **여기에 중복 기재하지 않습니다**.
 
 ---
 

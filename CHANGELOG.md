@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.6] - 2026-06-28
+
+### Removed
+- Cursor 전용 규칙·훅 제거 (HARNESS-CURSOR-REMOVE-1) — Claude Code 단독 사용으로 전환. `gate-guard.py`(Cursor Agent Hook)·`test_gate_guard.py` 삭제, `CLAUDE.md`의 Cursor 안내 참조 제거, `claude-gate-guard.py`의 Cursor 코스메틱(주석·`.cursor/` exempt) 정리. claude-gate-guard 차단 로직 불변(회귀 95 PASS).
+
+### Changed
+- README 변경로그 섹션 제거 — 버전 이력은 `CHANGELOG.md`·GitHub Releases(커밋 이력 기반)가 정본. README 비대화 방지를 위해 중복 기재 중단.
+
+### Fixed
+- `claude-gate-guard.py` false-positive 핫픽스 — `is_gate_a_blocked` 폴백 정규식(`Gate\s*A.*승인\s*대기`)이 ✅E 완료 세션 본문에 남은 "Gate A 계획(승인 대기)" 블록 텍스트에 오탐해 비면제 편집을 잘못 차단하던 것을, 폴백을 "파서가 게이트 판정 실패(gate=None)일 때만" 적용하도록 수정. v1.0.5(실파일 읽기 활성화) 후 첫 비면제 편집에서 노출. 회귀 테스트 추가(✅E+Gate A 본문→비차단).
+
 ## [1.0.5] - 2026-06-28
 
 ### Fixed

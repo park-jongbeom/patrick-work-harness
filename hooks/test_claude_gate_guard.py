@@ -59,6 +59,23 @@ SESSION_GATE_E_DONE = """\
 | Gate 진행 | A✅ → B✅ → C✅ → D✅ → E✅ |
 """
 
+# ✅E 세션인데 본문에 Gate A 블록 텍스트가 남은 경우(doc-cleanup 전) — 비차단이어야 함
+# (is_gate_a_blocked 폴백 정규식 `Gate\\s*A.*승인\\s*대기` 본문 오탐 회귀 잠금)
+SESSION_GATE_E_WITH_GATEA_BODY = """\
+# 현재 세션 상태
+
+> **현재 상태**: ✅E 완료 (2026-06-28)
+
+| 항목 | 값 |
+|------|-----|
+| 현재 Gate | **✅E 완료** |
+| Gate 진행 | A✅ → B✅ → C✅ → D✅ → E✅ |
+
+## Gate A 계획 (승인 대기)
+
+- 완료 세션 본문에 남은 Gate A 블록 텍스트 (슬림화 전)
+"""
+
 
 def run_hook(payload, session_content=None, at_root=True):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -162,12 +179,20 @@ def test_no_block_when_unresolved():
     print("  PASS: 세션 파일 부재 → fail-open exit 0")
 
 
+def test_done_session_with_gate_a_body_not_blocked():
+    """✅E 세션 본문에 'Gate A … 승인 대기' 텍스트가 남아도 비면제 편집 비차단(폴백 오탐 회귀)."""
+    rc, _ = _edit("src/Main.kt", SESSION_GATE_E_WITH_GATEA_BODY)
+    assert rc == 0, f"✅E인데 Gate A 본문 텍스트로 오차단: got {rc}"
+    print("  PASS: ✅E + Gate A 본문 텍스트 → 비차단(exit 0)")
+
+
 if __name__ == "__main__":
     tests = [
         test_gate_a_blocks_code_edit,
         test_gate_a_allows_md_edit,
         test_gate_a_allows_claude_dir,
         test_gate_e_allows_code_edit,
+        test_done_session_with_gate_a_body_not_blocked,
         test_gate_c_blocks_test_cmd,
         test_gate_d_allows_test_cmd,
         test_gate_a_allows_non_test_bash,

@@ -4,8 +4,6 @@ Gate 워크플로 결정적 강제 — Claude Code PreToolUse Hook.
 
 harness_runtime_charter.md §4: "기계가 막을 수 있는 것은 기계에 맡긴다"
 
-원본: gate-guard.py (Cursor Agent Hook) → Claude Code PreToolUse 훅으로 포팅.
-
 프로토콜:
   - 입력: stdin JSON — { tool_name, tool_input: {command?, file_path?}, cwd }
   - 차단: stderr 메시지 + exit 2
@@ -41,7 +39,6 @@ TEST_CMD_PATTERNS = [
 # 편집 차단에서 제외할 경로 (프로세스 문서, IDE 설정 등)
 EXEMPT_PATH_PATTERNS = [
     r'\.claude/',
-    r'\.cursor/',
     r'plans/',
     r'docs/',
     r'tasks/',
@@ -166,9 +163,13 @@ def is_gate_a_blocked(content):
     gate, emoji, _ = parse_gate_status(content)
     if gate == "A" and emoji == "⏸":
         return True
-    for pattern in [r'Gate\s*A.*승인\s*대기', r'Gate\s*A.*사용자\s*확인\s*전']:
-        if re.search(pattern, content, re.IGNORECASE):
-            return True
+    # 폴백: 파서가 게이트를 판정 못한 경우(gate is None)에만 본문 텍스트로 보조 판정.
+    # 파서가 정상 판정(예: ✅E)했으면, 완료 세션 본문에 남은 "Gate A … 승인 대기"
+    # (Gate A 블록 헤더 등)에 오탐해 비면제 편집을 잘못 차단하지 않도록 폴백을 건너뛴다.
+    if gate is None:
+        for pattern in [r'Gate\s*A.*승인\s*대기', r'Gate\s*A.*사용자\s*확인\s*전']:
+            if re.search(pattern, content, re.IGNORECASE):
+                return True
     return False
 
 
