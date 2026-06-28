@@ -1,69 +1,89 @@
 ---
 name: gate-b
-description: "Code implementation after Gate A approval. Use on '구현해라', '계획대로 구현', 'Gate B 시작', 'Gate B 진행', 'Gate A 승인', etc."
-effort: medium
+description: "Comprehension gate after Gate A approval. Use on 'Gate B 시작', 'Gate B 진행', 'Gate A 승인', '계획대로 구현', '구현해라', etc."
+effort: low
 ---
 
-# Gate B Procedure (follow order strictly)
+# Gate B Procedure — Comprehension Gate (follow order strictly)
 
-0. **Comprehension gate before start** (COMPREHEND-GATE-1) — If Gate A's 「이해도 게이트 발동 판정」 is **발동** (triggered), run `/comprehend-gate` first before code implementation (code implementation is blocked until the gate passes). If **미발동** (not triggered; trivial CRUD·docs·format change), skip this Step and proceed to Step 1. Procedure → `comprehend-gate/SKILL.md`.
+> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via free-form explanation. Defense against AI-era cognitive debt (MIT 2025). Canonical: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §2`.
+> **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
-1. **Based on the Gate A detailed plan**, implement the code
-   - Follow the file list·change direction·execution order approved at Gate A verbatim
-   - No additional changes·refactoring·comment cleanup beyond the plan
-   - **Ladder check (R-4-6)**: if an abstraction·helper not in the Gate A plan emerges mid-implementation, it is a ladder rung-1 violation — stop and apply the rung at the actual call site, or escalate per the Advisor rule below. (Restates the `Exceeding change scope` prohibition as a ladder check — no new rule.)
+## Step 0. 3-way risk classification
 
-2. After implementation, summarize the result as text output — include the items below:
-   - The actual changed-file list (state the reason if it differs from the Gate A plan)
-   - Per-file key implementation summary (design decisions·core before→after difference)
-   - Differences from the Gate A plan and their reasons (if none, "계획 그대로 구현")
-   - **ReAct deliverable guard (R-3)**: For each changed file, output one pair of 「Reasoning(왜 이 변경) → Action(실제 diff 요약)」.
-     No listing diffs without reasons — Gate C cannot trace change intent otherwise.
-     Compress each pair to within 3 lines (no verbose reasoning).
+Classify the Gate A plan by risk level and determine the path:
 
-3. Update the 3 documents (status: `B (확인 대기)`, write the Gate B block) — **run the file-editing tool**
-   - `00_MODERNIZATION_MASTER_PLAN.md` §7
-   - `SESSION_INDEX.md` YAML
-   - `CURRENT_SESSION.md` dashboard + Gate B block
-   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
+| Risk level | Decision criteria | Path |
+|------------|-------------------|------|
+| **Large blast radius** | auth·authorization·payment·concurrency·transaction boundary·migration·security policy (CORS·token·RBAC) | **User explains** — before seeing AI code |
+| **General risk** | new module·unfamiliar pattern·unfamiliar library·new algorithm/scoring | **AI self-explains** — user reviews |
+| **Trivial** | formulaic CRUD·docs·smallest-diff repeated pattern·config-value change | **Pass-through** — 1~2 line confirmation, proceed to gate-c |
 
-4. STOP — await user document review·confirmation
+> User override: if the user explicitly states 「스킵」 → pass-through; 「게이트 걸어줘」 → force trigger. Ambiguous responses keep the AI auto verdict.
 
-> **No test·build execution in this turn after Gate B completion** (`npm test` / `pytest` / `./gradlew test`, etc.).
-> Proceed in a separate turn after Gate C verification confirmation.
+## Step 1. Ledger expiry·re-verification prerequisite lookup
 
-## Scope of 「구현해라」-like Instructions
+**Before** requiring an explanation, look up entries in `plans/learning/comprehension_ledger.md` by `tech_tags` match first, then fall back to `scope` text match:
 
-「구현해」「계획대로 구현」「다음 계획을 구현해라」 mean **Gate B only**.
-To allow B→E, the user must specify the scope in a sentence such as 「Gate B부터 E까지 한 번에」「B~E 일괄로 진행해」.
+- **tech_tags matching (primary)**: if any tag in the ledger row's `tech_tags` column overlaps with this Gate A plan's technology area → apply expiry check
+- **Expiry verdict**:
+  - **Not expired** (within exp AND no material change to scope files) → skip (pass the gate, record 1-line reason)
+  - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
+  - **No record** → proceed with new verification
 
----
+> Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end. This Step's direct lookup is the first-pass verdict.
 
-## Advisor Escalation (optional)
+## Step 2. Force free-form explanation (non-trivial paths only)
 
-During Gate B execution, if the situation below applies, you may make a **single call** to an Opus subagent for advice and then return.
+**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force free-form explanation:
 
-**Gate B trigger conditions** (call only in these situations):
-- A design branch not in the Gate A plan is discovered
-- Conflict with an existing architecture pattern — cannot judge which direction is correct
-- Cannot choose among 2+ implementation options
+> **How it runs end to end + what could break, 3~6 sentences** (or "draw the data flow").
 
-**Call prohibited** (resolve directly): syntax·API reference lookup (Grep/WebFetch suffices)
+- **Large blast radius**: **the user** writes → **before** seeing AI code (generation-effect condition). AI only evaluates.
+- **General risk**: **the AI** writes a self-explanation based on the Gate A plan → the user reviews.
 
-**Session-cumulative max_uses**: 3 times. On exceeding → halt the session → request the user re-plan Gate A.
+## Step 3. Evaluation → corrective loop on failure (no blocking)
 
-Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
+Inspect gaps in the explanation (flow omission·unrecognized break point·wrong premise):
+
+- **Sufficient** → record Step 4 evidence then pass the gate → proceed to gate-c
+- **Gap found** → **do not block**. Route to that area's learning doc → retry once. If a gap remains after retry, delegate decision to user (proceed/further learning).
+
+## Step 4. Evidence record (expiring, non-trivial paths only)
+
+Add 1 row to `plans/learning/comprehension_ledger.md`:
+
+| Field | Value |
+|-------|-------|
+| `verified` | Verification date (absolute date) |
+| `tech_tags` | Comma-separated technology/library/system tags |
+| `scope` | Verification scope (module/feature/file glob) |
+| `exp` | Expiry condition (`N개월` or `{scope} 실질변경 시`) |
+| 설명 주체 | User / AI |
+| 결과 | Pass / Pass after retry / User-delegated |
+| 설명 요약 | Core flow·break point, 1 line |
+
+> Pass-through (trivial) sessions: skip this Step.
+> Expiry default: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
+
+## Step 5. Update the 3 documents (status: `B (확인 대기)`) — **run the file-editing tool**
+
+- `00_MODERNIZATION_MASTER_PLAN.md` §7
+- `SESSION_INDEX.md` YAML
+- `CURRENT_SESSION.md` dashboard + Gate B block
+> **session-dashboard.html update**: `session-dashboard-sync.py` runs as the first Stop hook entry, auto-regenerating the HTML. No skill Bash Step needed.
+
+6. STOP — await user document review·confirmation
 
 ---
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate B procedure (code implementation + 3-document update), output the block below at the **very end** of the response.
+After completing the entire Gate B procedure (comprehension gate + 3-document update), output the block below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
 ```
 ---
-**다음 단계**: Gate B 확인 후 「Gate C 시작」또는 「검증」으로 응답하면 `/gate-c` (Gate C 검증)가 시작됩니다.
+**다음 단계**: Gate B 확인 후 「Gate C 시작」또는 「구현」으로 응답하면 `/gate-c` (Gate C 구현)가 시작됩니다.
 **권장 모델 전환**: CURRENT_SESSION.md "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
-💡 **compact 권장 시점**: Gate B 구현이 끝난 지금이 `/compact` 최적 타이밍입니다. Gate C는 테스트 결과라는 새로운 맥락으로 시작하므로, B의 시행착오 컨텍스트를 정리하면 토큰을 절약할 수 있습니다.
 ```

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2] - 2026-06-26
+
+### Removed
+- `/error-log` 스킬 폐기 — HARNESS-SELF-AUDIT-1(2026-05-28) 누적 사용 0회. Gate E 인라인 오류 기록으로 흡수됨
+- `/export-roles` 스킬 폐기 — HARNESS-SELF-AUDIT-1 누적 사용 0회. 해당 기능 미사용 확인
+
+---
+
 ## [1.0.1] - 2026-06-26
 
 ### Added

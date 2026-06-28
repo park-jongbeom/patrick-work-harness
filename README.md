@@ -47,8 +47,6 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | `/harness-update` | Full upgrade — compare version → show CHANGELOG → 4-axis checklist → approve → batch update |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks |
 | `/comprehend-gate` | Comprehension gate — risk-based self-explanation check · expiring ledger |
-| `/error-log` | Record errors — accumulate recurrence-prevention rules into topic files |
-| `/export-roles` | Sync config — rsync `ai_claude` source of truth to other repositories |
 
 ---
 
@@ -91,7 +89,7 @@ Files created after installation:
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 13 slash commands
+    └── skills/          ← 11 slash commands
         ├── gate-a/
         ├── gate-b/
         ├── ...
@@ -205,7 +203,7 @@ Compares the current `_engine_version` with the latest, shows the CHANGELOG, and
 
 **Added**
 - 8 Gate A~E process skills (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`, `/comprehend-gate`)
-- `/harness-update`, `/init`, `/doc-update`, `/error-log`, `/export-roles` skills
+- `/harness-update`, `/init`, `/doc-update` skills
 - Hook system: `master-plan-stale-guard`, `docker-command-guard`, `gate-e-sync-guard`, `test-tampering-guard`, `comprehension-ledger-stale-guard` + 5 more
 - `plugin.json` v1.0.0 metadata
 - `install.sh` automated installer
@@ -275,8 +273,6 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→4 axis 체크리스트→승인→일괄 갱신 |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·hook 배선 |
 | `/comprehend-gate` | 이해도 게이트 — 위험 기반 자기설명 검증·만료형 ledger |
-| `/error-log` | 오류 기록 — 재발 방지 규칙을 topic 파일에 누적 |
-| `/export-roles` | 설정 동기화 — `ai_claude` 정본을 타 저장소에 rsync |
 
 ---
 
@@ -319,7 +315,7 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 슬래시 커맨드 13종
+    └── skills/          ← 슬래시 커맨드 11종
         ├── gate-a/
         ├── gate-b/
         ├── ...
@@ -433,7 +429,7 @@ Gate A 승인
 
 **추가**
 - Gate A~E 프로세스 스킬 8종 (`/gate-a` ~ `/gate-e`, `/doc-cleanup`, `/audit`, `/comprehend-gate`)
-- `/harness-update`, `/init`, `/doc-update`, `/error-log`, `/export-roles` 스킬 추가
+- `/harness-update`, `/init`, `/doc-update` 스킬 추가
 - 훅 시스템: `master-plan-stale-guard`, `docker-command-guard`, `gate-e-sync-guard`, `test-tampering-guard`, `comprehension-ledger-stale-guard` 외 5종
 - `plugin.json` v1.0.0 메타 완성
 - `install.sh` 자동 설치 스크립트
