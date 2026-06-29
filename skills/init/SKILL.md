@@ -438,7 +438,7 @@ Same pattern as Step 9: if the Layer 2 file already exists with user content (no
 
 **FEATURE_SPEC.md** (Gate A fills):
 ```markdown
-## Feature Intent
+## Overview
 <!-- Gate A에서 채워짐 -->
 <one-sentence summary of what this session adds or changes>
 
