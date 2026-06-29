@@ -269,6 +269,15 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
      **Self-contradiction avoidance**: This guard applies **from the next Gate A call** after R-12 introduction. The R-12 introduction itself (HARNESS-OPTIMIZE-1-b-1) proceeds under the pre-change SKILL, but pre-satisfies the post-change guard via the user decision to split 1-b whole (8+ files) → 1-b-1/1-b-2.
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+If `FEATURE_SPEC.md` exists at the target repo root (created by `/init` Step 9):
+- Replace `<!-- Gate A에서 채워짐 -->` markers in `## Overview` and `## Acceptance Criteria` sections with:
+  - **Overview**: one-sentence summary of what this session adds or changes (from Gate A plan scope)
+  - **Acceptance Criteria**: 2–5 measurable criteria derived from the Gate A plan's changed-file list and Step goals
+- Update `DOC_INDEX.md`: change `FEATURE_SPEC.md` row `Status` from `Skeleton` → `Partial`
+- If `FEATURE_SPEC.md` does not exist (brownfield or `--docs=minimal/none`): skip silently.
+
 2. Update the 3 documents (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML

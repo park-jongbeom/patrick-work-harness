@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.8] - 2026-06-30
+
+### Added
+- Gate A~E 스킬에 Layer 2 문서 갱신 지시 추가 (DOCBASE-3+) — `/init --docs=full`로 생성된 Layer 2 문서 골격(FEATURE_SPEC·API_SPEC·TEST_PLAN·ERROR_HANDLING·DECISION_LOG)을 각 Gate가 실제로 채우도록 `gate-a~e/SKILL.md`에 `### Layer 2 document update` 절 삽입. `if file exists / else skip silently` 조건부로 brownfield·`--docs=minimal/none` 저장소에 무영향. 각 Gate의 책임 분리: Gate A→FEATURE_SPEC Overview/AC, Gate B→API_SPEC Endpoints(변경 시), Gate C→TEST_PLAN 테스트케이스, Gate D→TEST_PLAN 체크리스트+ERROR_HANDLING+DECISION_LOG ADR, Gate E→DOC_INDEX 최종 상태 확정.
+- `harness-update/SKILL.md` Axis E 체크리스트 행 추가 — 배포본 동기화 시 Layer 2 문서 누락을 탐지할 수 있도록 Step 3 체크리스트에 `E | Layer 2 docs status` 행 추가(기존 A~D 보존). `DOC_INDEX.md` 존재·모든 행 `Skeleton` 이상 = PASS, 부재·`Pending` 잔존 = FAIL.
+
 ## [1.0.7] - 2026-06-29
 
 ### Removed

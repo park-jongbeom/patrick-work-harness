@@ -13,7 +13,7 @@
         "ref": "main"
       },
       "description": "Claude Code harness — Gate A~E process automation skills + hooks integration plugin",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "category": "development",
       "tags": ["gate-process", "harness", "automation", "workflow", "skills", "hooks"]
     }

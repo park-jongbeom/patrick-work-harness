@@ -92,6 +92,26 @@ Check the 7 items below against the Gate C changed files, and record the result 
    - Perform the refactoring — no additional feature changes beyond the Gate A plan scope
    - Re-verify — re-run the existing tests with the same Docker command
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+Fill the following if the respective files exist at the target repo root:
+
+**TEST_PLAN.md** — `## Verification Checklist` section:
+- Fill after Gate D run completes: list happy/error test PASS results, regression count
+- Update `DOC_INDEX.md` `TEST_PLAN.md` row → `Complete` (both Gate C and D sections now filled)
+
+**ERROR_HANDLING.md** — `## Failure Paths` + `## Recovery Strategies`:
+- Fill only if Gate D found failures or documented error paths (FIX-B/DEP items qualify)
+- If Gate D found no failures → leave marker in place (correct empty state — do not write "N/A")
+- Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
+
+**DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
+- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Consequences (per `/init` Step 10-b format)
+- If no non-obvious decision → leave marker in place
+- Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
+
+If none of the above files exist: skip silently.
+
 6. Update the 3 documents (status: `D (확인 대기)`, write the Gate D block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML

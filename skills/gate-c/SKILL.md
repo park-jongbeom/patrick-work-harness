@@ -19,6 +19,14 @@ effort: medium
      No listing diffs without reasons — Gate D cannot trace change intent otherwise.
      Compress each pair to within 3 lines (no verbose reasoning).
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+If `TEST_PLAN.md` exists at the target repo root:
+- Fill `## Test Cases` section: list happy/edge/error cases per changed unit (per `/init` Step 10-b table format)
+- Leave `## Verification Checklist` marker (`<!-- Gate D에서 채워짐 -->`) untouched — Gate D fills it.
+- Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
+- If `TEST_PLAN.md` does not exist: skip silently.
+
 3. Update the 3 documents (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML

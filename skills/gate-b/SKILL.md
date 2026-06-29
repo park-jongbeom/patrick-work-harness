@@ -66,6 +66,15 @@ Add 1 row to `plans/learning/comprehension_ledger.md`:
 > Pass-through (trivial) sessions: skip this Step.
 > Expiry default: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+If `API_SPEC.md` exists at the target repo root:
+- Gate B touches API contracts only when the session involves endpoint changes. Check: does the Gate A plan list any new or modified endpoints?
+  - **Yes** → fill `## Endpoints Changed` section (METHOD + path + request/response shape per `/init` Step 10-b format)
+  - **No** → leave `<!-- Gate B에서 채워짐 -->` marker in place (correct empty state — do not write "N/A")
+- Update `DOC_INDEX.md`: change `API_SPEC.md` row `Status` → `Partial` (if filled) or leave `Skeleton`.
+- If `API_SPEC.md` does not exist: skip silently.
+
 ## Step 5. Update the 3 documents (status: `B (확인 대기)`) — **run the file-editing tool**
 
 - `00_MODERNIZATION_MASTER_PLAN.md` §7
