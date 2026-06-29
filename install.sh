@@ -11,6 +11,9 @@
 #   # 특정 프로젝트 경로에 설치
 #   curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/main/install.sh | bash -s -- --target /path/to/your/project
 #
+#   # 변경 없이 미리보기만 (파일 미설치)
+#   curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/main/install.sh | bash -s -- --dry-run
+#
 #   # 로컬 스크립트 직접 실행
 #   ./install.sh --target /media/ubuntu/data120g/college-crawler
 
@@ -24,20 +27,26 @@ VERSION="latest"
 TARGET_DIR="$(pwd)"
 INSTALL_HOOKS=true
 INSTALL_SKILLS=true
+DRY_RUN=false
 
 # ── 인수 파싱 ───────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --version)  VERSION="$2";    shift 2 ;;
-    --target)   TARGET_DIR="$2"; shift 2 ;;
-    --no-hooks) INSTALL_HOOKS=false; shift ;;
+    --version)   VERSION="$2";    shift 2 ;;
+    --target)    TARGET_DIR="$2"; shift 2 ;;
+    --no-hooks)  INSTALL_HOOKS=false; shift ;;
     --no-skills) INSTALL_SKILLS=false; shift ;;
+    --dry-run)   DRY_RUN=true; shift ;;
     -h|--help)
       sed -n '/^# Usage/,/^[^#]/p' "$0" | grep '^#' | sed 's/^# \?//'
       exit 0 ;;
     *) echo "[ERROR] 알 수 없는 옵션: $1"; exit 1 ;;
   esac
 done
+
+if [[ "$DRY_RUN" == true ]]; then
+  echo "[DRY-RUN] 설치 미리보기 모드 — 파일을 변경하지 않습니다."
+fi
 
 # ── 버전 결정 ────────────────────────────────────────────
 if [[ "$VERSION" == "latest" ]]; then
@@ -59,31 +68,54 @@ if [[ ! -d "$TARGET_DIR" ]]; then
 fi
 echo "[2/5] 설치 대상: ${TARGET_DIR}"
 
-# ── tarball 다운로드 ─────────────────────────────────────
+# ── tarball 다운로드 + SHA256 검증 ───────────────────────
 TARBALL_URL="${BASE_URL}/archive/refs/tags/${VERSION}.tar.gz"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "[3/5] 다운로드 중: ${TARBALL_URL}"
-curl -fsSL "$TARBALL_URL" | tar -xzf - -C "$TMP_DIR"
+TARBALL="${TMP_DIR}/harness.tar.gz"
+curl -fsSL "$TARBALL_URL" -o "$TARBALL"
+
+# SHA256 체크섬 검증 (릴리스에 .sha256 파일이 있을 때만 수행)
+SHA256_URL="${BASE_URL}/releases/download/${VERSION}/patrick-work-harness-${VERSION}.sha256"
+if curl -fsSL --head "$SHA256_URL" 2>/dev/null | grep -q "^HTTP.*200"; then
+  EXPECTED=$(curl -fsSL "$SHA256_URL" | awk '{print $1}')
+  ACTUAL=$(sha256sum "$TARBALL" | awk '{print $1}')
+  if [[ "$EXPECTED" != "$ACTUAL" ]]; then
+    echo "[ERROR] SHA256 체크섬 불일치 — 다운로드 손상 또는 변조 가능성"
+    echo "  예상: ${EXPECTED}"
+    echo "  실제: ${ACTUAL}"
+    exit 1
+  fi
+  echo "      SHA256 검증 완료 ✔"
+else
+  echo "      체크섬 파일 없음 — 검증 건너뜀 (이 릴리스에 .sha256 미발행)"
+fi
+
+tar -xzf "$TARBALL" -C "$TMP_DIR"
 
 # tarball 압축 해제 후 생성되는 폴더명 (예: patrick-work-harness-1.0.0)
-EXTRACTED=$(ls "$TMP_DIR")
+EXTRACTED=$(ls "$TMP_DIR" | grep -v 'harness\.tar\.gz')
 SRC="${TMP_DIR}/${EXTRACTED}"
 
 # ── 스킬 설치 ────────────────────────────────────────────
 CLAUDE_DIR="${TARGET_DIR}/.claude"
-mkdir -p "$CLAUDE_DIR"
 
 if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
-  echo "[4/5] 스킬 설치 중..."
-  mkdir -p "${CLAUDE_DIR}/skills"
-  rsync -a --delete \
-    --exclude="__pycache__/" \
-    --exclude="*.pyc" \
-    "${SRC}/skills/" "${CLAUDE_DIR}/skills/"
-  SKILL_COUNT=$(ls "${CLAUDE_DIR}/skills/" | wc -l | tr -d ' ')
-  echo "      스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
+  if [[ "$DRY_RUN" == true ]]; then
+    SKILL_COUNT=$(ls "${SRC}/skills/" | wc -l | tr -d ' ')
+    echo "[4/5] [DRY-RUN] 스킬 ${SKILL_COUNT}종 설치 예정 → ${CLAUDE_DIR}/skills/ (미적용)"
+  else
+    echo "[4/5] 스킬 설치 중..."
+    mkdir -p "${CLAUDE_DIR}/skills"
+    rsync -a --delete \
+      --exclude="__pycache__/" \
+      --exclude="*.pyc" \
+      "${SRC}/skills/" "${CLAUDE_DIR}/skills/"
+    SKILL_COUNT=$(ls "${CLAUDE_DIR}/skills/" | wc -l | tr -d ' ')
+    echo "      스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
+  fi
 else
   echo "[4/5] 스킬 설치 건너뜀"
 fi
@@ -92,20 +124,25 @@ fi
 GLOBAL_SETTINGS="${HOME}/.claude/settings.json"
 
 if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
-  echo "[5/5] 훅 설치 중..."
-
-  # 훅 파일을 ~/.claude/hooks/ 에 복사
   GLOBAL_HOOKS_DIR="${HOME}/.claude/hooks/patrick-work-harness"
-  mkdir -p "$GLOBAL_HOOKS_DIR"
-  rsync -a --delete \
-    --exclude="__pycache__/" \
-    --exclude="*.pyc" \
-    --exclude="test_*.py" \
-    "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
-  echo "      훅 파일 → ${GLOBAL_HOOKS_DIR}/"
+  if [[ "$DRY_RUN" == true ]]; then
+    HOOK_COUNT=$(ls "${SRC}/hooks/" | grep '\.py$' | grep -v '^test_' | wc -l | tr -d ' ')
+    echo "[5/5] [DRY-RUN] 훅 ${HOOK_COUNT}종 설치 예정 → ${GLOBAL_HOOKS_DIR}/ (미적용)"
+    echo "      [DRY-RUN] settings.json 훅 등록 예정: ${GLOBAL_SETTINGS} (미적용)"
+  else
+    echo "[5/5] 훅 설치 중..."
 
-  # settings.json 에 훅 등록
-  python3 - <<PYEOF
+    # 훅 파일을 ~/.claude/hooks/ 에 복사
+    mkdir -p "$GLOBAL_HOOKS_DIR"
+    rsync -a --delete \
+      --exclude="__pycache__/" \
+      --exclude="*.pyc" \
+      --exclude="test_*.py" \
+      "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
+    echo "      훅 파일 → ${GLOBAL_HOOKS_DIR}/"
+
+    # settings.json 에 훅 등록
+    python3 - <<PYEOF
 import json, os, sys
 
 settings_path = os.path.expanduser("${GLOBAL_SETTINGS}")
@@ -171,19 +208,24 @@ if changed:
 else:
     print("      훅이 이미 등록되어 있습니다 (중복 건너뜀)")
 PYEOF
+  fi
 else
   echo "[5/5] 훅 설치 건너뜀"
 fi
 
 # ── 완료 ─────────────────────────────────────────────────
 echo ""
-echo "✔ patrick-work-harness ${VERSION} 설치 완료"
-echo ""
-echo "  스킬 경로: ${CLAUDE_DIR}/skills/"
-echo "  훅  경로:  ${HOME}/.claude/hooks/patrick-work-harness/"
-echo ""
-echo "  사용 가능한 슬래시 커맨드:"
-echo "    /gate-a  /gate-b  /gate-c  /gate-d  /gate-e"
-echo "    /audit   /doc-cleanup"
-echo ""
-echo "  Claude Code를 재시작하면 스킬이 활성화됩니다."
+if [[ "$DRY_RUN" == true ]]; then
+  echo "✔ --dry-run 완료 (변경 없음) — 실제 설치하려면 --dry-run 없이 재실행하세요."
+else
+  echo "✔ patrick-work-harness ${VERSION} 설치 완료"
+  echo ""
+  echo "  스킬 경로: ${CLAUDE_DIR}/skills/"
+  echo "  훅  경로:  ${HOME}/.claude/hooks/patrick-work-harness/"
+  echo ""
+  echo "  사용 가능한 슬래시 커맨드:"
+  echo "    /gate-a  /gate-b  /gate-c  /gate-d  /gate-e"
+  echo "    /audit   /doc-cleanup"
+  echo ""
+  echo "  Claude Code를 재시작하면 스킬이 활성화됩니다."
+fi

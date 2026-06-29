@@ -232,6 +232,7 @@ def generate_html(
         <div class="footer">
             <p>📂 정본 저장소: <code>{HARNESS_PLANS_DIR}/current_work/archive/session_history/</code></p>
             <p>🔗 현재 세션: <code>CURRENT_SESSION.md</code> · 세션 인덱스: <code>SESSION_INDEX.md</code> · 마스터 플랜: <code>00_MASTER_PLAN.md</code></p>
+            <p>📄 문서 현황: <code>DOC_INDEX.md</code></p>
             <p style="margin-top: 10px; opacity: 0.6;">⚙️ Gate 스킬 종료 시 자동 동기화</p>
         </div>
     </div>

@@ -7,6 +7,7 @@
 ## English
 
 A process automation harness for Claude Code.  
+Prevents the most common failure mode: **AI writing code before a plan is approved.**  
 Provides the **Gate A~E 5-step process** and **Stop hook quality guards** as slash commands.
 
 ### What is this?
@@ -241,6 +242,7 @@ MIT
 ## 한국어
 
 Claude Code 기반 소프트웨어 개발 프로세스 자동화 하네스입니다.  
+AI가 계획 승인 전에 코드를 작성하는 가장 흔한 실패 패턴을 차단합니다.  
 **Gate A~E 5단계 프로세스**와 **Stop hook 품질 가드**를 슬래시 커맨드로 제공합니다.
 
 ### 이 도구는?
