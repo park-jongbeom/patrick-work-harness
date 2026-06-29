@@ -29,6 +29,7 @@ effort: high
 - **Closing signal = external execution signals only** (test PASS/FAIL·build·type checker·linter). Do not close the loop on the model's self-judgment ("it's probably fixed").
 - **Upper bound ~3 times**: Read the error message·failure line, and if the cause is **obvious** (typo·null check·missing import·contract mismatch), fix inline and re-run to re-confirm via external signal. If there is progress, repeat within the upper bound.
 - **Stop immediately on no progress**: If the same error·same diff reproduces **2 times in a row**, stop the loop and enter Step 3 FIX-B/DEP classification (stop even if below the upper bound).
+- **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git restore .` (or `git stash`) to revert to the last clean state ③ verify the repo compiles/runs clean ④ report to the user: which files were reverted + why the fix could not proceed → request a new Gate A re-plan.
 - **If not obvious** (network·environment·design defect), enter Step 3 classification immediately without entering the loop.
 - **★ reward-hacking guard (R-2-G)**: During the loop, **test files·test commands·CI config are read-only** (no modification) — disabling verification via `@Disabled`·`assert true`·tampering with expected values to force a pass is a PROC violation. After the loop ends, check the `tests/` diff, and **if there is a test change, treat the gate as failed** (a legitimate test reinforcement is a Gate C-stage deliverable, not this loop's deliverable — separate it as FIX-B). See CLAUDE.md 「검증 루프 중 통과 목적의 테스트 수정 금지」.
 - **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output.
@@ -135,7 +136,7 @@ During Gate D execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): errors already in the standard failure·error taxonomy (PROC/ENV/TYPE/LOGIC/VERIFY/SEC/API)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → halt the session → request the user re-plan Gate A.
+**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above (git restore to last clean state) ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
 
