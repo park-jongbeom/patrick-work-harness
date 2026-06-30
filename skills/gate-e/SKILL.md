@@ -46,11 +46,9 @@ If `DOC_INDEX.md` exists at the target repo root:
    → **If there is no target, output "오류 기록 대상 없음 — 생략" and proceed to Step 4.**
 
    **Canonical location** (managed independently per repository):
-   - `react-web-ga/docs/rules/error_topics/`
-   - `ga-api-platform/docs/rules/error_topics/`
-   - `college-crawler/docs/rules/error_topics/`
+   - `<code-repo>/docs/rules/error_topics/` for each repo listed in `.claude/harness-answers.yml → code_repos`
    - Each folder's `README.md` is the topic index (canonical). Do not write to the ledger `../error_analysis.md`.
-   - `ai-consulting-plans`·`plans` are docs-only → record in the `error_topics/gate_process.md` of the code repository that that session worked on.
+   - Docs-only repos (no entry in `code_repos`) → record in the `error_topics/gate_process.md` of the code repository that this session worked on.
 
    **Topic file mapping** (common to the three repositories):
    | File | Tag | Target error |

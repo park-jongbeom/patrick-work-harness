@@ -15,7 +15,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/main/install.sh | bash -s -- --dry-run
 #
 #   # 로컬 스크립트 직접 실행
-#   ./install.sh --target /media/ubuntu/data120g/college-crawler
+#   ./install.sh --target /path/to/your-project
 
 set -euo pipefail
 

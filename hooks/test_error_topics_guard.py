@@ -26,11 +26,13 @@ def clear_counter(session_id):
 
 def run_hook(current_session_content, session_id="test-sess",
              index_content="", topics=None, write_current=True,
-             stop_hook_active=False):
+             stop_hook_active=False, code_repos=None):
     """
     error-topics-guard.py 를 서브프로세스로 실행, (returncode, stderr) 반환.
 
     topics: { repo_name: { topic_file: content } } — error_topics/*.md 픽스처.
+    code_repos: 검사 대상 저장소 목록 (None → topics 키에서 자동 추론).
+               ERROR_TOPICS_CODE_REPOS env 로 주입 (harness-answers.yml 대체).
     """
     with tempfile.TemporaryDirectory() as base_dir, \
             tempfile.TemporaryDirectory() as repo_root:
@@ -53,6 +55,14 @@ def run_hook(current_session_content, session_id="test-sess",
         env = os.environ.copy()
         env["ERROR_TOPICS_GUARD_BASE"] = base_dir
         env["ERROR_TOPICS_GUARD_REPO_ROOT"] = repo_root
+
+        # code_repos 주입: 명시 시 우선, 없으면 topics 키 자동 추론
+        repos = code_repos or (list((topics or {}).keys()) or [])
+        if repos:
+            env["ERROR_TOPICS_CODE_REPOS"] = ",".join(repos)
+        else:
+            env.pop("ERROR_TOPICS_CODE_REPOS", None)
+
         payload = {"session_id": session_id}
         if stop_hook_active:
             payload["stop_hook_active"] = True
@@ -66,7 +76,7 @@ def run_hook(current_session_content, session_id="test-sess",
 
 # --- 픽스처 ---
 
-def current_md(session_id, done=True, repos="ga-api-platform", trace="self-debug 1회"):
+def current_md(session_id, done=True, repos="my-api", trace="self-debug 1회"):
     """CURRENT_SESSION.md 픽스처."""
     state = "✅E 완료 (2026-05-22)" if done else "B (확인 대기)"
     gate_cell = "**✅E 완료**" if done else "**B (확인 대기)**"
@@ -108,7 +118,7 @@ def test_doc_only_repo_allows():
     """문서 전용 저장소(코드 저장소 없음) → 검사 제외 허용."""
     clear_counter("t-doconly")
     code, _ = run_hook(
-        current_md("FIX-B-DOC-1", repos="plans + ai-consulting-plans"),
+        current_md("FIX-B-DOC-1", repos="plans + docs-repo"),
         session_id="t-doconly",
     )
     assert code == 0, f"expected 0, got {code}"
@@ -186,7 +196,7 @@ def test_megaline_current_trace_blocks():
         current_md("GA-MEGACUR-1", trace="self-debug 0"),
         session_id="t-megacur",
         index_content=index,
-        topics={"ga-api-platform": {"testing.md": "무관 내용\n"}},
+        topics={"my-api": {"testing.md": "무관 내용\n"}},
     )
     assert code == 2, f"expected 2 (현재 head 흔적 차단), got {code}"
     assert "GA-MEGACUR-1" in err
@@ -200,7 +210,7 @@ def test_logged_allows():
     code, _ = run_hook(
         current_md("FIX-B-SPOTLESS-9"),
         session_id="t-logged",
-        topics={"ga-api-platform": {
+        topics={"my-api": {
             "testing.md": "## [2026-05-22] FIX-B-SPOTLESS-9 — spotless 위반\n",
         }},
     )
@@ -214,7 +224,7 @@ def test_unlogged_fixb_prefix_blocks():
     code, err = run_hook(
         current_md("FIX-B-SPOTLESS-3"),
         session_id="t-unlogged",
-        topics={"ga-api-platform": {
+        topics={"my-api": {
             "testing.md": "## [2026-05-21] LSE-CLEANUP-1-d — 무관 항목\n",
         }},
     )
@@ -231,7 +241,7 @@ def test_unlogged_selfdebug_blocks():
     code, err = run_hook(
         current_md("DETEKT-CI-FIX-9", trace="self-debug 1회"),
         session_id="t-sd",
-        topics={"ga-api-platform": {"testing.md": "무관 내용\n"}},
+        topics={"my-api": {"testing.md": "무관 내용\n"}},
     )
     assert code == 2, f"expected 2, got {code}"
     assert "DETEKT-CI-FIX-9" in err
@@ -243,7 +253,7 @@ def test_loop_guard_releases_after_max():
     """연속 차단 한도 초과 시 fail-open (무한 루프 방지)."""
     clear_counter("t-loop")
     cur = current_md("FIX-B-LOOP-1")
-    topics = {"ga-api-platform": {"testing.md": "무관\n"}}
+    topics = {"my-api": {"testing.md": "무관\n"}}
     for i in range(MAX_BLOCKS):
         code, _ = run_hook(cur, session_id="t-loop", topics=topics)
         assert code == 2, f"call {i + 1}: expected 2, got {code}"
@@ -259,7 +269,7 @@ def test_stop_hook_active_allows():
     code, _ = run_hook(
         current_md("FIX-B-ACTIVE-1"),  # FIX-B prefix + 미적재 = 원래라면 차단
         session_id="t-active3",
-        topics={"ga-api-platform": {"testing.md": "무관 내용\n"}},
+        topics={"my-api": {"testing.md": "무관 내용\n"}},
         stop_hook_active=True,
     )
     assert code == 0, f"expected 0, got {code}"

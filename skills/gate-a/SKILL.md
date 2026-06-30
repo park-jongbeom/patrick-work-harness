@@ -126,7 +126,7 @@ Summary:
 
 Purpose: avoid writing a duplicate implementation, and pass existing patterns to Gate B as reuse candidates.
 
-> **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — college-crawler↔ga-api-platform schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
+> **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — e.g. crawler↔api schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
 
 #### 0-Fitness. System fitness check (HARNESS-PLAN-AUGMENT-1, 2026-06-09)
 
@@ -149,7 +149,7 @@ After reading all related files, check the trigger table below. **If any applies
 | Trigger (this plan's task character) | OSS candidate (§4) | Complement effect |
 |--------------------------------------|--------------------|-------------------|
 | External-library version change·DEP-BUMP·new-library introduction·framework migration | **Context7 MCP** (P0) | Inject per-version latest docs → prevent stale-API inference |
-| react-web-ga UI/flow change + E2E verification needed | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
+| Frontend UI/flow change + E2E verification needed | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
 | Long Gate C verification·large test logs·multi-repo simultaneous verification | **Context Engineering / 5 coordination patterns** (P1/P2) | tool-result-clearing·delegation for token saving |
 
 `AskUserQuestion` options: ① register as a separate `OSS-ADOPT-*` track / ② incorporate into this session's scope / ③ no adoption (reference only).

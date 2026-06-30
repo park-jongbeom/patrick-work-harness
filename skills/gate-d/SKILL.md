@@ -53,7 +53,7 @@ Check the 7 items below against the Gate C changed files, and record the result 
 
 | Item | Check content | N/A allowed condition |
 |------|---------------|----------------------|
-| API contract | Do new·modified endpoints·interfaces match the `react-web-ga/docs/04_BACKEND_COOPERATION.md` contract | Session with no API change |
+| API contract | Do new·modified endpoints·interfaces match the API contract doc referenced in `CLAUDE.md §Build·Test` (e.g. `<frontend>/docs/BACKEND_COOPERATION.md`) | Session with no API change |
 | Error handling | Are exception·null·failure paths handled (unhandled promise, NPE, unhandled exception, etc.) | Markdown-only repository |
 | Duplication·pattern | Did you reuse the existing helper found in Gate A Pre-Plan; is there no duplication of the same logic | Always applied |
 
@@ -122,8 +122,8 @@ If none of the above files exist: skip silently.
 
 ## Docker Execution Commands (mandatory in Gate D record)
 
-> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (each canonical for react-web-ga·college-crawler·ga-api-platform). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
-> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (`docker exec ga-api-platform`·`-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
+> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (each canonical per repo). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
+> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (absent container names·`-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
 
 ## FIX-B Handling Example
 
@@ -138,8 +138,8 @@ If none of the above files exist: skip silently.
 
 ```
 [DEP] ProfileSteps.e2e.test.tsx — runMatching API mock 실패
-  에러: runMatching is not a function (ga-api-platform 엔드포인트 미구현)
-  의존 대상: ga-api-platform 세션 2-D-3 완료 후 검증 가능
+  에러: runMatching is not a function (api-platform 엔드포인트 미구현)
+  의존 대상: api-platform 세션 2-D-3 완료 후 검증 가능
   검증 예약: 2-D-3 ✅E 이후
 ```
 

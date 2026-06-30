@@ -35,6 +35,12 @@ import os
 import re
 import sys
 
+try:
+    import yaml
+    _YAML_AVAILABLE = True
+except ImportError:
+    _YAML_AVAILABLE = False
+
 # 정본 절대경로 — R-4-2-b: 3단 우선순위 (① custom env[테스트] → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 BASE_DIR = (
@@ -52,11 +58,60 @@ REPO_ROOT = (
 CURRENT_SESSION = os.path.join(BASE_DIR, "CURRENT_SESSION.md")
 SESSION_INDEX = os.path.join(BASE_DIR, "SESSION_INDEX.md")
 
-# error_topics 를 갖는 코드 저장소 (error-log SKILL Step 1 정본)
-CODE_REPOS = ["react-web-ga", "ga-api-platform", "college-crawler"]
-
 # 연속 차단 한도 (무한 루프 방지)
 MAX_BLOCKS = 3
+
+
+def _find_answers_yml():
+    """harness-answers.yml 경로 탐색 (BASE_DIR → CLAUDE_PROJECT_DIR → cwd)."""
+    candidates = [
+        os.path.join(BASE_DIR, ".claude", "harness-answers.yml"),
+        os.path.join(os.getcwd(), ".claude", "harness-answers.yml"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _load_code_repos():
+    """harness-answers.yml → code_repos 로드. 미설정/실패 시 빈 리스트(fail-open)."""
+    # 테스트 우선 env 오버라이드 지원
+    env_override = os.environ.get("ERROR_TOPICS_CODE_REPOS")
+    if env_override:
+        return [r.strip() for r in env_override.split(",") if r.strip()]
+
+    path = _find_answers_yml()
+    if not path:
+        return []
+    try:
+        if _YAML_AVAILABLE:
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            with open(path, "r", encoding="utf-8") as f:
+                data = _simple_parse_code_repos(f.read())
+        repos = data.get("code_repos") or []
+        return [str(r) for r in repos if r]
+    except Exception:
+        return []
+
+
+def _simple_parse_code_repos(text):
+    """PyYAML 미설치 대비 간이 파서 — code_repos 리스트만 추출."""
+    result = []
+    in_section = False
+    for line in text.splitlines():
+        if re.match(r"^code_repos\s*:", line):
+            in_section = True
+            continue
+        if in_section:
+            if re.match(r"^\S", line) and not line.strip().startswith("-"):
+                break
+            m = re.match(r"^\s+-\s+[\"']?(.+?)[\"']?\s*$", line)
+            if m:
+                result.append(m.group(1).strip())
+    return {"code_repos": result}
 
 
 def allow():
@@ -128,13 +183,17 @@ def strip_history(line):
 def detect_code_repos(cur_text):
     """
     CURRENT_SESSION.md '| 저장소 | ... |' 행에서 코드 저장소 토큰 추출.
-    문서 전용(plans·ai-consulting-plans)만 있으면 빈 리스트.
+    harness-answers.yml → code_repos 설정 기준으로 필터링.
+    설정 없거나 문서 전용(plans 등)만 있으면 빈 리스트 → 검사 제외(fail-open).
     """
+    code_repos = _load_code_repos()
+    if not code_repos:
+        return []
     m = re.search(r"\|\s*저장소\s*\|\s*([^\|]+)\|", cur_text)
     if not m:
         return []
     repos_field = m.group(1)
-    return [r for r in CODE_REPOS if r in repos_field]
+    return [r for r in code_repos if r in repos_field]
 
 
 def session_id_logged(session_id, repos):

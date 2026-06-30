@@ -68,12 +68,12 @@ def current_md(session_id):
 def master_plan_md(session_id, extra_desc="현재 작업 설명"):
     return (
         '---\n'
-        'name: "Go Almond 작업 계획 인덱스"\n'
+        'name: "작업 계획 인덱스"\n'
         'version: 7.1\n'
         f'status: "{session_id} {extra_desc} · 파일 N개."\n'
         '---\n'
         '\n'
-        '# Go Almond 작업 계획 인덱스\n'
+        '# 작업 계획 인덱스\n'
     )
 
 

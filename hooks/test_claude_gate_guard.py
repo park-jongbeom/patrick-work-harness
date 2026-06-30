@@ -139,7 +139,7 @@ def test_gate_e_allows_code_edit():
 
 # ── Gate<D 테스트명령 차단 (exit 2) ──
 def test_gate_c_blocks_test_cmd():
-    rc, err = _bash("docker exec react-web-ga npm test", SESSION_GATE_C_PENDING)
+    rc, err = _bash("docker exec my-frontend npm test", SESSION_GATE_C_PENDING)
     assert rc == 2, f"expected 2 got {rc}"
     print("  PASS: ⏸C + npm test → exit 2")
 

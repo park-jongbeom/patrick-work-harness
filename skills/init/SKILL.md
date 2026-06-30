@@ -1,6 +1,6 @@
 ---
 name: init
-description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-1 sentinel zones + session docs + D-2 provenance sidecar). Use on '/init', 'harness init', '하네스 초기화', or when bootstrapping a new project with the go-almond harness plugin."
+description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-1 sentinel zones + session docs + D-2 provenance sidecar). Use on '/init', 'harness init', '하네스 초기화', or when bootstrapping a new project with the patrick-work-harness plugin."
 ---
 
 # /init Skill — Harness Scaffold Initializer
@@ -11,7 +11,7 @@ description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-
 
 ## When to Use
 
-- Bootstrapping a new repository with the go-almond harness
+- Bootstrapping a new repository with the patrick-work-harness plugin
 - Setting up Gate A–E workflow + session document structure from scratch
 - Re-initializing after a harness version bump (when `.claude/harness-answers.yml` is absent)
 
@@ -36,12 +36,14 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `project_repo` | Short repo identifier (e.g. `go-almond`) | inferred from directory name |
+| `project_repo` | Short repo identifier (e.g. `my-project`) | inferred from directory name |
 | `stack` | Primary stack tag (e.g. `kotlin-spring`, `react-ts`, `python`) | inferred |
 | `phase_model` | Enable MVP Phase 1–4 guardrail in CLAUDE.md? | `true` |
 | `session_docs` | Generate SESSION_INDEX.md + CURRENT_SESSION.md stubs? | `true` |
 | `archive_path` | Absolute path for session archive files | ask user |
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
+| `code_repos` | List of repo dir names that have `docs/rules/error_topics/` (used by error-topics-guard) | ask user (empty = guard skipped) |
+| `docker_blocked_containers` | List of container name rules for docker-command-guard (see format below) | ask user (empty = TTY-only guard) |
 
 ### Step 3 — Write `.claude/harness-answers.yml` (D-2 provenance sidecar)
 
@@ -59,10 +61,26 @@ phase_model: <answers.phase_model>
 session_docs: <answers.session_docs>
 archive_path: "<answers.archive_path>"
 worklog_path: "<answers.worklog_path>"
+
+# Repo names that own docs/rules/error_topics/ (used by error-topics-guard).
+# Leave empty [] to skip the guard entirely for this project.
+code_repos:
+  - "<repo-dir-name>"   # e.g. "my-api", "my-frontend", "my-crawler"
+
+# Container rules for docker-command-guard (project-specific blocked containers).
+# TTY (-it) blocking is always on regardless of this list.
+# Leave empty [] to enforce TTY-only guard (no project-specific rules).
+docker_blocked_containers:
+  - name: "<container-name>"    # exact container name used in `docker exec <name>`
+    reason: "<why it is blocked>"
+  # - name: "<runtime-container>"
+  #   gradle: true              # also block gradlew/gradle commands on this container
+  #   reason: "JRE only, no Gradle"
 ```
 
 > `_engine_version` must match `plugin.json` → `version` at init time.
 > `archive_path` / `worklog_path` here are the SSOT — do NOT duplicate these values as prose in CLAUDE.md (SSOT-in-prose violation, [SSOT 서술에 값 금지] policy).
+> `code_repos` / `docker_blocked_containers` are the SSOT for hook configuration — do NOT hardcode repo names or container names anywhere else.
 
 ### Step 4 — Write `CLAUDE.md` with D-1 sentinel zones
 
