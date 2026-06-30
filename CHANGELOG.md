@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.9] - 2026-06-30
+
+### Fixed
+- `session_dashboard_parsers.py` 섹션명 정합 — `## 활성·예정 세션` → `## 현재 세션`, `## 최근 완료` → `## 최근 완료 세션` 패턴 수정 (HARNESS-RENDERER-PROJECT-FIX-1). SESSION_INDEX.md 실제 섹션명과 정규식 불일치로 활성세션이 빈 상태로 렌더링되던 버그 수정.
+- `session_dashboard_parsers.py` 권장 모델 패턴 확장 — `Gate별 권장 모델` 외 `권장 모델` 필드명도 허용하여 구세션 호환성 확보.
+- `session-dashboard-sync.py` 기본 경로 하드코딩 수정 — `CLAUDE_PROJECT_DIR` 폴백 중복(`or … or …` 동일값)을 `/media/ubuntu/data120g/ai-consulting-plans` 절대경로로 교체.
+
+### Added
+- 세션 대시보드 `project` 동적 반영 — `SESSION_INDEX.md` YAML `project:` 필드를 파싱하여 HTML `<title>`·`<h1>`에 프로젝트명을 삽입 (`session_dashboard_parsers.py` + `session_dashboard_renderer.py`). 필드 부재 시 하위호환 유지(빈 문자열 폴백).
+
+### Removed
+- `session_dashboard_renderer.py` footer `DOC_INDEX.md` 링크 제거 — 모든 저장소에 `DOC_INDEX.md`가 있지 않아 노이즈가 되던 항목 삭제.
+
 ## [1.0.8] - 2026-06-30
 
 ### Added

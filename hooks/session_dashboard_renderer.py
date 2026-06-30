@@ -33,6 +33,7 @@ def generate_html(
     current_title,
     priority_note,
     last_completed_title,
+    project="",
 ):
     """HTML 생성"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -139,7 +140,7 @@ def generate_html(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>세션 대시보드 — Go Almond AI 유학 상담</title>
+    <title>세션 대시보드{(' — ' + project) if project else ''}</title>
     <style>
 {css}    </style>
 </head>
@@ -155,7 +156,7 @@ def generate_html(
         </div>
 
         <header>
-            <h1>🎓 Go Almond AI 유학 상담 — 세션 대시보드</h1>
+            <h1>🎓 {(project + ' — ') if project else ''}세션 대시보드</h1>
 
             <div class="meta-info">
                 <div class="meta-item">
@@ -232,7 +233,6 @@ def generate_html(
         <div class="footer">
             <p>📂 정본 저장소: <code>{HARNESS_PLANS_DIR}/current_work/archive/session_history/</code></p>
             <p>🔗 현재 세션: <code>CURRENT_SESSION.md</code> · 세션 인덱스: <code>SESSION_INDEX.md</code> · 마스터 플랜: <code>00_MASTER_PLAN.md</code></p>
-            <p>📄 문서 현황: <code>DOC_INDEX.md</code></p>
             <p style="margin-top: 10px; opacity: 0.6;">⚙️ Gate 스킬 종료 시 자동 동기화</p>
         </div>
     </div>

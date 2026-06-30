@@ -104,8 +104,10 @@ def parse_current_session(content):
     if match:
         data["test_result"] = match.group(1).strip()
 
-    # 권장 모델
-    match = re.search(r"Gate별 권장 모델\s*\|\s*(.*?)(?:\n|$)", content)
+    # 권장 모델 (두 필드명 모두 허용 — 과거 세션 호환)
+    match = re.search(
+        r"(?:Gate별 권장 모델|권장 모델)\s*\|\s*(.*?)(?:\n|$)", content
+    )
     if match:
         data["model_rec"] = match.group(1).strip()
 
@@ -118,6 +120,12 @@ def parse_session_index(content):
         "active": [],
         "completed": [],
     }
+
+    # YAML 헤더에서 project 추출
+    project = ""
+    proj_match = re.search(r'project:\s*"([^"]+)"', content)
+    if proj_match:
+        project = proj_match.group(1)
 
     # YAML 헤더에서 last_updated 추출
     last_updated = ""
@@ -140,15 +148,14 @@ def parse_session_index(content):
     if note_match:
         priority_note = _strip_history(note_match.group(1))
 
-    # 활성·예정 세션
+    # 현재 세션 (활성)
     active_match = re.search(
-        r"## 활성·예정 세션\n\n\|\s*세션 ID.*?\n(.*?)(?:\n## )",
+        r"## 현재 세션\n\n\|\s*세션 ID.*?\n(.*?)(?:\n## )",
         content,
         re.DOTALL,
     )
     if active_match:
         rows = active_match.group(1).strip().split("\n")
-        # 정규식이 헤더 줄(`| 세션 ID | ...`)을 lookahead로 이미 소비하므로
         # group(1) 첫 줄은 separator(`|---|...|`) 1줄. 그 다음부터 데이터 행.
         for row in rows[1:]:  # separator 1줄 스킵
             if row.strip() and "|" in row:
@@ -163,9 +170,9 @@ def parse_session_index(content):
                         }
                     )
 
-    # 최근 완료
+    # 최근 완료 세션
     completed_match = re.search(
-        r"## 최근 완료.*?\n\n\|\s*세션 ID.*?\n(.*?)(?:\n##|$)",
+        r"## 최근 완료 세션\n\n\|\s*세션 ID.*?\n(.*?)(?:\n##|$)",
         content,
         re.DOTALL,
     )
@@ -195,4 +202,5 @@ def parse_session_index(content):
         current_title,
         priority_note,
         last_completed_title,
+        project,
     )

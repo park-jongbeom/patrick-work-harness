@@ -25,7 +25,7 @@ from session_dashboard_renderer import generate_html  # noqa: E402
 PROJECT_ROOT = Path(
     os.environ.get("DASHBOARD_SYNC_BASE")
     or os.environ.get("CLAUDE_PROJECT_DIR")
-    or os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    or "/media/ubuntu/data120g/ai-consulting-plans"
 )
 CURRENT_SESSION_FILE = PROJECT_ROOT / "CURRENT_SESSION.md"
 SESSION_INDEX_FILE = PROJECT_ROOT / "SESSION_INDEX.md"
@@ -62,6 +62,7 @@ def main():
             current_title,
             priority_note,
             last_completed_title,
+            project,
         ) = parse_session_index(index_content)
 
         # HTML 생성
@@ -72,6 +73,7 @@ def main():
             current_title,
             priority_note,
             last_completed_title,
+            project,
         )
 
         # 파일 저장
