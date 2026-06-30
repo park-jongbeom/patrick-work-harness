@@ -148,6 +148,18 @@ def parse_session_index(content):
     if note_match:
         priority_note = _strip_history(note_match.group(1))
 
+    # YAML 헤더에서 gate 상태 추출
+    gate_status = ""
+    gate_match = re.search(r'gate:\s*"([^"]+)"', content)
+    if gate_match:
+        gate_status = gate_match.group(1)
+
+    # YAML 헤더에서 next_action 추출
+    next_action = ""
+    action_match = re.search(r'next_action:\s*"([^"]+)"', content)
+    if action_match:
+        next_action = action_match.group(1)
+
     # 현재 세션 (활성)
     active_match = re.search(
         r"## 현재 세션\n\n\|\s*세션 ID.*?\n(.*?)(?:\n## )",
@@ -203,4 +215,6 @@ def parse_session_index(content):
         priority_note,
         last_completed_title,
         project,
+        gate_status,
+        next_action,
     )

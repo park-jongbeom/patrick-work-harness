@@ -51,19 +51,21 @@ FIXTURE_SESSION_INDEX_MD = """\
 ---
 project: "Fixture Project"
 last_updated: "2026-01-01"
+gate: "A (승인 대기) — FIXTURE-A"
+next_action: "Gate A 승인 후 /gate-c 시작."
 priority_note: "FIXTURE — 시점 무관 회귀 가드"
 sessions: []
 ---
 
 # 세션 인덱스
 
-## 활성·예정 세션
+## 현재 세션
 
 | 세션 ID | 제목 | 저장소 | 상태 |
 |---------|------|--------|------|
 | FIXTURE-A | 활성 fixture 세션 | plans | A (승인 대기) |
 
-## 최근 완료 (직전 6세션)
+## 최근 완료 세션
 
 | 세션 ID | 제목 | 저장소 | 상태 |
 |---------|------|--------|------|
@@ -117,6 +119,9 @@ class TestSessionDashboardSplit(unittest.TestCase):
             current_title,
             priority_note,
             last_completed_title,
+            project,
+            gate_status,
+            next_action,
         ) = p.parse_session_index(FIXTURE_SESSION_INDEX_MD)
         output = r.generate_html(
             cur,
@@ -125,6 +130,9 @@ class TestSessionDashboardSplit(unittest.TestCase):
             current_title,
             priority_note,
             last_completed_title,
+            project,
+            gate_status,
+            next_action,
         )
 
         self.assertTrue(
@@ -176,6 +184,9 @@ class TestSessionDashboardSplit(unittest.TestCase):
             current_title,
             priority_note,
             last_completed_title,
+            project,
+            gate_status,
+            next_action,
         ) = p.parse_session_index(FIXTURE_SESSION_INDEX_MD)
         html = r.generate_html(
             cur,
@@ -184,6 +195,9 @@ class TestSessionDashboardSplit(unittest.TestCase):
             current_title,
             priority_note,
             last_completed_title,
+            project,
+            gate_status,
+            next_action,
         )
         # 제목 폴백: work_topic (FIXTURE는 sessions:[] → current_title 공백)
         self.assertIn("과거 세션 작업 주제", html)
@@ -214,7 +228,7 @@ class TestSessionDashboardSplit(unittest.TestCase):
             '**PREV-1 — ✅E 완료** 과거 세션 본문. 직전: PREV-2 ✅E."\n'
             "---\n"
         )
-        (_s, _u, _t, note_done, _l) = p.parse_session_index(mega_done)
+        (_s, _u, _t, note_done, _l, _p, _g, _n) = p.parse_session_index(mega_done)
         self.assertIn("현재 작업 설명", note_done)
         self.assertIn("직전: PREV-1 ✅E", note_done)  # 현재 head 종결 라인 보존
         self.assertNotIn("(이전 priority_note)", note_done)
@@ -231,7 +245,7 @@ class TestSessionDashboardSplit(unittest.TestCase):
             '**PREV-1 — ✅E 완료** 과거 세션 본문. 직전: PREV-2 ✅E."\n'
             "---\n"
         )
-        (_s, _u, _t, note_mid, _l) = p.parse_session_index(mega_mid)
+        (_s, _u, _t, note_mid, _l, _p, _g, _n) = p.parse_session_index(mega_mid)
         self.assertIn("현재 작업 설명", note_mid)
         self.assertNotIn("(이전 priority_note)", note_mid)
         self.assertNotIn("과거 세션 본문", note_mid)
@@ -248,7 +262,7 @@ class TestSessionDashboardSplit(unittest.TestCase):
             'HISTORY_BODY 과거 세션 본문."\n'
             "---\n"
         )
-        (_s, _u, _t, note_prose, _l) = p.parse_session_index(mega_prose)
+        (_s, _u, _t, note_prose, _l, _p, _g, _n) = p.parse_session_index(mega_prose)
         self.assertIn("`> (이전 `로 전환", note_prose)  # 백틱 prose 보존
         self.assertIn("직전: PREV-1 ✅E", note_prose)
         self.assertNotIn("HISTORY_BODY", note_prose)  # 실제 이력만 절단

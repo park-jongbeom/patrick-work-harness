@@ -34,6 +34,8 @@ def generate_html(
     priority_note,
     last_completed_title,
     project="",
+    gate_status="",
+    next_action="",
 ):
     """HTML 생성"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -180,7 +182,15 @@ def generate_html(
                     <div class="meta-label">마지막 동기화</div>
                     <div class="meta-value">{last_updated}</div>
                 </div>
-            </div>
+{f'''                <div class="meta-item">
+                    <div class="meta-label">Gate 상태</div>
+                    <div class="meta-value">{gate_status}</div>
+                </div>
+''' if gate_status else ''}{f'''                <div class="meta-item">
+                    <div class="meta-label">다음 행동</div>
+                    <div class="meta-value">{next_action}</div>
+                </div>
+''' if next_action else ''}            </div>
         </header>
 
         <div class="sessions">

@@ -63,6 +63,8 @@ def main():
             priority_note,
             last_completed_title,
             project,
+            gate_status,
+            next_action,
         ) = parse_session_index(index_content)
 
         # HTML 생성
@@ -74,6 +76,8 @@ def main():
             priority_note,
             last_completed_title,
             project,
+            gate_status,
+            next_action,
         )
 
         # 파일 저장
