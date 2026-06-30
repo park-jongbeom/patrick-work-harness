@@ -25,10 +25,39 @@ description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-
 
 ### Step 1 — Codebase analysis
 
+#### 1-a. Code scan
+
 Scan the target repo to detect:
 - Primary language/framework (look for `build.gradle.kts` / `package.json` / `requirements.txt` / `go.mod`)
 - Existing `CLAUDE.md` (if present, warn before overwriting the HARNESS zone)
 - Existing `.claude/harness-answers.yml` (if present, load existing answers as defaults)
+
+#### 1-b. Context document discovery (project intent the code scan cannot reveal)
+
+Code scan reveals *structure*; it cannot reveal *why the project exists*. Discover existing planning /
+business / discussion documents already in the repo so the generated baseline docs carry product intent —
+not just code facts. This `context_summary` is consumed downstream by Step 4 (CLAUDE.md Project Overview)
+and Step 8-b (ARCHITECTURE / DATA_FLOW). Ordering 1 → 4 → 8 guarantees it exists before consumption.
+
+**Search locations**: repo root + `docs/` + planning dirs (`docs/planning/` · `docs/spec/` · `docs/product/` · `기획/` · `docs/기획/`).
+
+**Filename patterns** (case-insensitive, English + Korean):
+`PRD` · `PRODUCT` · `REQUIREMENT(S)` · `ROADMAP` · `VISION` · `PROPOSAL` · `BUSINESS` · `SPEC`
+· `기획` · `사업계획` · `제안` · `요구사항` · `논의` · `회의` · plus `README.md`.
+
+**Bound (token-blowup guard)**: read at most ~5 most-relevant files (prefer explicit product/business
+docs over `README.md`); bound the per-file read. Never read the whole repo.
+
+**Extract**: project goal/purpose · target users · key domain entities · business constraints · scope boundaries.
+
+**Output**: `context_summary` = discovered source paths + a 3–6 line synthesized summary.
+If nothing is found → `context_summary = none`.
+
+**Hallucination guard** (DOCBASE spec constraint #6): synthesize only from facts actually read; cite the
+source paths; mark anything uncertain with `<!-- verify -->`. Never invent goals not present in the sources.
+
+**Failure-safe** (DOCBASE spec constraint #5): if a candidate file is unreadable, skip it and continue —
+never abort `/init` or silently produce nothing. Worst case degrades to `context_summary = none`.
 
 ### Step 2 — Answers interview
 
@@ -114,7 +143,7 @@ See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 <!-- PROJECT-OWNED below -->
 
 ## Project Overview
-[Fill in: project goal, stack, team context]
+[Populated from Step 1-b context_summary if found — project goal, target users, business context, with `> Source: <paths>`. Else: [Fill in: project goal, stack, team context]]
 
 ## MVP Demo Roadmap Guardrail
 [Fill in if phase_model: true — Phase 1–4 table and per-Phase completion criteria]
@@ -122,6 +151,12 @@ See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 ## Prohibited (project-specific)
 [Fill in per-repo prohibitions]
 ```
+
+> **Project Overview population (Step 1-b → here)**: if `context_summary` ≠ none, write the synthesized
+> project goal / target users / business context (2–5 lines) into `## Project Overview` and append a
+> `> Source: <discovered paths>` line. If `context_summary` = none, keep the `[Fill in: …]` placeholder.
+> This lands in the PROJECT-OWNED zone and is written only on a fresh `/init` (re-init keeps the existing
+> HARNESS-zone warning — never overwrite a project's customized Project Overview).
 
 **Zone rules**:
 - `<!-- HARNESS:START -->` … `<!-- HARNESS:END -->`: engine-owned. `/harness-update` overwrites this zone wholesale (Axis A).
@@ -228,11 +263,17 @@ For each file to be generated, check if a same-named file already exists in the 
   `⚠️ PROJECT_MAP.md already exists — wrote PROJECT_MAP_harness.md instead. Merge manually.`
   Never overwrite the existing file.
 
-#### 8-b. PRD discovery (run before writing ARCHITECTURE / DATA_FLOW)
+#### 8-b. Context incorporation (from Step 1-b discovery)
 
-Search for a PRD file in this order: `PRD.md` → `*.prd.md` → `docs/PRD.md` → `docs/product/` → `PRODUCT_SPEC.md`.
-- **Found** → note the path; weave key entities/boundaries into ARCHITECTURE.md "System Boundaries" section and DATA_FLOW.md.
-- **Not found** → leave a placeholder: `<!-- PRD not found — fill in manually -->`
+Reuse the `context_summary` produced in Step 1-b — do **not** re-search the repo. Incorporate it into the
+generated baseline docs so they carry product intent:
+- **`context_summary` ≠ none** → ARCHITECTURE.md: fill the `## Purpose / System Boundaries` section with
+  the project goal · key domain entities · scope boundaries (cite source paths). DATA_FLOW.md: note the
+  key domain entities / flows named in the summary.
+- **`context_summary` = none** → leave a placeholder: `<!-- No context docs found — fill in manually -->`
+
+The Step 1-b hallucination + failure-safe guards apply unchanged (read facts only · cite source paths ·
+mark uncertain with `<!-- verify -->`).
 
 #### 8-c. Generate PROJECT_MAP.md
 
@@ -258,6 +299,10 @@ Scan entry points and dependency chain:
 ```markdown
 # ARCHITECTURE — <project_repo>
 
+## Purpose / System Boundaries
+<filled by Step 8-b from context_summary: project goal · key domain entities · scope boundaries + `> Source: <paths>`>
+<!-- No context docs found — fill in manually -->
+
 ## Entry Points
 - install.sh — CLI installer
 - skills/*/SKILL.md — harness skill definitions (list names from frontmatter `name:`)
@@ -272,8 +317,6 @@ Scan entry points and dependency chain:
 
 ## Dependency Chain
 <parse `import` statements in hooks/*.py to list inter-module dependencies>
-<!-- PRD not found — fill in manually -->
-<!-- System Boundaries: fill in after PRD discovery -->
 ```
 
 #### 8-e. Generate DATA_FLOW.md
@@ -300,7 +343,10 @@ CLAUDE.md (HARNESS zone)
 install.sh (--version / --target / --dry-run flags)
   → GitHub Releases tarball download
   → skills/ · hooks/ extracted to target repo
-<!-- PRD not found — fill in manually -->
+
+## Domain Entities / Flows
+<filled by Step 8-b from context_summary if present>
+<!-- No context docs found — fill in manually -->
 ```
 
 #### 8-f. Generate DOC_INDEX.md
@@ -434,6 +480,9 @@ After writing the 5 files, update DOC_INDEX.md: change each Layer 2 row's `Statu
 - [ ] C16: TEST_PLAN.md has content filled in Gate C and D sections
 - [ ] C17: ERROR_HANDLING.md has content filled in the Gate D section
 - [ ] C18: DECISION_LOG.md has at least one ADR entry (any gate)
+- [ ] C19: `--docs=full` on a repo containing a planning/business doc → ARCHITECTURE.md `Purpose / System Boundaries` references the discovered content (not just a placeholder) and cites the source paths
+- [ ] C20: CLAUDE.md `Project Overview` is populated from the discovered context docs (or keeps the `[Fill in: …]` placeholder when none found)
+- [ ] C21: no context docs found → `context_summary = none`, all consumers fall back to the placeholder gracefully (no crash / no silent doc skip)
 
 ### Step 10 — Fill Layer 2 document sections per Gate (if `--docs=full`)
 

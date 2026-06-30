@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0] - 2026-06-30
+
+### Added
+- `skills/init/SKILL.md` Step 1-b 컨텍스트 문서 디스커버리 — 코드 스캔(Step 1-a)과 분리하여 기획·PRD·사업계획 등 제품 의도 문서를 `/init` 시점에 수집 (`context_summary` 생성). 검색 위치: repo root + `docs/` + `docs/planning/` 등, 영문·한국어 파일명 패턴 지원. 토큰 폭발 방지 바운드(최대 ~5파일) 및 할루시네이션 가드(`<!-- verify -->` 마킹) 내장 (DOCBASE-CONTEXT-1).
+- `skills/init/SKILL.md` Step 8-b 리네임 — 기존 "PRD discovery(재탐색)" → "Context incorporation(Step 1-b 재사용)". `context_summary`를 ARCHITECTURE.md `## Purpose / System Boundaries` 섹션 및 DATA_FLOW.md 도메인 엔티티/플로우에 주입. 재탐색 제거로 중복 파일 I/O 없음.
+- `skills/init/SKILL.md` ARCHITECTURE.md 템플릿 `## Purpose / System Boundaries` 섹션 추가 — Step 8-b 주입 결과를 받는 플레이스홀더 포함.
+- `session_dashboard_parsers.py` `gate_status`·`next_action` 파싱 — SESSION_INDEX.md YAML `gate:`·`next_action:` 필드를 읽어 8-tuple로 반환 (HARNESS-DASHBOARD-GATE-1).
+- `session_dashboard_renderer.py` 헤더 메타 2칸 추가 — "Gate 상태"·"다음 행동" 조건부 표시(값 없는 구세션 무회귀).
+- `session-dashboard-sync.py`·`test_session_dashboard_sync.py` 6→8-tuple 갱신 및 fixture·golden 재생성 — 전체 테스트 4/4·90/90 PASS.
+
 ## [1.0.9] - 2026-06-30
 
 ### Fixed
