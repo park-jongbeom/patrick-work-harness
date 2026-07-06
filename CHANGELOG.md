@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0] - 2026-07-06
+
+### Added
+- **1-tier/2-tier plan-document structure support** (`plan_tier`) — `harness-answers.yml`에 `plan_tier`(`"1"`/`"2"`)·`master_plan_file`·`detail_plan_file`·`single_plan_file`·`single_plan_threshold` 5개 필드 신설. `/init` Step 1-c가 기존 2단 구조(서브플랫폼 상세계획 파일·§7 세션테이블) 존재 여부를 자동감지해 제안하고, Step 2 인터뷰에서 사용자가 확인/오버라이드. 단일 계획문서(`WORK_PLAN.md` 등)만 쓰는 프로젝트에 설치할 때마다 반복되던 수동 로컬라이즈 작업을 해소.
+- `skills/SKILL_DETAIL.md` `§Plan-Doc Update Pattern` 신설 — gate-a~e·audit·doc-cleanup 전역의 "계획 문서 갱신" tier-aware 공통 문구를 한 곳에 정의. `harness-answers.yml`에 `plan_tier` 필드가 없는 기존 저장소는 자동으로 `"2"`(기존 2단 동작)로 간주 — 하위 호환 보장.
+- `install.sh` `NEW_HOOKS`에 누락됐던 6개 Stop 훅(`gate-a-sync-guard`·`gate-e-sync-guard`·`error-topics-guard`·`comprehension-ledger-stale-guard`·`test-tampering-guard`·`skill-usage-auto`) + PreToolUse `commit-msg-guard` 자동등록 추가 — README에는 문서화되어 있었으나 실제 설치 스크립트에는 등록되지 않던 버그 수정.
+- `sync-from-source.sh`에 SSOT 문서명(`00_MASTER_PLAN.md`·`SESSION_INDEX.md`·`CURRENT_SESSION.md`) 플레이스홀더 자동치환 + 내부 리서치 문서(`REPORTS/HARNESS_*.md`) 인용 자동 각주화 sed 규칙 추가. 2단 구조·튜닝된 임계값·예시 저장소명 등 사람 판단이 필요한 잔존 패턴은 sync 후 경고로 표면화.
+
+### Fixed
+- `doc-cleanup/SKILL.md` Step 0-B/Step 3/V-D3 공식을 tier별로 파라미터화 (4문서 임계값 표 → 2단/1단 행 집합 분기), Step 5를 확장해 1단 프로젝트의 완료 Phase 본문 슬림화까지 흡수 (Step 3의 preserve/delete 판단표 재사용).
+- gate-a Step 0-A·gate-a/b/c/d 최종출력 지침·gate-e 다수 지점에 남아있던 "3-document"/"3문서"/"§7" 고정 서술을 tier-aware 문구로 전환 (SKILL_DETAIL.md가 신설한 "고정 문서 개수 서술 금지" 규칙 위반 잔존분 포함).
+- audit·doc-cleanup의 bash 측정 명령에 남아있던 미해결 결합 플레이스홀더(`<master_plan_file_or_single_plan_file>`)를 tier별 분리 실행 블록으로 교체 — 실행 시 "No such file" 오류가 나던 결함 수정.
+- README 훅 목록에 `commit-msg-guard.py` 누락 보정 (영/한 양쪽), 훅 개수 10→11 갱신.
+
 ## [1.1.1] - 2026-07-06
 
 ### Fixed

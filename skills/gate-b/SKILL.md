@@ -67,9 +67,9 @@ Add 1 row to `plans/learning/comprehension_ledger.md`:
 > **Expiry default (first pass)**: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
 > **Expiry on re-verification pass (adaptive, SM-2-lite)**: when Step 1 found a matching `tech_tags` row that had expired and this session's re-verification **passes again**, set the new `exp` to roughly **double the previous row's exp value** (e.g. 3개월→6개월, 1개월→2개월), capped at `12개월`. No new column — parse the previous exp text, double the numeric part, write it into the new row. On a **failed** re-verification (retry needed or user-delegated), reset `exp` back to the first-pass default instead of doubling.
 
-## Step 5. Update the 3 documents (status: `B (확인 대기)`) — **run the file-editing tool**
+## Step 5. Update the plan document(s) (status: `B (확인 대기)`) — **run the file-editing tool**
 
-- `00_MODERNIZATION_MASTER_PLAN.md` §7
+- Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
 - `SESSION_INDEX.md` YAML
 - `CURRENT_SESSION.md` dashboard + Gate B block
 > **session-dashboard.html update**: `session-dashboard-sync.py` runs as the first Stop hook entry, auto-regenerating the HTML. No skill Bash Step needed.
@@ -80,7 +80,7 @@ Add 1 row to `plans/learning/comprehension_ledger.md`:
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate B procedure (comprehension gate + 3-document update), output the block below at the **very end** of the response.
+After completing the entire Gate B procedure (comprehension gate + plan document(s) update), output the block below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
 ```

@@ -27,8 +27,8 @@ If `TEST_PLAN.md` exists at the target repo root:
 - Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
 - If `TEST_PLAN.md` does not exist: skip silently.
 
-3. Update the 3 documents (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
-   - `00_MODERNIZATION_MASTER_PLAN.md` §7
+3. Update the plan document(s) (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
+   - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `SESSION_INDEX.md` YAML
    - `CURRENT_SESSION.md` dashboard + Gate C block
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
@@ -64,7 +64,7 @@ Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Ad
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate C procedure (code implementation + 3-document update), output the block below at the **very end** of the response.
+After completing the entire Gate C procedure (code implementation + plan document(s) update), output the block below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
 ```

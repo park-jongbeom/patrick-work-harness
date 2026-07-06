@@ -168,6 +168,10 @@ NEW_HOOKS = {
             "matcher": "Bash",
             "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/docker-command-guard.py"}]
         },
+        {
+            "matcher": "Bash",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/commit-msg-guard.py"}]
+        },
     ],
     "PostToolUse": [
         {
@@ -179,6 +183,30 @@ NEW_HOOKS = {
         {
             "matcher": ".*",
             "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/master-plan-stale-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/gate-a-sync-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/gate-e-sync-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/error-topics-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/test-tampering-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/comprehension-ledger-stale-guard.py"}]
+        },
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/skill-usage-auto.py"}]
         },
     ],
 }

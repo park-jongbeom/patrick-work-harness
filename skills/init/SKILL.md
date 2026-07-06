@@ -59,6 +59,18 @@ source paths; mark anything uncertain with `<!-- verify -->`. Never invent goals
 **Failure-safe** (DOCBASE spec constraint #5): if a candidate file is unreadable, skip it and continue —
 never abort `/init` or silently produce nothing. Worst case degrades to `context_summary = none`.
 
+#### 1-c. Plan-tier auto-detection
+
+Detect whether the repo already has (or is heading toward) a **2-tier plan structure** — a separate
+index doc plus a sub-platform detail-plan doc with its own session table (§7-style) — versus a
+**1-tier structure** where a single plan doc carries both index and session-table roles.
+
+**Detection heuristic** (best-effort hint, not authoritative — Step 2 always asks the user to confirm):
+- Look for a file matching `*MODERNIZATION*MASTER_PLAN*.md` or `**/00_*MASTER_PLAN*.md` in a subdirectory
+  distinct from the repo root, or a `§7` / `## 7.` session-table heading inside any root-level plan doc.
+- Found → propose `plan_tier: "2"`, pre-fill `master_plan_file`/`detail_plan_file` from the discovered names.
+- Not found → propose `plan_tier: "1"` (the simpler default for a new repo).
+
 ### Step 2 — Answers interview
 
 Ask the user (or infer from Step 1 scan) for the following fields:
@@ -71,6 +83,11 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `session_docs` | Generate SESSION_INDEX.md + CURRENT_SESSION.md stubs? | `true` |
 | `archive_path` | Absolute path for session archive files | ask user |
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
+| `plan_tier` | `"2"` (separate index + sub-platform detail-plan doc) or `"1"` (single plan doc with `## Phase N` sections) | proposed by Step 1-c, confirm/override with user |
+| `master_plan_file` | Index filename (meaningful only when `plan_tier: "2"`) | `00_MASTER_PLAN.md` |
+| `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
+| `single_plan_file` | Single plan-doc filename (meaningful only when `plan_tier: "1"`) | `WORK_PLAN.md` |
+| `single_plan_threshold` | Slimming line-count threshold for `single_plan_file` (meaningful only when `plan_tier: "1"`) | ask user — suggest 500 lines as a starting point, re-tune after ~10 sessions of observed growth |
 
 ### Step 3 — Write `.claude/harness-answers.yml` (D-2 provenance sidecar)
 
@@ -88,6 +105,11 @@ phase_model: <answers.phase_model>
 session_docs: <answers.session_docs>
 archive_path: "<answers.archive_path>"
 worklog_path: "<answers.worklog_path>"
+plan_tier: "<answers.plan_tier>"
+master_plan_file: "<answers.master_plan_file>"
+detail_plan_file: "<answers.detail_plan_file>"
+single_plan_file: "<answers.single_plan_file>"
+single_plan_threshold: <answers.single_plan_threshold>
 ```
 
 > `_engine_version` must match `plugin.json` → `version` at init time.
@@ -141,6 +163,14 @@ See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 ### Step 5 — Write session document stubs (if `session_docs: true`)
 
 Generate minimal `SESSION_INDEX.md` and `CURRENT_SESSION.md` in the target repo root.
+
+**Plan-doc stub (tier-aware)**: additionally generate the plan document itself:
+- `plan_tier: "1"` → generate `<single_plan_file>` (default `WORK_PLAN.md`) with a `## Phase 1` skeleton
+  section (title + empty session table) — this single file carries both index and session-table roles.
+- `plan_tier: "2"` → generate `<master_plan_file>` (index stub: priority §2 / active tracks §3 / next
+  action §4 / handoff notes §5, all empty) only. Do **not** auto-generate `<detail_plan_file>` — the
+  sub-platform detail plan is created later, at the first Gate A that needs it (per gate-a's
+  **Plan-Doc Update Pattern**, see `SKILL_DETAIL.md`).
 
 **SESSION_INDEX.md stub**:
 ```markdown
@@ -552,6 +582,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C19: `--docs=full` on a repo containing a planning/business doc → ARCHITECTURE.md `Purpose / System Boundaries` references the discovered content (not just a placeholder) and cites the source paths
 - [ ] C20: CLAUDE.md `Project Overview` is populated from the discovered context docs (or keeps the `[Fill in: …]` placeholder when none found)
 - [ ] C21: no context docs found → `context_summary = none`, all consumers fall back to the placeholder gracefully (no crash / no silent doc skip)
+- [ ] C22: `harness-answers.yml` → `plan_tier` is present and is exactly `"1"` or `"2"`; the corresponding filename field (`single_plan_file` for `"1"`, `master_plan_file`/`detail_plan_file` for `"2"`) is non-empty; the tier-appropriate plan-doc stub exists at the repo root (Step 5)
 
 ## Notes
 

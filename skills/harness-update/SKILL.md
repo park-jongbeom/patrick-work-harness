@@ -29,6 +29,7 @@ description: "Upgrade an existing harness-initialized repo to the latest engine 
 Read `.claude/harness-answers.yml` in the **current working repo** (the repo Claude Code is opened in):
 - `_engine_version`: version at last `/init` or `/harness-update` run
 - `session_docs`: bool — whether session stubs (SESSION_INDEX / CURRENT_SESSION) are expected
+- `plan_tier`: `"1"` or `"2"` — read only, never re-prompted here (changing tiers is a manual, explicit action, not an upgrade concern). **Field absent** (repo initialized before this field existed) → treat as `plan_tier: "2"`, not an error and not a reason to halt.
 
 Resolve the latest engine version via this priority order:
 

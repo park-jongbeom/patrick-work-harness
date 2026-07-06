@@ -39,8 +39,12 @@ grep -E "^(sessions_since_audit|last_audit_date):" \
   ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md
 
 # (2) §5 「즉시 처리 대상」 item count
+#     plan_tier: "2" (or field absent):
 awk '/^### 즉시 처리 대상/,/^### 의존 대기/' \
-  ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c "^- \["
+  ${CLAUDE_PROJECT_DIR}/<master_plan_file> | grep -c "^- \["
+#     plan_tier: "1":
+awk '/^### 즉시 처리 대상/,/^### 의존 대기/' \
+  ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c "^- \["
 
 # (3) Permanent DEP Ledger mandatory-re-verification not-done item count
 #     Search CLAUDE_DETAIL.md §Permanent DEP Ledger for active items lacking RESOLVED/완료 markers
@@ -53,8 +57,12 @@ grep -nE "^- \[(DEP-[0-9]+|R[0-9]+)\]" \
 #     Not grep-able automatically → operator judgment (confirmable during Step 1 status collection)
 
 # (5) §5 dependency-waiting + conditional total count (for V-A2 measurement)
+#     plan_tier: "2" (or field absent):
 awk '/^### 의존 대기/,/^---/' \
-  ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c "^- \["
+  ${CLAUDE_PROJECT_DIR}/<master_plan_file> | grep -c "^- \["
+#     plan_tier: "1":
+awk '/^### 의존 대기/,/^---/' \
+  ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c "^- \["
 ```
 
 > The 5 measured values above are produced by Bash execution **within this response**, and those numbers are substituted into the R/V/D items below. (4) is an operator-judgment item — apply the Step 1 status-collection result back into this Step to finalize the score, then reflect it in the STOP verdict (if the score is unconfirmed, treat conservatively as STOP).
@@ -149,14 +157,14 @@ Response handling:
 
 ## Step 1. Status collection (tool calls)
 
-Read these 3 documents:
+Read the applicable plan document(s) (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) plus:
 
-1. `00_MASTER_PLAN.md` — §2 priority, §3 active tracks, §4 next action, §5 handoff notes
+1. Plan document — `plan_tier: "2"` (or field absent) → `<master_plan_file>`: §2 priority, §3 active tracks, §4 next action, §5 handoff notes; `plan_tier: "1"` → `<single_plan_file>`: equivalent priority/active-track/next-action/handoff sections
 2. `SESSION_INDEX.md` — YAML header + session table
 3. `CURRENT_SESSION.md` — dashboard + active Gate block
 
 Additionally if needed:
-- `05_PLATFORM_MODERNIZATION/00_MODERNIZATION_MASTER_PLAN.md` §7 (session table)
+- `plan_tier: "2"` only → `<detail_plan_file>` §7 (session table)
 - Each repository's `CLAUDE.md` guardrail section
 
 ---
@@ -167,18 +175,18 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 
 | # | Check item | Check content | Verdict criterion |
 |---|------------|---------------|-------------------|
-| 1 | **Priority consistency** | Does the current active session match the P0 work in `00_MASTER_PLAN.md` §2 | Work outside P0 scope in progress = FAIL |
+| 1 | **Priority consistency** | Does the current active session match the P0 work in the plan document's priority section (`<master_plan_file> §2` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent priority section under `plan_tier: "1"`) | Work outside P0 scope in progress = FAIL |
 | 2 | **Declared-order forcing violation** | Was the declared order (MVP Phase 1~4 / a chain like P0-NEW-1~5 / sub-sessions `-a→-b→-c`) not regressed | Order violation = FAIL |
 | 3 | **Gate process adherence** | Any code change without Gate A approval, Gate skipping, or retroactive after-the-fact recording | PROC violation found = FAIL |
 | 4 | **Prohibited-pattern violation** | Was no code violating per-repo CLAUDE.md prohibitions written in the current session | Violation found = WARN (fixable immediately) / FAIL (already committed) |
-| 5 | **Document sync** | Do the 3 locations §7 session status + SESSION_INDEX.md + CURRENT_SESSION.md agree | Mismatch = WARN |
+| 5 | **Document sync** | `plan_tier: "2"` (or field absent) → do `<detail_plan_file>` §7 session status + SESSION_INDEX.md + CURRENT_SESSION.md (3 locations) agree; `plan_tier: "1"` → does `<single_plan_file>`'s Phase-section status + SESSION_INDEX.md + CURRENT_SESSION.md (2 locations — no separate index-vs-detail leg) agree | Mismatch = WARN |
 | 6 | **Missing handoffs** | Is there an unprocessed FIX-B/DEP in §5 that is being ignored by the current session | Omission = WARN |
 | 7 | **Permanent DEP Ledger mandatory re-verification** | Among `CLAUDE_DETAIL.md §Permanent DEP Ledger` items, was one re-verified at the first Gate C after its dependent session reached ✅E | Mandatory re-verification not done = FAIL |
 | 8 | **Graduation-candidate identification** | List rules·items with 0 firings over the past 6 months and propose them as graduation candidates (do not delete directly — user decides) | ≥1 graduation candidate → WARN (deletion recommended), none → ✅ |
-| 9 | **Consolidation-candidate identification** | (a) Stale/duplicate completed items in the `00_MASTER_PLAN.md` index that are retire·merge candidates (b) duplicate·merge candidates in the per-repo error_topics 5-topic ledger (c) HARNESS_EVOLUTION_LOG items that have only decisions but lack outcome (after-effect) feedback — identify·list the 3 kinds (do not clean up directly — user / separate doc-cleanup·PLAN-SYNC session decides) | ≥1 candidate → WARN (cleanup recommended), none → ✅ |
+| 9 | **Consolidation-candidate identification** | (a) Stale/duplicate completed items in the plan document's index sections (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>` under `plan_tier: "1"`) that are retire·merge candidates (b) duplicate·merge candidates in the per-repo error_topics 5-topic ledger (c) HARNESS_EVOLUTION_LOG items that have only decisions but lack outcome (after-effect) feedback — identify·list the 3 kinds (do not clean up directly — user / separate doc-cleanup·PLAN-SYNC session decides) | ≥1 candidate → WARN (cleanup recommended), none → ✅ |
 | 10 | **Maintainability delta** | Did the files **changed** by ✅E sessions since the previous audit (a) duplicate·copy-paste logic (b) code churn (rewrite of code written within ~2 weeks) (c) *increase* coupling·cognitive complexity — qualitatively judge the **delta direction**, not a single-score gate. Do not pass/fail by absolute values (MI·cyclomatic complexity) (van Deursen/Shepperd). If a tool is **installed**, use Docker auxiliary measurement (see "tool-conditional commands" below); if not installed, qualitative judgment only. | Duplicate/churn/complexity *increase* found → WARN (refactor·consolidation recommended), no increase/decrease → ✅. Do not refactor directly — a follow-up Gate D·separate session decides |
 
-> **Scope of check item #2**: Includes the MVP demo guardrail Phase 1~4 (CLAUDE.md §MVP) + active-chain order (items marked "order forced" in `00_MASTER_PLAN.md §2`, e.g. P0-NEW-1 → ... → P0-NEW-5 no-parallel) + sub-session (`-a`,`-b`,…) order.
+> **Scope of check item #2**: Includes the MVP demo guardrail Phase 1~4 (CLAUDE.md §MVP) + active-chain order (items marked "order forced" in the plan document's priority section — `<master_plan_file> §2` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent section under `plan_tier: "1"` — e.g. P0-NEW-1 → ... → P0-NEW-5 no-parallel) + sub-session (`-a`,`-b`,…) order.
 
 > **Check item #10 rationale·scope (MAINT-AUDIT-1, 2026-06-21)**: AI code generation tends to create new code rather than reuse existing → duplicate·copy-paste increase is the #1 signal (GitClear 211M lines: 2024 duplicate code blocks ↑8×·refactor (move) 24.1%→9.5%·copy-paste overtook refactor for the first time ever). This extends what audit *already prohibits* ("no logic duplication"·"no `String.contains()` substring matching") to **quantitative enforcement·delta tracking** (not a new axis). Focus priority ① duplicate·copy-paste → ② churn (rewrite within 2 weeks — MS Research: relative churn predicts defect density at 89%) → ③ coupling·cognitive-complexity delta. Canonical research → `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §3`.
 
@@ -247,7 +255,7 @@ Add if absent, overwrite if present. WARN/FAIL details are not accumulated into 
 
 ### Step 4-b. On WARN/FAIL, add a §5 recommended action (optional)
 
-If a WARN·FAIL occurred and the next session needs action, add 1 line to `00_MASTER_PLAN.md §5 즉시 처리 대상` (format: `[YYYY-MM-DD / audit N회차] PROC: 조치 1줄`). Register the recommended action only; do not change the canonical·plan body.
+If a WARN·FAIL occurred and the next session needs action, add 1 line to the plan document's §5 handoff section (`<master_plan_file> §5 즉시 처리 대상` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent handoff section under `plan_tier: "1"`) (format: `[YYYY-MM-DD / audit N회차] PROC: 조치 1줄`). Register the recommended action only; do not change the canonical·plan body.
 
 ---
 

@@ -1,12 +1,30 @@
 ---
 name: SKILL_DETAIL
-description: "Shared model-rubric detail for gate-a, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard or Effort/Thinking rule is needed."
+description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, Effort/Thinking rule, or tier-aware plan-doc update wording is needed."
 ---
 
 # Skill Common Model Rubric Detail
 
-> **Load-on-demand** — this file is NOT auto-loaded. Load it explicitly via `Read` when the R-13 cost-justification guard, Effort/Thinking rule, or PROC-MODEL-RUBRIC rationale is needed during a Gate response.
-> **Canonical home**: this file is the single source for the 4 shared sections below. Skill-specific R/V/D item tables and model decision rules remain inline in each skill.
+> **Load-on-demand** — this file is NOT auto-loaded. Load it explicitly via `Read` when the R-13 cost-justification guard, Effort/Thinking rule, PROC-MODEL-RUBRIC rationale, or the tier-aware plan-doc update pattern is needed during a Gate response.
+> **Canonical home**: this file is the single source for the shared sections below. Skill-specific R/V/D item tables and model decision rules remain inline in each skill.
+
+---
+
+## §Plan-Doc Update Pattern
+
+> **Canonical home**: every gate-a~e/audit/doc-cleanup reference to "update the plan document(s)" or "§7" cites this section by name rather than restating tier-specific wording inline. Edit here only.
+
+Consuming projects track work-in-progress via one of two plan-doc **tiers**, recorded in `harness-answers.yml → plan_tier`:
+
+- **`plan_tier: "2"`** (or **field absent** — pre-existing repos initialized before this field existed default to `"2"`, never error or re-prompt): a separate **index** doc (`<master_plan_file>`, default `00_MASTER_PLAN.md`) plus a **sub-platform detail-plan** doc (`<detail_plan_file>`) that owns its own session table (conventionally §7).
+- **`plan_tier: "1"`**: a single **plan doc** (`<single_plan_file>`, default `WORK_PLAN.md`) that carries both index and session-table roles via `## Phase N` sections.
+
+**Plan-doc update (tier-aware)** — apply this whenever a Gate needs to record session status into the plan document(s):
+
+- **`plan_tier: "2"`** → update `<detail_plan_file>` §7 (this session's row/entry) **and** `<master_plan_file>` (index — priority/next-action touch only; the index is not a per-session refresh target, per the existing rule)
+- **`plan_tier: "1"`** → update the matching `## Phase N` section of `<single_plan_file>` (create/update the session's row under that Phase). No separate index update — the single doc *is* the index.
+
+Do not assert a fixed document count ("3 documents", "4 documents") in prose — say "the applicable plan document(s)" and let the tier-aware bullets above do the counting. The actual total also depends on `session_docs` (whether `SESSION_INDEX.md`/`CURRENT_SESSION.md` exist as separate files), which is orthogonal to `plan_tier`.
 
 ---
 

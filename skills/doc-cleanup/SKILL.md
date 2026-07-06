@@ -8,7 +8,7 @@ effort: low
 
 ## Overview
 
-Run when, after Gate E completion, the line counts of the 3 core documents exceed their thresholds.
+Run when, after Gate E completion, the line count of any applicable plan document (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern` and Step 0-B below) exceeds its threshold.
 Migrate completed-session details to the archive and restore active documents to the progressive-disclosure principle.
 
 ---
@@ -25,21 +25,32 @@ Migrate completed-session details to the archive and restore active documents to
 **Measurement targets (5 metadata)** — measure directly with the 5 commands below, then substitute into the R/V/D items:
 
 ```bash
-# (1) 4-document line counts
+# (1) Plan-document line counts — row set depends on harness-answers.yml → plan_tier (see Step 0-B)
+#     plan_tier: "2" (or field absent):
 wc -l \
   ${CLAUDE_PROJECT_DIR}/CURRENT_SESSION.md \
   ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md \
-  ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md \
-  ${CLAUDE_PROJECT_DIR}/05_PLATFORM_MODERNIZATION/00_MODERNIZATION_MASTER_PLAN.md
+  ${CLAUDE_PROJECT_DIR}/<master_plan_file> \
+  ${CLAUDE_PROJECT_DIR}/<detail_plan_file>
+#     plan_tier: "1":
+wc -l \
+  ${CLAUDE_PROJECT_DIR}/CURRENT_SESSION.md \
+  ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md \
+  ${CLAUDE_PROJECT_DIR}/<single_plan_file>
 
 # (2) §5 「즉시 처리 대상」 item count
-awk '/^### 즉시 처리 대상/,/^### 의존 대기/' ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c "^- \["
+#     plan_tier: "2" (or field absent): ${CLAUDE_PROJECT_DIR}/<master_plan_file>
+#     plan_tier: "1": ${CLAUDE_PROJECT_DIR}/<single_plan_file>
+awk '/^### 즉시 처리 대상/,/^### 의존 대기/' ${CLAUDE_PROJECT_DIR}/<master_plan_file> | grep -c "^- \["
+awk '/^### 즉시 처리 대상/,/^### 의존 대기/' ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c "^- \["
 
 # (3) §5 「의존 대기」 item count
-awk '/^### 의존 대기/,/^### 조건부/' ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c "^- \["
+awk '/^### 의존 대기/,/^### 조건부/' ${CLAUDE_PROJECT_DIR}/<master_plan_file> | grep -c "^- \["
+awk '/^### 의존 대기/,/^### 조건부/' ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c "^- \["
 
 # (4) §5 「조건부」 item count
-awk '/^### 조건부/,/^---/' ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c "^- \["
+awk '/^### 조건부/,/^---/' ${CLAUDE_PROJECT_DIR}/<master_plan_file> | grep -c "^- \["
+awk '/^### 조건부/,/^---/' ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c "^- \["
 
 # (5) Index stale candidates (R-9 absorbed; assume 0 if Step 4-A not run)
 #     Post-verify with the actual detected count after Step 4-A runs
@@ -61,11 +72,11 @@ awk '/^### 조건부/,/^---/' ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md | grep -c 
 
 | Item | Measurement basis | Score |
 |------|-------------------|-------|
-| V-D1 | (1) Number of the 4 documents over threshold — 1 +1 / 2~3 +2 / 4 +3 | +1~3 |
+| V-D1 | (1) Number of the applicable plan documents over threshold (row set per Step 0-B — up to 4 under `plan_tier: "2"`, up to 3 under `plan_tier: "1"`) — 1 +1 / 2~3 +2 / 4 +3 | +1~3 |
 | V-D2 | §5 reclaim-target items ((2)+(3)+(4)) 1~3 +0 / 4~7 +1 / 8+ +2 | +0~2 |
-| V-D3 | §7/§5 slimming fired (double-count absorbed) — `MODERNIZATION_MASTER_PLAN.md > 700 lines` or `00_MASTER_PLAN.md > 450 lines` 1 +1 / 2 +2 | +0~2 |
+| V-D3 | Plan-doc slimming fired (double-count absorbed) — count of {plan documents over their own threshold: `plan_tier: "2"` → `<detail_plan_file>`/`<master_plan_file>`; `plan_tier: "1"` → `<single_plan_file>` alone} firing, 1 +1 / 2 +2 | +0~2 |
 
-> **Double-count rule (V-D3 absorption)**: The old separate counts of #3·#4 are absorbed into V-D3 as a single item. When §7 slimming fires, V-D1 (over threshold +1) + V-D3 (slimming fired +1) = total +2 (differs from the old +5 — since single scoring is abolished, sum comparison is meaningless; R/V/D are evaluated independently).
+> **Double-count rule (V-D3 absorption)**: The old separate counts of #3·#4 are absorbed into V-D3 as a single item. When plan-doc slimming fires, V-D1 (over threshold +1) + V-D3 (slimming fired +1) = total +2 (differs from the old +5 — since single scoring is abolished, sum comparison is meaningless; R/V/D are evaluated independently). Under `plan_tier: "1"` there is only one possible plan doc, so V-D3 naturally caps at +1 (no separate 1-tier formula needed — the generic "count of over-threshold plan docs" phrasing auto-degrades).
 >
 > **#5 (index stale) handling**: Per detection in the Step 4-A scan, do not add to V-D2's item count (preserve only the PLAN-SYNC-N session-retirement absorption effect; V measures only call volume). Index stale is auto-corrected·recorded in Step 4-A.
 
@@ -113,14 +124,24 @@ Summary:
 
 ## Step 0-B — Measure current line counts and identify over-threshold items
 
-Measure the line counts of the 4 documents below and output a result table:
+Measure the line counts of the applicable plan documents and output a result table. The row set is driven by `harness-answers.yml → plan_tier`:
+
+**`plan_tier: "2"` (or field absent — default/example, this repo's own tuned values):**
 
 | Document | Threshold | Current lines | Over? |
 |----------|-----------|---------------|-------|
 | `CURRENT_SESSION.md` | 100 lines | ? | ? |
 | `SESSION_INDEX.md` | 80 lines | ? | ? |
-| `00_MASTER_PLAN.md` | 450 lines | ? | ? |
-| `05_PLATFORM_MODERNIZATION/00_MODERNIZATION_MASTER_PLAN.md` | 700 lines | ? | ? |
+| `<master_plan_file>` | 450 lines | ? | ? |
+| `<detail_plan_file>` | 700 lines | ? | ? |
+
+**`plan_tier: "1"`:**
+
+| Document | Threshold | Current lines | Over? |
+|----------|-----------|---------------|-------|
+| `CURRENT_SESSION.md` | 100 lines | ? | ? |
+| `SESSION_INDEX.md` | 80 lines | ? | ? |
+| `<single_plan_file>` | `<single_plan_threshold>` lines (set at `/init`, no default guessed — see Threshold-adjustment guidance) | ? | ? |
 
 → **If nothing is over threshold, run only Step 4-A (index stale scan) + Step 4 (§5 reclaim verification) and finish**. Step 4-A·Step 4 run on every call regardless of threshold (preventing index-stale + handoff-stale accumulation). If all pass, output "임계 정리 불필요 — Step 4-A·Step 4만 수행".
 
@@ -136,7 +157,7 @@ Measure the line counts of the 4 documents below and output a result table:
 > - **User-notice obligation**: At the end of the Step 7 result output, always include 1 line 「슬림화된 본문 원본은 archive 참조: {경로}」 so the user can trace the Gate E output location.
 > - **Reason**: 2026-04-27 user feedback — when doc-cleanup runs right after Gate E, the CURRENT_SESSION.md body disappears and causes the misunderstanding "did Gate E not happen?". The archive-path notice secures location traceability.
 
-Rather than **simply deleting** the completed session's Gate blocks, first migrate items affecting follow-up sessions to the index (`00_MASTER_PLAN.md §5 인수인계 메모`), then delete. Preventing handoff omission is the core purpose of this Step.
+Rather than **simply deleting** the completed session's Gate blocks, first migrate items affecting follow-up sessions to the plan document's handoff section (`<master_plan_file> §5 인수인계 메모` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent handoff section under `plan_tier: "1"`), then delete. Preventing handoff omission is the core purpose of this Step.
 
 ### Step 1-a: Extract handoff items
 
@@ -164,9 +185,9 @@ Classify each extracted item by dependency:
 | **Permanent record (no retroactive recording)** | archive physically absent + after-the-fact creation prohibited | 「⚠️ 영구 기록 (사후 소급 금지 — archive 물리 파일 부재)」 |
 | **Decision permanent record** | Decision traceability (boss-meeting decisions, etc.; kept even after follow-up ✅E) | 「✅ 결정사항 영구 기록 (의사결정 추적성 — 후속 트랙 ✅E 후에도 유지)」 |
 
-> **Sub-section operation rule**: Use only the 5 sub-sections above. No creating arbitrary new sub-sections like 「즉시 처리 대상 (추가)」. When items accumulate, add to the same sub-section, and when over the 450-line threshold, process via Step 5 (§5 slimming).
+> **Sub-section operation rule**: Use only the 5 sub-sections above. No creating arbitrary new sub-sections like 「즉시 처리 대상 (추가)」. When items accumulate, add to the same sub-section, and when the plan document's own threshold (per Step 0-B) is exceeded, process via Step 5 (§5 slimming).
 
-**Append** to `00_MASTER_PLAN.md §5 인수인계 메모` in the format below (no replacing existing items):
+**Append** to the plan document's handoff section (`<master_plan_file> §5 인수인계 메모` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent handoff section under `plan_tier: "1"`) in the format below (no replacing existing items):
 
 ```markdown
 - [YYYY-MM-DD / 원세션ID] 항목 제목
@@ -197,9 +218,9 @@ Once handoff migration is done, delete the entire completed Gate A~E blocks. Kee
 
 ---
 
-## Step 3 — 00_MODERNIZATION_MASTER_PLAN.md §7 slimming
+## Step 3 — Detail-plan §7 slimming (`plan_tier: "2"` only)
 
-**Condition**: Run only when over 700 lines.
+**Condition**: runs only when `plan_tier: "2"` (or field absent) **and** `<detail_plan_file>` is over its threshold (per Step 0-B). Under `plan_tier: "1"` this Step does not apply — skip directly to Step 4-A. There is no separate detail-plan doc to slim; `<single_plan_file>`'s own per-Phase bloat is instead handled by **Step 5** (extended below) using the same category-vs-detail preserve/delete distinction this Step defines.
 
 ### Delete targets / preserve targets (guard)
 
@@ -224,7 +245,7 @@ Once handoff migration is done, delete the entire completed Gate A~E blocks. Kee
 
 ## Step 4-A — Index canonical stale scan (R-9, runs every call regardless of threshold)
 
-> **Introduction background**: 2026-05-04 HARNESS-OPTIMIZE-1-b-1. The PLAN-SYNC-1~5 (5 repetitions total) sessions were issued to correct stale between the `00_MASTER_PLAN.md` index §2(priority)/§3(active tracks)/§4(next action) markings and the canonical (`SESSION_INDEX.md` table·latest archive `final_status`). This Step absorbs that work and ends the separate session issuance.
+> **Introduction background**: 2026-05-04 HARNESS-OPTIMIZE-1-b-1. The PLAN-SYNC-1~5 (5 repetitions total) sessions were issued to correct stale between the plan document's index §2(priority)/§3(active tracks)/§4(next action) markings (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent sections under `plan_tier: "1"`) and the canonical (`SESSION_INDEX.md` table·latest archive `final_status`). This Step absorbs that work and ends the separate session issuance.
 
 ### Step 4-A-a: Extract check targets
 
@@ -232,7 +253,13 @@ Use the command below to extract session IDs marked with an incomplete marker (�
 
 ```bash
 # Candidate session IDs marked incomplete in the §2 priority + §3 active tracks + §4 next action area
-awk '/^## 2\./,/^## 5\./' ${CLAUDE_PROJECT_DIR}/00_MASTER_PLAN.md \
+# plan_tier: "2" (or field absent):
+awk '/^## 2\./,/^## 5\./' ${CLAUDE_PROJECT_DIR}/<master_plan_file> \
+  | grep -oE '(⏸|⏳|🟡)[^|]*[A-Z][A-Z0-9-]+' \
+  | grep -oE '[A-Z][A-Z0-9-]+(-[a-z0-9-]+)*' \
+  | sort -u
+# plan_tier: "1":
+awk '/^## 2\./,/^## 5\./' ${CLAUDE_PROJECT_DIR}/<single_plan_file> \
   | grep -oE '(⏸|⏳|🟡)[^|]*[A-Z][A-Z0-9-]+' \
   | grep -oE '[A-Z][A-Z0-9-]+(-[a-z0-9-]+)*' \
   | sort -u
@@ -252,7 +279,7 @@ For each extracted session ID, confirm against these two canonicals via grep:
 ### Step 4-A-c: Stale correction (automatic)
 
 Per stale-confirmed item:
-1. The incomplete marker (⏸/⏳/🟡 etc.) on the relevant line of `00_MASTER_PLAN.md` §2/§3/§4 → replace with ✅E + append the completion date
+1. The incomplete marker (⏸/⏳/🟡 etc.) on the relevant line of the plan document's §2/§3/§4 (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent sections under `plan_tier: "1"`) → replace with ✅E + append the completion date
 2. After correction, grep-verify consistency (whether an incomplete marker remains near that session ID)
 
 > Do not newly register the correction trace anywhere — neither on the corrected line nor in §5 「✅ 결정사항 영구 기록」 — index correction is routine sync work with low after-the-fact tracking value, so avoid noise accumulation.
@@ -276,7 +303,7 @@ Record the detected count and corrected count in the Step 7 result output's 「�
 
 ## Step 4 — §5 reclaim verification (runs every call regardless of threshold)
 
-Iterate over all items in `00_MASTER_PLAN.md §5 인수인계 메모` and reclaim by the rules below. Run on every call regardless of threshold (preventing stale accumulation is the core purpose of this Step).
+Iterate over all items in the plan document's handoff section (`<master_plan_file> §5 인수인계 메모` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent handoff section under `plan_tier: "1"`) and reclaim by the rules below. Run on every call regardless of threshold (preventing stale accumulation is the core purpose of this Step).
 
 ### Step 4-a: Identify reclaim targets
 
@@ -311,15 +338,33 @@ Record the reclaimed count in the Step 7 result output's 「§5 회수」 item.
 
 ---
 
-## Step 5 — 00_MASTER_PLAN.md §5 slimming
+## Step 5 — Plan document §5 slimming (tier-aware)
 
-**Condition**: Run only when over 450 lines.
+**Condition**: runs only when the plan document (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>` under `plan_tier: "1"`) is over its threshold per Step 0-B.
+
+### 5-a. §5 handoff-section slimming (both tiers)
 
 - The 2 sub-sections within §5, 「⚠️ 영구 기록」 and 「✅ 결정사항 영구 기록」, **must be kept**
 - In the 「즉시 처리 대상」「의존 대기」「조건부」 sub-sections, delete all items marked RESOLVED in Step 4-b
-- Target: ≤ 500 lines
+- Target: ≤ 500 lines (2-tier default; see Threshold-adjustment guidance for 1-tier)
 
-> The body of §6 and below (document-structure guidance, etc.) is not changed in this Step.
+> The body of §6 and below (document-structure guidance, etc.) is not changed in this sub-step.
+
+### 5-b. Completed-Phase body slimming (`plan_tier: "1"` only)
+
+Under `plan_tier: "1"` there is no separate detail-plan doc for Step 3 to slim — `<single_plan_file>` carries both the index and the session-table body in one file. This sub-step absorbs Step 3's job for the single-doc case, reusing the **same category-vs-detail preserve/delete distinction** Step 3 defines (do not re-derive a separate rule):
+
+| Kind | Identification criterion | Handling |
+|------|--------------------------|----------|
+| **`## Phase N`** (preserve) | The Phase-level grouping heading itself, including its 1-line summary table | **Always preserve** |
+| **Completed-session detail within a Phase** (delete) | A sub-entry for a single completed session ID nested under a `## Phase N` heading | Delete entirely, same criteria as Step 3's "completed-session detail ###" |
+
+- Leave each `## Phase N` heading and its summary table as-is.
+- Delete only completed-session detail sub-entries nested under a Phase.
+- After deletion, add once: `> 세션 상세 내용은 archive_path 참조` (per `harness-answers.yml → archive_path`)
+- **Preserve-first when ambiguous** — same guard as Step 3.
+
+Runs only when `plan_tier: "1"`; skip entirely under `plan_tier: "2"` (Step 3 already covers that case).
 
 ---
 
@@ -352,11 +397,12 @@ Re-measure line counts after the change and output in the following format:
 |------|------|------|------|
 | CURRENT_SESSION.md | N줄 | N줄 | -N줄 (-X%) |
 | SESSION_INDEX.md | N줄 | N줄 | -N줄 (-X%) |
-| 00_MASTER_PLAN.md | N줄 | N줄 | -N줄 (-X%) |
-| 00_MODERNIZATION_MASTER_PLAN.md | N줄 | N줄 | -N줄 (-X%) |
+| {plan_tier: "2" 행 집합} <master_plan_file> | N줄 | N줄 | -N줄 (-X%) |
+| {plan_tier: "2" 행 집합} <detail_plan_file> | N줄 | N줄 | -N줄 (-X%) |
+| {또는 plan_tier: "1" 행} <single_plan_file> | N줄 | N줄 | -N줄 (-X%) |
 | **합계** | **N줄** | **N줄** | **-N줄 (-X%)** |
 
-인수인계 이관: N건 → `00_MASTER_PLAN.md §5` (즉시 N / 의존 N / 조건부 N)
+인수인계 이관: N건 → 플랜 문서 §5 (즉시 N / 의존 N / 조건부 N)
 §5 회수: N건 (삭제 N / RESOLVED 표시 N)
 인덱스 스테일 정정 (R-9): N건 자동 정정 / M건 외부 검증 필요
 §5 외부 검증 필요 후보 (사용자 명시 승인 대기): (없으면 "없음")
@@ -374,11 +420,14 @@ Re-measure line counts after the change and output in the following format:
 
 Adjust thresholds directly in this file (`SKILL.md`) Step 0-B table.
 Adjustment basis: average added lines per session × allowed session count.
-Current baseline (4 documents):
+
+**`plan_tier: "2"` current baseline (this repo's own tuned values, shipped as the default/example):**
 - CURRENT_SESSION.md 100 lines (+50~80 lines/session, slim at 1-session end)
 - SESSION_INDEX.md 80 lines (+1~2 lines/session, slim after ~30 sessions accumulated)
-- 00_MASTER_PLAN.md 450 lines (§4 log·completed chains·§5 handoff accumulation — +0~3 lines/session. In HARNESS-RESEARCH-5(2026-05-25), the 600-line threshold failed to catch 507-line bloat, so lowered to 450)
-- 00_MODERNIZATION_MASTER_PLAN.md 700 lines (§7 session table — +1~5 lines/session, after ~20~50 sessions)
+- `<master_plan_file>` 450 lines (§4 log·completed chains·§5 handoff accumulation — +0~3 lines/session. In HARNESS-RESEARCH-5(2026-05-25), the 600-line threshold failed to catch 507-line bloat, so lowered to 450)
+- `<detail_plan_file>` 700 lines (§7 session table — +1~5 lines/session, after ~20~50 sessions)
+
+**`plan_tier: "1"` — `<single_plan_file>`**: tune `single_plan_threshold` (set at `/init`, default suggestion 500 lines) independently using the same method (average added lines/session × allowed session count) — **do not** derive it by arithmetic from the 2-tier numbers above (e.g. do not guess 450+700 or some fraction of it). A single merged doc's growth rate is not simply the sum of the two 2-tier docs' rates, since some content (the index's §2/§3/§4) doesn't exist as separate lines in a 1-tier doc at all. Re-tune after observing ~10 sessions of actual growth.
 
 ---
 

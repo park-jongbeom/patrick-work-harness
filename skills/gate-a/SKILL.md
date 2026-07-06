@@ -10,8 +10,8 @@ effort: high
 
 Before session start (before any code change):
 
-0-A. **Load the work-plan index** — `ai-consulting-plans/00_MASTER_PLAN.md`
-   - Check §2 priority · §3 active tracks · §4 next action
+0-A. **Load the plan document** (tier-aware — see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) — `plan_tier: "2"` (or field absent) → `<master_plan_file>`; `plan_tier: "1"` → `<single_plan_file>`
+   - Check §2 priority · §3 active tracks · §4 next action (or the equivalent priority/active-track/next-action sections under `plan_tier: "1"`)
    - Check **§5 handoff notes**: if 「즉시 처리 대상」·「의존 대기」·「조건부」 has items, review whether they can be reflected when forming this Gate A plan
    - If such an item is incorporated into this session's scope, delete it from §5 at Gate E
 
@@ -22,20 +22,18 @@ Before session start (before any code change):
    - **Cross-verification scope**: only the session/track this Gate A directly touches — no exhaustive lookup (avoid overhead)
    - **Comprehension-gate ledger expiry check** (COMPREHEND-GATE-1): if this Gate A's target scope has evidence in `plans/learning/comprehension_ledger.md`, check whether `exp` has elapsed·whether the scope files materially changed — on expiry, reflect 「재검증」 in this session's trigger verdict (the auto-expiry-detection Stop hook is planned in COMPREHEND-GATE-1-b)
 
-1. Confirm `ai-consulting-plans/SESSION_INDEX.md` (root) exists
+1. Confirm `SESSION_INDEX.md` (root) exists
    - YES → load (YAML header only)
    - NO → create new (refer to template)
 
-2. Confirm `ai-consulting-plans/CURRENT_SESSION.md` (root) exists
+2. Confirm `CURRENT_SESSION.md` (root) exists
    - YES → load (only the current-session section's dashboard + active Gate block)
    - NO → create new (record this session's info)
    - ※ The same-named file under `plans/current_work/` is a redirect-guidance file — do not edit
 
-3. Confirm the master plan (detail)
-   - New feature → can it be added to `05_PLATFORM_MODERNIZATION/00_MODERNIZATION_MASTER_PLAN.md` §7?
-   - Independent work → no creating a separate new master plan
-   - Partial work → integrate into the relevant master plan
-   - **The index (`00_MASTER_PLAN.md`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration
+3. Confirm the plan document for new work (tier-aware — see `SKILL_DETAIL.md §Plan-Doc Update Pattern`)
+   - `plan_tier: "2"` (or field absent) → new feature → can it be added to `<detail_plan_file>` §7? Independent work → no creating a separate new detail plan. Partial work → integrate into the relevant detail plan. **The index (`<master_plan_file>`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration.
+   - `plan_tier: "1"` → new feature → which existing `## Phase N` does it belong to (opening a new Phase requires this Gate A's user approval)? `<single_plan_file>` itself carries both index and session-table roles — no separate index doc to distinguish "refresh target" from.
 
 ## Gate A Procedure
 
@@ -216,7 +214,7 @@ Verdict: record the per-new-item rung number in the required output item "미니
      > **R-13 guard**: an Opus-produced row must have the R items in 1 line in the cost-justification column. If unmet, auto-downgrade to Sonnet (Step 0-A-b' format).
    - **Scope-check forced STOP guard** (R-12, introduced 2026-05-04 HARNESS-OPTIMIZE-1-b-1):
 
-     This guard is a **pre-emptive STOP** — checked right after computing the changed-file·Step count, **before outputting the plan text and updating the 3 documents**. On violation, refuse both the Gate A text output and the document update, and output the STOP format below.
+     This guard is a **pre-emptive STOP** — checked right after computing the changed-file·Step count, **before outputting the plan text and updating the plan document(s)**. On violation, refuse both the Gate A text output and the document update, and output the STOP format below.
 
      **Guard items**:
      ```
@@ -245,8 +243,8 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
      **Self-contradiction avoidance**: This guard applies **from the next Gate A call** after R-12 introduction. The R-12 introduction itself (HARNESS-OPTIMIZE-1-b-1) proceeds under the pre-change SKILL, but pre-satisfies the post-change guard via the user decision to split 1-b whole (8+ files) → 1-b-1/1-b-2.
 
-2. Update the 3 documents (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
-   - `00_MODERNIZATION_MASTER_PLAN.md` §7
+2. Update the plan document(s) (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
+   - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `SESSION_INDEX.md` YAML
    - `CURRENT_SESSION.md` dashboard + the full Gate A block content (no writing a summary table only)
      - **Intent-field obligation (DASHBOARD-INTENT-1)**: in the header, write 2 lines in plain Korean — `> **세션 주제**: <평이 한 줄>` (banner title)·`> **작업 의도**: <무엇을 왜, 1~2문장>` (banner body). No jargon·filename dumps — the banner 「🎯 지금 하는 작업」 displays these 2 lines as-is (falls back to work_topic·priority_note if absent).
@@ -277,7 +275,7 @@ At every Gate transition, the items below must be updated:
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate A procedure (plan output + 3-document update), output the block below at the **very end** of the response.
+After completing the entire Gate A procedure (plan output + plan document(s) update), output the block below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
 ```

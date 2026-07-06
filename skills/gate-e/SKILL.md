@@ -23,7 +23,7 @@ effort: low
 2. **Long-form archive** — **newly create (copy)** the session Gate A~E body to `${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_날짜_세션ID.md`.
 
    > **Separation of responsibility (SRP)**:
-   > - **Gate E's responsibility**: create the new archive file + update the 3 documents (SESSION_INDEX·MASTER_PLAN §7·CURRENT_SESSION dashboard).
+   > - **Gate E's responsibility**: create the new archive file + update the plan document(s) (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) + SESSION_INDEX + CURRENT_SESSION dashboard.
    > - **Gate E's non-responsibility**: **do not delete** the CURRENT_SESSION.md body (completed Gate A~D blocks). When the threshold (100 lines) is exceeded, a separate `/doc-cleanup` SKILL slims it down.
    > - **Reason**: Right after Gate E, the user must be able to review the Gate A~E flow as-is in CURRENT_SESSION.md. If the body disappears, the misunderstanding 「Gate E가 안 됐나?」 arises (reflecting 2026-04-27 user feedback).
    > - **User guidance**: After the Step 5 update, the archive path·WORKLOG path must be noted in this response's final output (securing location traceability).
@@ -76,21 +76,21 @@ If `DOC_INDEX.md` exists at the target repo root:
    > No creating a new document per session — always append to an existing topic file.
 
 4. **FIX-B / DEP handoff** — process Gate C's FIX-B·DEP items at the source in the same turn:
-   - FIX-B item → register as a master plan §7 or next-session Gate A candidate
+   - FIX-B item → register in the plan document (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) or as a next-session Gate A candidate
    - Next-session decision → record in the `SESSION_INDEX.md` YAML `next_action` field
    - `SESSION_INDEX.md` YAML `sessions_since_audit += 1`
    - ※ **The session-status ✅E flip is performed in bulk at Step 5, not this step** — preventing Step 4/5 duplication (GATE-E-ENFORCE-1)
    - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`CURRENT_SESSION.md` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment·HARNESS_EVOLUTION_LOG PLAN-SYNC-21). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.
 
-4-B. **§5 handoff retrieval** (conditional) — If there is an item pulled into this session's scope from §5 at Gate A 0-A, confirm the processing trace and delete that line from `00_MASTER_PLAN.md §5`.
+4-B. **§5 handoff retrieval** (conditional) — If there is an item pulled into this session's scope from §5 at Gate A 0-A, confirm the processing trace and delete that line: `plan_tier: "2"` (or field absent) → `<master_plan_file> §5`; `plan_tier: "1"` → `<single_plan_file>`'s handoff-notes section.
 
    - If there is no pulled-in item, skip this step.
    - The 「⚠️ 영구 기록」「✅ 결정사항 영구 기록」 subsections are not retrieved at Gate E (absolute preservation).
    - The retrieval is performed together in this response turn.
 
-5. **3-document ✅E status flip** (same response turn) — update all 3 documents below to ✅E. **The status flip is this step's single responsibility** (no duplication with Step 4):
+5. **Plan-doc ✅E status flip** (same response turn) — update all applicable plan document(s) below to ✅E (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`). **The status flip is this step's single responsibility** (no duplication with Step 4):
 
-   **(a) `00_MODERNIZATION_MASTER_PLAN.md` §7** — that session's row status → `✅E (날짜, 핵심지표)`
+   **(a) Plan document(s)** — `plan_tier: "2"` (or field absent) → `<detail_plan_file>` §7, that session's row status → `✅E (날짜, 핵심지표)`; `plan_tier: "1"` → `<single_plan_file>`'s matching `## Phase N` session entry → `✅E (날짜, 핵심지표)`.
 
    **(b) `SESSION_INDEX.md` YAML** — that session's `gate:` → `✅E (...)`
 
@@ -109,7 +109,7 @@ If `DOC_INDEX.md` exists at the target repo root:
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate E procedure (WORKLOG + archive + 3-document update), output the block below at the **very end** of the response.
+After completing the entire Gate E procedure (WORKLOG + archive + plan document(s) update), output the block below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
 **Output order**: ① **Gate E 산출물 위치** → ② 문서 상태 요약 → ③ audit 권장 여부 → ④ 세션 완료 안내
@@ -120,25 +120,28 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ── Gate E 산출물 위치 ──────────────────────
   archive (장문 본문) : ${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_YYYY-MM-DD_{세션ID}.md
   WORKLOG            : ${HARNESS_PLANS_DIR}/tasks/worklog/YYYY-Www.md (line N~M)
-  3문서 갱신 (✅E)    : SESSION_INDEX.md · 00_MODERNIZATION_MASTER_PLAN.md §7 · CURRENT_SESSION.md 대시보드
+  문서 갱신 (✅E)     : SESSION_INDEX.md · CURRENT_SESSION.md 대시보드 · {plan_tier: "2"인 경우 detail_plan_file §7 / plan_tier: "1"인 경우 single_plan_file 해당 Phase}
   CURRENT_SESSION.md : 본문(Gate A~D 블록) 보존됨 — 슬림화는 별도 /doc-cleanup 호출 시 수행
 ────────────────────────────────────────────
 ```
 
 > Explicitly stating that the CURRENT_SESSION.md body is preserved makes the user aware that 「Gate E 결과를 그대로 검토 가능」.
 
-**② Document status summary** — Right after Gate E completion, measure the 4 document line counts and apply doc-cleanup Step 0-A 「공유 산정 표」 directly to the current-point metadata to compute the score·grade·recommended model. Output in the format below:
+**② Document status summary** — Right after Gate E completion, measure the applicable plan-doc line counts (row set per `harness-answers.yml → plan_tier`, see `doc-cleanup/SKILL.md §Step 0-B`) and apply doc-cleanup Step 0-A 「공유 산정 표」 directly to the current-point metadata to compute the score·grade·recommended model. Output in the format below:
 
 ```
 ── 문서 상태 ──────────────────────────────
   CURRENT_SESSION.md          : N줄  (임계값 100줄) ✅ / ⚠️ 초과
   SESSION_INDEX.md            : N줄  (임계값  80줄) ✅ / ⚠️ 초과
-  00_MASTER_PLAN.md           : N줄  (임계값 450줄) ✅ / ⚠️ 초과
-  00_MODERNIZATION_MASTER_PLAN: N줄  (임계값 700줄) ✅ / ⚠️ 초과
+  {plan_tier: "2" 행 집합}
+  <master_plan_file>          : N줄  (임계값 450줄) ✅ / ⚠️ 초과
+  <detail_plan_file>          : N줄  (임계값 700줄) ✅ / ⚠️ 초과
+  {또는 plan_tier: "1" 행 집합}
+  <single_plan_file>          : N줄  (임계값 <single_plan_threshold>줄) ✅ / ⚠️ 초과
 ────────────────────────────────────────────
   ⚠️ 초과 항목 있음 → `/doc-cleanup` 실행을 권장합니다.
      권장 모델: {Haiku/Sonnet/Opus} ({등급})
-     R/V/D 분해: V-D1 4문서초과 +N / V-D2 §5 항목 N건 +N / V-D3 §7>700·00_MASTER>450 +N / D-D 정형 슬림화 +N
+     R/V/D 분해: V-D1 문서초과 +N / V-D2 §5 항목 N건 +N / V-D3 계획문서 임계초과 개수(1→+1/2→+2) +N / D-D 정형 슬림화 +N
   (또는 모두 이하) → 문서 상태 정상
 ────────────────────────────────────────────
 ```
@@ -154,7 +157,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
 Judge based on the `sessions_since_audit` field of the `SESSION_INDEX.md` YAML header (the value right after += 1 at Step 4). **The judgment·recommendation is performed only in this response output, and the counter number is not recorded in persistent-document prose** (same principle as Step 4 「카운터 값 서술 금지」 — the canonical YAML is the sole source).
 - `sessions_since_audit ≥ 3` → output recommendation
 - `last_audit_date` field absent (first time) → output recommendation
-- **Chain-transition·priority-change point** (e.g. last ✅E of the MEETING-ALIGN chain → entering the next chain, MVP Phase transition, `00_MASTER_PLAN.md §2` priority-table update) → unconditionally output recommendation
+- **Chain-transition·priority-change point** (e.g. last ✅E of the MEETING-ALIGN chain → entering the next chain, MVP Phase transition, the plan document's priority-table update — `<master_plan_file> §2` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent priority section under `plan_tier: "1"`) → unconditionally output recommendation
 
 When recommending:
 ```
