@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] - 2026-07-06
+
+### Fixed
+- 배포 메타파일 버전 드리프트 수정 (HARNESS-VERSION-SYNC-1) — `.claude-plugin/plugin.json`(1.0.7 고정, 생성 커밋 이후 1.0.8/1.0.9/1.1.0 세 번 누락)·`.claude-plugin/marketplace.json`(1.0.8 고정, 1.0.9/1.1.0 두 번 누락)이 정본(루트 `plugin.json`·CHANGELOG 기준 1.1.0)보다 뒤처져 있던 것을 3파일 모두 1.1.1로 동기화. `deploy-plugin.yml`이 루트 `plugin.json`만 검증·릴리스 대상으로 삼고 `.claude-plugin/plugin.json`은 전혀 검사하지 않던 것이 반복 드리프트의 구조적 원인.
+
+### Added
+- `deploy-plugin.yml` `validate` job에 `.claude-plugin/plugin.json` 존재·JSON 유효성 검사 + 3파일(root `plugin.json`·`.claude-plugin/plugin.json`·`.claude-plugin/marketplace.json`) `version` 필드 상호일치 검증 스텝 추가 — 향후 릴리스에서 동일 드리프트 재발 시 CI가 즉시 fail.
+
 ## [1.1.0] - 2026-06-30
 
 ### Added
