@@ -4,6 +4,7 @@
 
 ### Added
 - **1-tier/2-tier plan-document structure support** (`plan_tier`) — `harness-answers.yml`에 `plan_tier`(`"1"`/`"2"`)·`master_plan_file`·`detail_plan_file`·`single_plan_file`·`single_plan_threshold` 5개 필드 신설. `/init` Step 1-c가 기존 2단 구조(서브플랫폼 상세계획 파일·§7 세션테이블) 존재 여부를 자동감지해 제안하고, Step 2 인터뷰에서 사용자가 확인/오버라이드. 단일 계획문서(`WORK_PLAN.md` 등)만 쓰는 프로젝트에 설치할 때마다 반복되던 수동 로컬라이즈 작업을 해소.
+- **Gate D 검증 단계 code-review 에스컬레이션** (`gate-d/SKILL.md` §3-B, R-14) — Gate A의 R축 총점 ≥6 또는 변경파일 >7개일 때, 기존 인라인 7항목 자체점검 대신 `/code-review` Skill(다각도 finder + 독립 검증 에이전트)을 Gate C diff에 위임하도록 확장. `/code-review`는 하네스가 보증하지 않는 클라이언트 개별 capability이므로 가용성 체크 후 미가용 시 인라인 체크리스트로 자동 폴백(gate-e의 `/error-log` 미가용 대응 원칙과 동일).
 - `skills/SKILL_DETAIL.md` `§Plan-Doc Update Pattern` 신설 — gate-a~e·audit·doc-cleanup 전역의 "계획 문서 갱신" tier-aware 공통 문구를 한 곳에 정의. `harness-answers.yml`에 `plan_tier` 필드가 없는 기존 저장소는 자동으로 `"2"`(기존 2단 동작)로 간주 — 하위 호환 보장.
 - `install.sh` `NEW_HOOKS`에 누락됐던 6개 Stop 훅(`gate-a-sync-guard`·`gate-e-sync-guard`·`error-topics-guard`·`comprehension-ledger-stale-guard`·`test-tampering-guard`·`skill-usage-auto`) + PreToolUse `commit-msg-guard` 자동등록 추가 — README에는 문서화되어 있었으나 실제 설치 스크립트에는 등록되지 않던 버그 수정.
 - `sync-from-source.sh`에 SSOT 문서명(`00_MASTER_PLAN.md`·`SESSION_INDEX.md`·`CURRENT_SESSION.md`) 플레이스홀더 자동치환 + 내부 리서치 문서(`REPORTS/HARNESS_*.md`) 인용 자동 각주화 sed 규칙 추가. 2단 구조·튜닝된 임계값·예시 저장소명 등 사람 판단이 필요한 잔존 패턴은 sync 후 경고로 표면화.

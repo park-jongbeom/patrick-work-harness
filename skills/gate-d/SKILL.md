@@ -47,7 +47,15 @@ effort: high
 
 ## 3-B. Code Review·Security Check (ECC code-review + security-review)
 
-Check the 7 items below against the Gate C changed files, and record the result at the end of the summary output.
+**Escalation trigger (R-14, scale review depth to blast radius)**: before running the inline 7-item checklist below, check whether **either** condition applies:
+- The R/V/D decomposition recorded in `CURRENT_SESSION.md`'s Dashboard (per gate-a's "Dashboard Required Fields" — the R value from Gate A's own Step 0-A-a scoring, **not** Gate D's re-scored row) has R-axis total **≥ 6** (the same threshold Gate A uses for Opus promotion — new architecture/algorithm/security-policy decisions), **or**
+- changed files **> 7** (same count already computed for the R-12 scope guard in Gate A)
+
+**If triggered** → check whether the `/code-review` Skill is available in this environment (it is a Claude Code client capability, **not something this harness bundles or guarantees** — a project installing this harness may not have it). **If available**, invoke it (effort: `medium` when one condition holds, `high` when both hold) against the Gate C diff instead of the inline checklist below, then fold its findings into this Step's output (finding count·severity replace the 7-item table). **If unavailable**, fall back to the inline 7-item checklist below — same fallback-on-unavailability principle as gate-e's `/error-log` reference (gate-e/SKILL.md Step 3). **If not triggered at all** → run the inline 7-item checklist below as-is (this is the default path for most sessions — small/standard changes don't need multi-agent review overhead).
+
+> **Rationale**: `/code-review`'s multi-angle finder + independent verifier pattern catches more (cross-file breakage, reuse/simplification gaps, altitude issues) than a single-pass 7-item self-check, but costs materially more tokens/time and depends on a client capability outside this harness's control. Reserve it for sessions where the blast radius justifies the cost — the same R/V/D-based escalation principle Gate A already applies to model selection (R-13) and scope guarding (R-12) — and always keep the inline checklist as the guaranteed fallback.
+
+**Inline checklist (default path, and fallback when `/code-review` is unavailable)** — check the 7 items below against the Gate C changed files, and record the result at the end of the summary output.
 
 **[Code Review]**
 
@@ -74,7 +82,7 @@ Check the 7 items below against the Gate C changed files, and record the result 
    - FIX-B: one-line fix direction + reserved session
    - DEP: dependency-target session/code + when verifiable
    - Build success or not
-   - **Code review·security check: PASS / N issues / N/A** (3-B result summary)
+   - **Code review·security check: PASS / N issues / N/A** (3-B result summary — if the `/code-review` escalation fired and the Skill was available, prefix with `[/code-review 위임]` and cite the finding count/severity it returned instead of the inline 7-item table; if escalation fired but the Skill was unavailable and the inline checklist ran instead, prefix with `[/code-review 미가용 — 인라인 대체]`)
 
    > **claim↔evidence cross-check (technique-8 low-cost core)**: Back each PASS claim with at least one of file·line·test name as evidence (e.g. "회귀 PASS284 — `ScoringServiceTest` 외 ⋯", "정합 PASS — `diff -q` exit 0"). No listing of bare "PASS" without evidence — secure the verifiability of your own output without calling a separate evaluation model.
 
