@@ -29,7 +29,6 @@ effort: high
 - **Closing signal = external execution signals only** (test PASS/FAIL·build·type checker·linter). Do not close the loop on the model's self-judgment ("it's probably fixed").
 - **Upper bound ~3 times**: Read the error message·failure line, and if the cause is **obvious** (typo·null check·missing import·contract mismatch), fix inline and re-run to re-confirm via external signal. If there is progress, repeat within the upper bound.
 - **Stop immediately on no progress**: If the same error·same diff reproduces **2 times in a row**, stop the loop and enter Step 3 FIX-B/DEP classification (stop even if below the upper bound).
-- **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git restore .` (or `git stash`) to revert to the last clean state ③ verify the repo compiles/runs clean ④ report to the user: which files were reverted + why the fix could not proceed → request a new Gate A re-plan.
 - **If not obvious** (network·environment·design defect), enter Step 3 classification immediately without entering the loop.
 - **★ reward-hacking guard (R-2-G)**: During the loop, **test files·test commands·CI config are read-only** (no modification) — disabling verification via `@Disabled`·`assert true`·tampering with expected values to force a pass is a PROC violation. After the loop ends, check the `tests/` diff, and **if there is a test change, treat the gate as failed** (a legitimate test reinforcement is a Gate C-stage deliverable, not this loop's deliverable — separate it as FIX-B). See CLAUDE.md 「검증 루프 중 통과 목적의 테스트 수정 금지」.
 - **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output.
@@ -53,7 +52,7 @@ Check the 7 items below against the Gate C changed files, and record the result 
 
 | Item | Check content | N/A allowed condition |
 |------|---------------|----------------------|
-| API contract | Do new·modified endpoints·interfaces match the API contract doc referenced in `CLAUDE.md §Build·Test` (e.g. `<frontend>/docs/BACKEND_COOPERATION.md`) | Session with no API change |
+| API contract | Do new·modified endpoints·interfaces match the `react-web-ga/docs/04_BACKEND_COOPERATION.md` contract | Session with no API change |
 | Error handling | Are exception·null·failure paths handled (unhandled promise, NPE, unhandled exception, etc.) | Markdown-only repository |
 | Duplication·pattern | Did you reuse the existing helper found in Gate A Pre-Plan; is there no duplication of the same logic | Always applied |
 
@@ -92,26 +91,6 @@ Check the 7 items below against the Gate C changed files, and record the result 
    - Perform the refactoring — no additional feature changes beyond the Gate A plan scope
    - Re-verify — re-run the existing tests with the same Docker command
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
-
-Fill the following if the respective files exist at the target repo root:
-
-**TEST_PLAN.md** — `## Verification Checklist` section:
-- Fill after Gate D run completes: list happy/error test PASS results, regression count
-- Update `DOC_INDEX.md` `TEST_PLAN.md` row → `Complete` (both Gate C and D sections now filled)
-
-**ERROR_HANDLING.md** — `## Failure Paths` + `## Recovery Strategies`:
-- Fill only if Gate D found failures or documented error paths (FIX-B/DEP items qualify)
-- If Gate D found no failures → leave marker in place (correct empty state — do not write "N/A")
-- Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
-
-**DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
-- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Consequences (per `/init` Step 10-b format)
-- If no non-obvious decision → leave marker in place
-- Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
-
-If none of the above files exist: skip silently.
-
 6. Update the 3 documents (status: `D (확인 대기)`, write the Gate D block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML
@@ -122,8 +101,8 @@ If none of the above files exist: skip silently.
 
 ## Docker Execution Commands (mandatory in Gate D record)
 
-> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (each canonical per repo). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
-> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (absent container names·`-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
+> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (each canonical for react-web-ga·college-crawler·ga-api-platform). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
+> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (`docker exec ga-api-platform`·`-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
 
 ## FIX-B Handling Example
 
@@ -138,8 +117,8 @@ If none of the above files exist: skip silently.
 
 ```
 [DEP] ProfileSteps.e2e.test.tsx — runMatching API mock 실패
-  에러: runMatching is not a function (api-platform 엔드포인트 미구현)
-  의존 대상: api-platform 세션 2-D-3 완료 후 검증 가능
+  에러: runMatching is not a function (ga-api-platform 엔드포인트 미구현)
+  의존 대상: ga-api-platform 세션 2-D-3 완료 후 검증 가능
   검증 예약: 2-D-3 ✅E 이후
 ```
 
@@ -156,7 +135,7 @@ During Gate D execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): errors already in the standard failure·error taxonomy (PROC/ENV/TYPE/LOGIC/VERIFY/SEC/API)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above (git restore to last clean state) ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
+**Session-cumulative max_uses**: 3 times. On exceeding → halt the session → request the user re-plan Gate A.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
 

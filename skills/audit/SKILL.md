@@ -97,9 +97,11 @@ audit is a single-SKILL one-shot run, so there is no Gate branching. Decision ru
 |-------------------|-----------|-------------------|
 | (1) | R ≥ 6 (2+ R-A items) | **Opus 4.8** |
 | (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard checks) | **Haiku 4.5** (D forces Sonnet as default, but if R=0+V≤1 the simple verdict allows Haiku downgrade) |
-| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 4.6 (default)** |
+| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5 (default)** |
 
 > **Revision meaning**: The old "total ≤4 = Haiku, 5~9 = Sonnet, 10+ = Opus" single mapping is abolished. R/V/D 3-axis independent measurement separates "direction-check multi-item reasoning (R)" from "repeated-call accumulation (V)" — Opus only when R fires (avoiding systematic Opus bias).
+>
+> **Fable 5**: not a regular tier in this decision table — see `SKILL_DETAIL.md §Fable 5` for the exception-escalation-only rule (applies identically to audit).
 
 ### Step 0-b'. R-13 cost-justification guard
 
@@ -107,13 +109,13 @@ audit is a single-SKILL one-shot run, so there is no Gate branching. Decision ru
 
 ### Step 0-c. Current-model detection
 
-From the calling Claude's system context (`You are powered by the model named {model}` form), extract a **single model-family keyword** (Opus / Sonnet / Haiku). Ignore the version number.
+From the calling Claude's system context (`You are powered by the model named {model}` form), extract a **single model-family keyword** (Opus / Sonnet / Haiku / Fable). Ignore the version number. Fable is detected as the current model only if the user has manually switched to it via exception escalation (Step 0-b Fable 5 note) — it is never produced as a recommendation, only ever detected as current.
 
 If keyword extraction fails, treat as "detection failure" and STOP conservatively.
 
 ### Step 0-d. STOP verdict (PROC violation enforcement)
 
-Model tier integers: `Haiku=1` / `Sonnet=2` / `Opus=3`.
+Model tier integers: `Haiku=1` / `Sonnet=2` / `Opus=3` / `Fable=4` (Fable only ever appears as a *current*-model value under manual exception escalation — it is never a *recommended* value, so the STOP comparison logic below is unaffected).
 
 - **Current tier ≥ recommended tier** → proceed normally (to Step 1). Output 1 line at the start of this response: 「✅ 모델 검증: 현재 {모델} ≥ 권장 {권장} (R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄})」.
 - **Current tier < recommended tier** → **STOP**. Output the format below verbatim and await the user's response:
@@ -182,21 +184,20 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 
 ### Tool-conditional commands (check item #10 auxiliary measurement)
 
-> **Conditional**: Run via Docker only when the tool below is **installed in the repository** to back up the qualitative judgment. If not installed, skip the command and do qualitative judgment on the changed files only. Avoid dual toolchains: use only tools that coexist with each repo's existing single linter. Refer to `CLAUDE.md §Build·Test` for per-repo canonical Docker commands and container names.
+> **Conditional**: Run via Docker only when the tool below is **installed in the repository** to back up the qualitative judgment. If not installed, skip the command and do qualitative judgment on the changed files only (real-install complete: detekt[existing]·jscpd[react devDep·MAINT-AUDIT-1-b]·radon[crawler image·MAINT-AUDIT-1-b]). Avoid dual toolchains: use only tools that coexist with each repo's existing single linter (ga-api=detekt·react-web-ga=**Biome**·college-crawler=**Ruff**). **react has no permanent dev container** (production image=nginx only), so run via a **one-shot `docker run node:20-alpine`** mount, not `docker exec` (react canonical-verification topology).
 
 ```bash
-# Example: Kotlin repo with detekt — adapt container name / compose file from CLAUDE.md §Build·Test
-# docker compose -f <path>/docker-compose-test.yml run --rm <test-service> ./gradlew detekt --no-daemon 2>/dev/null || echo "detekt 미설치/실행불가 → 정성 판정만"
+# ga-api-platform (Kotlin) — detekt already installed (build.gradle.kts·config/detekt/). Cognitive complexity + CPD duplication
+sg docker -c "docker compose -f ${GA_API_PLATFORM_DIR}/docker-compose-test.yml run --rm ga-test ./gradlew detekt --no-daemon" 2>/dev/null || echo "detekt 미설치/실행불가 → 정성 판정만"
 
-# Example: TypeScript repo with jscpd — no permanent dev container → one-shot node container
-# docker run --rm -v <repo-path>:/app -w /app node:20-alpine sh -c 'npm install --legacy-peer-deps >/dev/null 2>&1 && npx jscpd src' 2>/dev/null || echo "jscpd 미설치/실행불가 → 정성 판정만"
+# react-web-ga (TS) — jscpd (copy-paste detection·independent of Biome). No permanent dev container (production=nginx only) → run via one-shot node container
+sg docker -c "docker run --rm -v ${REACT_WEB_DIR}:/app -w /app node:20-alpine sh -c 'npm install --legacy-peer-deps >/dev/null 2>&1 && npx jscpd src'" 2>/dev/null || echo "jscpd 미설치/실행불가 → 정성 판정만"
 
-# Example: Python repo with radon
-# docker exec <crawler-container> radon cc src -a 2>/dev/null || echo "radon 미설치 → 정성 판정만"
+# college-crawler (Python) — radon (cognitive complexity cc·maintainability mi, runs independent of Ruff). Only if installed
+docker exec college-crawler-local radon cc src -a 2>/dev/null || echo "radon 미설치 → 정성 판정만"
 ```
 
-> **Note**: Replace placeholder container names / paths with the project's actual values from `CLAUDE.md §Build·Test` and `.claude/harness-answers.yml → docker_blocked_containers`. Do not hardcode project-specific names in this skill.
-> **Excluded tools**: `eslint-plugin-sonarjs` (needs ESLint runtime — conflicts with Biome single-linter)·`pylint R0801` (needs pylint — conflicts with Ruff single-linter). Both would introduce a new dual toolchain, so a maintainability check would itself increase maintenance burden — a self-contradiction. The delta is judged qualitatively on changed files **without storing a metric snapshot** (the audit "record metadata only" principle·Step 4 maintained).
+> **Excluded tools**: `eslint-plugin-sonarjs` (needs ESLint runtime — react is Biome single-linter)·`pylint R0801` (needs pylint — crawler is Ruff single-linter). Both would introduce a new dual toolchain, so a maintainability check would itself increase maintenance burden — a self-contradiction → not adopted (MAINT-AUDIT-1 Gate A user decision). The delta is judged qualitatively on changed files **without storing a metric snapshot** (the audit "record metadata only" principle·Step 4 maintained).
 
 ---
 

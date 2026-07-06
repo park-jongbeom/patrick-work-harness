@@ -19,14 +19,6 @@ effort: medium
      No listing diffs without reasons — Gate D cannot trace change intent otherwise.
      Compress each pair to within 3 lines (no verbose reasoning).
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
-
-If `TEST_PLAN.md` exists at the target repo root:
-- Fill `## Test Cases` section: list happy/edge/error cases per changed unit (per `/init` Step 10-b table format)
-- Leave `## Verification Checklist` marker (`<!-- Gate D에서 채워짐 -->`) untouched — Gate D fills it.
-- Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
-- If `TEST_PLAN.md` does not exist: skip silently.
-
 3. Update the 3 documents (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML
@@ -56,7 +48,7 @@ During Gate C execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): syntax·API reference lookup (Grep/WebFetch suffices)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① `git restore .` (or `git stash`) to revert to the last clean state ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
+**Session-cumulative max_uses**: 3 times. On exceeding → halt the session → request the user re-plan Gate A.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
 

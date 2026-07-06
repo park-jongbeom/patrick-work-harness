@@ -28,15 +28,6 @@ effort: low
    > - **Reason**: Right after Gate E, the user must be able to review the Gate A~E flow as-is in CURRENT_SESSION.md. If the body disappears, the misunderstanding 「Gate E가 안 됐나?」 arises (reflecting 2026-04-27 user feedback).
    > - **User guidance**: After the Step 5 update, the archive path·WORKLOG path must be noted in this response's final output (securing location traceability).
 
-### 2-B. Layer 2 document status finalization (if `--docs=full` was used at `/init`)
-
-If `DOC_INDEX.md` exists at the target repo root:
-- Review each Layer 2 row's `Status`:
-  - If a document was expected to be filled by this session's gates but remains `Skeleton` → mark `Partial` with a note `(not filled — no applicable content this session)`
-  - If all gates for this session have filled their sections → mark `Complete`
-- This is the final DOC_INDEX.md touch for this session — subsequent sessions start fresh from the current status.
-- If `DOC_INDEX.md` does not exist: skip silently.
-
 3. **Error-case storage** (conditional) — perform the procedure below directly in this turn. (An inline copy of the same procedure as the `/error-log` Skill — that skill is not auto-loaded, so perform the below directly in this response. No separate load needed.)
 
    **Judgment**: Check the items below in the `CURRENT_SESSION.md` Gate B~D blocks:
@@ -46,9 +37,11 @@ If `DOC_INDEX.md` exists at the target repo root:
    → **If there is no target, output "오류 기록 대상 없음 — 생략" and proceed to Step 4.**
 
    **Canonical location** (managed independently per repository):
-   - `<code-repo>/docs/rules/error_topics/` for each repo listed in `.claude/harness-answers.yml → code_repos`
+   - `react-web-ga/docs/rules/error_topics/`
+   - `ga-api-platform/docs/rules/error_topics/`
+   - `college-crawler/docs/rules/error_topics/`
    - Each folder's `README.md` is the topic index (canonical). Do not write to the ledger `../error_analysis.md`.
-   - Docs-only repos (no entry in `code_repos`) → record in the `error_topics/gate_process.md` of the code repository that this session worked on.
+   - `ai-consulting-plans`·`plans` are docs-only → record in the `error_topics/gate_process.md` of the code repository that that session worked on.
 
    **Topic file mapping** (common to the three repositories):
    | File | Tag | Target error |

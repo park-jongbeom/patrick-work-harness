@@ -88,13 +88,15 @@ Before session start (before any code change):
 
 | Gate | Decision rule (in priority order) |
 |------|-----------------------------------|
-| **A** (plan) | (1) R ≥ 6 → Opus 4.8 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 4.6 (default)** |
-| **B** (implement) | (1) **default Sonnet 4.6** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
-| **C** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 4.6 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 |
-| **D** (refactor) | (1) **default Sonnet 4.6** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 4.8 |
+| **A** (plan) | (1) R ≥ 6 → Opus 4.8 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 5 (default)** |
+| **B** (implement) | (1) **default Sonnet 5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
+| **C** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 |
+| **D** (refactor) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 4.8 |
 | **E** (cleanup) | always Haiku 4.5 |
 
 > **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). The old "Gate B = same model as A" auto-inheritance rule is abolished (PROC-MODEL-RUBRIC-1).
+>
+> **Fable 5 (exception escalation only)**: not a regular tier in the table above — Fable 5 is Anthropic's most capable widely-released model (Mythos-class) but is absent from the official model-selection matrix and priced at exactly 2× Opus 4.8. Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5`.
 
 > **Meaning of self-verification**: Gate A is "deciding the whole session's direction", so Opus promotion only when an R item (architecture decision·new algorithm, etc.) explicitly arises. Even with many changed files·repos, if R = 0, Sonnet suffices — for multi-file handling, Anthropic's official recommended "Sonnet orchestrator + Haiku worker parallel" pattern is more cost-efficient than a single Opus.
 
@@ -126,7 +128,7 @@ Summary:
 
 Purpose: avoid writing a duplicate implementation, and pass existing patterns to Gate B as reuse candidates.
 
-> **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — e.g. crawler↔api schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
+> **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — college-crawler↔ga-api-platform schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
 
 #### 0-Fitness. System fitness check (HARNESS-PLAN-AUGMENT-1, 2026-06-09)
 
@@ -149,39 +151,12 @@ After reading all related files, check the trigger table below. **If any applies
 | Trigger (this plan's task character) | OSS candidate (§4) | Complement effect |
 |--------------------------------------|--------------------|-------------------|
 | External-library version change·DEP-BUMP·new-library introduction·framework migration | **Context7 MCP** (P0) | Inject per-version latest docs → prevent stale-API inference |
-| Frontend UI/flow change + E2E verification needed | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
+| react-web-ga UI/flow change + E2E verification needed | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
 | Long Gate C verification·large test logs·multi-repo simultaneous verification | **Context Engineering / 5 coordination patterns** (P1/P2) | tool-result-clearing·delegation for token saving |
 
 `AskUserQuestion` options: ① register as a separate `OSS-ADOPT-*` track / ② incorporate into this session's scope / ③ no adoption (reference only).
 
 Verdict: if no trigger applies, 「OSS 참조 N/A (트리거 미해당)」 1 line (natural skip for simple doc·cleanup work). If applicable, record the proposed candidate + the user-decision result in the required output item "OSS 카탈로그 참조 점검".
-
-#### 0-Impact. Impact map — 1-hop dependency scan (EXTREVIEW-3, 2026-06-29)
-
-> Where "0-OSS" sees external complement, this check maps **which files are directly affected by the planned changes** so that unexpected regressions can be anticipated before Gate C/D. It extends the changed-file list from "what I touch" to "what gets pulled along."
-
-After identifying the planned changed files (from the Pre-Plan investigation), scan 1 hop outward:
-
-- If the repo has **ARCHITECTURE.md / DATA_FLOW.md** (generated by `/init --docs=full`): read those files to find callers/importers of each changed file.
-- Otherwise: run a targeted grep/find for `import`, `require`, `@Autowired`, `depends_on`, or equivalent patterns pointing at each changed file.
-
-Output a compact table in the required output item "영향도 지도":
-
-| Changed file | Direct callers / importers | Ripple risk |
-|---|---|---|
-| `foo.ts` | `bar.ts`, `baz.ts` | Low / Medium / High |
-
-**Ripple risk heuristic**:
-- **Low**: test file, leaf utility, no further callers found
-- **Medium**: called by 2–5 files or crosses a layer boundary (e.g. service → controller)
-- **High**: called by 6+ files, shared interface/type, or crosses a security/auth boundary
-
-**N/A conditions** (output 「N/A — {reason}」 instead of the table):
-- Markdown-only or docs-only change (no importable artifact)
-- Single isolated script with no callers in the repo
-- The changed file is itself a new addition (no existing callers yet)
-
-> **Scope limit (YAGNI)**: scan 1 hop only. 2-hop and deeper ripple analysis belongs in Gate D code review, not Gate A planning.
 
 #### 0-Ladder. Minimalism ladder check (R-4-6, 2026-06-23 · ponytail OSS)
 
@@ -213,7 +188,6 @@ Verdict: record the per-new-item rung number in the required output item "미니
    - **시스템 적합성 점검** (architecture·Phase·prohibited-pattern 3 axes, 1 line; the "0-Fitness" result above — HARNESS-PLAN-AUGMENT-1)
    - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — produce 1 line by risk heuristic (AI auto + user override): 「발동(폭발반경 大→사용자 설명 / 일반 위험→AI 자기설명)」 or 「미발동(사소 CRUD·문서·정형 변경)」. On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
-   - **영향도 지도** (0-Impact result — compact table of changed file → direct callers + ripple risk / if N/A, 「N/A — {reason}」 1 line — EXTREVIEW-3)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **Gate D (refactor) expectation and basis** (needed/not needed + 1-line reason)
    - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (Gate B auto-inheritance abolished):
@@ -222,16 +196,18 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
      | Gate | Mapping procedure | Output model |
      |------|-------------------|--------------|
-     | **B** (implement) | **default Sonnet 4.6**. Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
-     | **C** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 4.6. Simple regression re-confirm (already PASS) → Haiku 4.5 | decision-rule result |
-     | **D** (refactor) | produced only when "Gate D 예상 = 필요". default Sonnet 4.6 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 4.8 | decision-rule result or — |
+     | **B** (implement) | **default Sonnet 5**. Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
+     | **C** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5. Simple regression re-confirm (already PASS) → Haiku 4.5 | decision-rule result |
+     | **D** (refactor) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 4.8 | decision-rule result or — |
      | **E** (cleanup) | always Haiku 4.5 | Haiku 4.5 |
+
+     > **Fable 5 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5 note above).
 
      **Output format**:
 
      | Gate | 권장 모델 | Effort / Thinking | 분해 (R / V / D) | 비용 정당화 (Opus 한정, R-13) |
      |------|----------|--------------------|-----------------|----------------------|
-     | B | {Opus 4.8 / Sonnet 4.6 / Haiku 4.5} | {high·medium·low} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
+     | B | {Opus 4.8 / Sonnet 5 / Haiku 4.5} | {high·medium·low} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
      | C | {…} | {medium·low} / off | R={C 한정 — API/DB/SEC 결합 여부} / V=— / D={회귀 가드 多 여부} | … |
      | D | {모델 또는 —} | {medium} / off | R={리팩터 깊이 — R≥6 여부} / V=— / D={overengineering 회피 명시 여부} | … |
      | E | Haiku 4.5 | low / off | — | — |
@@ -269,15 +245,6 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
      **Self-contradiction avoidance**: This guard applies **from the next Gate A call** after R-12 introduction. The R-12 introduction itself (HARNESS-OPTIMIZE-1-b-1) proceeds under the pre-change SKILL, but pre-satisfies the post-change guard via the user decision to split 1-b whole (8+ files) → 1-b-1/1-b-2.
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
-
-If `FEATURE_SPEC.md` exists at the target repo root (created by `/init` Step 9):
-- Replace `<!-- Gate A에서 채워짐 -->` markers in `## Overview` and `## Acceptance Criteria` sections with:
-  - **Overview**: one-sentence summary of what this session adds or changes (from Gate A plan scope)
-  - **Acceptance Criteria**: 2–5 measurable criteria derived from the Gate A plan's changed-file list and Step goals
-- Update `DOC_INDEX.md`: change `FEATURE_SPEC.md` row `Status` from `Skeleton` → `Partial`
-- If `FEATURE_SPEC.md` does not exist (brownfield or `--docs=minimal/none`): skip silently.
-
 2. Update the 3 documents (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML
@@ -297,7 +264,7 @@ If `FEATURE_SPEC.md` exists at the target repo root (created by `/init` Step 9):
 At every Gate transition, the items below must be updated:
 - Current Gate, Gate progress (✅⏸☐), next action
 - **R/V/D decomposition** — Step 0-A-a 3-axis scoring result (e.g. `R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1`)
-- **Per-Gate recommended model** (B/C/D/E each, the result of applying the Step 0-A-b + 0-A-b'' decision rule — e.g. `B: Sonnet 4.6 (medium/off) / C: Haiku 4.5 (low/off) / D: 미예상 / E: Haiku 4.5 (low/off)`)
+- **Per-Gate recommended model** (B/C/D/E each, the result of applying the Step 0-A-b + 0-A-b'' decision rule — e.g. `B: Sonnet 5 (medium/off) / C: Haiku 4.5 (low/off) / D: 미예상 / E: Haiku 4.5 (low/off)`)
   - Format: `{모델} ({effort}/{thinking})` — writing the 3 items together is mandatory (model only is a PROC violation)
 
 > **Revision reason (PROC-MODEL-RUBRIC-2)**: The old "task complexity (L·M·H) + recommended model (Haiku·Sonnet·Opus)" single mapping cannot be consistent with R/V/D 3-axis scoring. The new format can be re-scored with the same metadata during follow-up Gate model verification.

@@ -6,7 +6,7 @@ effort: low
 
 # Gate B Procedure — Comprehension Gate (follow order strictly)
 
-> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via free-form explanation. Defense against AI-era cognitive debt (MIT 2025). Canonical: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §2`.
+> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via retrieval forced through guided questioning. Defense against AI-era cognitive debt (MIT 2025). Canonical: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §2` (original design) + `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_GATE_B_SOCRATIC_RESEARCH_V1.md` (guided-questioning redesign, 2026-07-06).
 > **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
 ## Step 0. 3-way risk classification
@@ -33,21 +33,21 @@ Classify the Gate A plan by risk level and determine the path:
 
 > Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end. This Step's direct lookup is the first-pass verdict.
 
-## Step 2. Force free-form explanation (non-trivial paths only)
+## Step 2. Force retrieval via guided questioning (non-trivial paths only)
 
-**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force free-form explanation:
+**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force actual retrieval — the active ingredient is retrieval, not the dialogue format itself (Dunlosky 2013 meta-review: retrieval/spaced practice = high utility, free self-explanation = only moderate utility). Basis and evidence-strength ratings → `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_GATE_B_SOCRATIC_RESEARCH_V1.md`.
 
-> **How it runs end to end + what could break, 3~6 sentences** (or "draw the data flow").
+- **Large blast radius**: AI asks **2~4 questions, one at a time** (do not reveal the next question until the current one is answered — prevents reading-ahead gaming), **before the user sees AI-written code**. Question template: ①why is this change needed ②what is the core mechanism ③what is the most fragile break point ④(if relevant) how to roll it back. AI only evaluates — it does not answer for the user.
+- **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing — zero user retrieval. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
+- **Gaming guard**: an answer must cite a concrete file/line/mechanism from the Gate A plan (reuses gate-d's claim↔evidence cross-check principle). A generic answer ("이해했어요") does not pass — ask once more.
+- **Trivial**: unchanged, pass-through.
 
-- **Large blast radius**: **the user** writes → **before** seeing AI code (generation-effect condition). AI only evaluates.
-- **General risk**: **the AI** writes a self-explanation based on the Gate A plan → the user reviews.
+## Step 3. Per-question evaluation → corrective loop on failure (no blocking)
 
-## Step 3. Evaluation → corrective loop on failure (no blocking)
+Evaluate **each question's answer independently** (not one holistic free-form paragraph as before): does it cite a concrete file/mechanism, does it match the Gate A plan's actual content, is there a flow gap or an unrecognized break point.
 
-Inspect gaps in the explanation (flow omission·unrecognized break point·wrong premise):
-
-- **Sufficient** → record Step 4 evidence then pass the gate → proceed to gate-c
-- **Gap found** → **do not block**. Route to that area's learning doc → retry once. If a gap remains after retry, delegate decision to user (proceed/further learning).
+- **All questions answered concretely** → record Step 4 evidence then pass the gate → proceed to gate-c
+- **Gap found in ≥1 question** → **do not block**. Give one hint, re-ask that question once. If a gap remains after retry, delegate decision to user (proceed/further learning). Record which question(s) needed a retry in the evidence row's 설명요약.
 
 ## Step 4. Evidence record (expiring, non-trivial paths only)
 
@@ -64,16 +64,8 @@ Add 1 row to `plans/learning/comprehension_ledger.md`:
 | 설명 요약 | Core flow·break point, 1 line |
 
 > Pass-through (trivial) sessions: skip this Step.
-> Expiry default: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
-
-### Layer 2 document update (if `--docs=full` was used at `/init`)
-
-If `API_SPEC.md` exists at the target repo root:
-- Gate B touches API contracts only when the session involves endpoint changes. Check: does the Gate A plan list any new or modified endpoints?
-  - **Yes** → fill `## Endpoints Changed` section (METHOD + path + request/response shape per `/init` Step 10-b format)
-  - **No** → leave `<!-- Gate B에서 채워짐 -->` marker in place (correct empty state — do not write "N/A")
-- Update `DOC_INDEX.md`: change `API_SPEC.md` row `Status` → `Partial` (if filled) or leave `Skeleton`.
-- If `API_SPEC.md` does not exist: skip silently.
+> **Expiry default (first pass)**: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
+> **Expiry on re-verification pass (adaptive, SM-2-lite)**: when Step 1 found a matching `tech_tags` row that had expired and this session's re-verification **passes again**, set the new `exp` to roughly **double the previous row's exp value** (e.g. 3개월→6개월, 1개월→2개월), capped at `12개월`. No new column — parse the previous exp text, double the numeric part, write it into the new row. On a **failed** re-verification (retry needed or user-delegated), reset `exp` back to the first-pass default instead of doubling.
 
 ## Step 5. Update the 3 documents (status: `B (확인 대기)`) — **run the file-editing tool**
 

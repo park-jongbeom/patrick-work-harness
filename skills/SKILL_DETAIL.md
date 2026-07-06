@@ -14,9 +14,9 @@ description: "Shared model-rubric detail for gate-a, audit, doc-cleanup. Load on
 
 ### §1. PROC-MODEL-RUBRIC Philosophy and Sources
 
-> **Revision (PROC-MODEL-RUBRIC-1/2, 2026-05-06)**: Single-score summation → tier mapping abolished. Model is decided by **3-axis independent measurement** (R / V / D).
-> Basis: Anthropic official positioning (Sonnet 4.6=coding mainstay·Opus 4.8=long horizon·science reasoning·Haiku 4.5=1/3 the cost of Sonnet coding)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern.
-> Sources: [Anthropic Opus 4.8](https://www.anthropic.com/news/claude-opus-4) · [Sonnet 4.6](https://www.anthropic.com/news/claude-sonnet-4-6) · [Haiku 4.5](https://www.anthropic.com/news/claude-haiku-4-5) · [METR Time Horizon by Domain](https://metr.org/blog/2025-07-14-how-does-time-horizon-vary-across-domains/)
+> **Revision (PROC-MODEL-RUBRIC-1/2, 2026-05-06 · model-generation refresh HARNESS-MODEL-ROUTING-1, 2026-07-06)**: Single-score summation → tier mapping abolished. Model is decided by **3-axis independent measurement** (R / V / D).
+> Basis: Anthropic official positioning (Sonnet 5=coding mainstay·Opus 4.8=long horizon·science reasoning·Haiku 4.5=1/3 the cost of Sonnet coding)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern·deep-research findings on the current 4-model lineup (`REPORTS/HARNESS_MODEL_ROUTING_RESEARCH_V1.md`).
+> Sources: [Anthropic Opus 4.8](https://www.anthropic.com/news/claude-opus-4) · [Sonnet 5](https://www.anthropic.com/news/claude-sonnet-5) · [Haiku 4.5](https://www.anthropic.com/news/claude-haiku-4-5) · [METR Time Horizon by Domain](https://metr.org/blog/2025-07-14-how-does-time-horizon-vary-across-domains/)
 
 ### §2. Estimation Guide
 
@@ -28,7 +28,7 @@ description: "Shared model-rubric detail for gate-a, audit, doc-cleanup. Load on
 
 ### §3. R-13 Cost-Justification Guard (PROC-MODEL-RUBRIC-1/2)
 
-> **PROC enforcement**: When producing an Opus 4.8 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the ~1.67× output-token cost vs Sonnet ($25 vs $15 per 1M, current-gen Opus:Sonnet 4.6) is not justified by R items, auto-downgrade to Sonnet.
+> **PROC enforcement**: When producing an Opus 4.8 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the ~1.67× output-token cost vs Sonnet ($25 vs $15 per 1M, current-gen Opus:Sonnet 5) is not justified by R items, auto-downgrade to Sonnet.
 
 **Opus recommendation output format**:
 
@@ -70,7 +70,7 @@ description: "Shared model-rubric detail for gate-a, audit, doc-cleanup. Load on
 | **E** (cleanup) | always | low | off |
 
 > **Thinking=auto condition**: only when an R≥2 item actually needs to be resolved. If D≥1, prefer thinking=off (CoT over-elaboration conflicts with deterministic output).
-> **Dashboard notation**: `B: Sonnet 4.6 (medium/off)` — model·effort·thinking 3 items written together.
+> **Dashboard notation**: `B: Sonnet 5 (medium/off)` — model·effort·thinking 3 items written together.
 
 ### §5. Model Selection Criteria (reference summary, PROC-MODEL-RUBRIC-1 revision)
 
@@ -79,9 +79,20 @@ description: "Shared model-rubric detail for gate-a, audit, doc-cleanup. Load on
 | Model | Price (in/out per 1M) | Fit work | Default Gate mapping |
 |-------|----------------------|----------|----------------------|
 | Opus 4.8 | $5 / $25 | Long-horizon agent · new architecture decision · science·math reasoning · high-resolution vision — **only when R items ≥ 2** | R≥6 only (A·B·D all) |
-| Sonnet 4.6 | $3 / $15 | **Standard coding implementation·verification·refactor (default)** · strict instruction following · smallest-diff consistency · ~1.67× cheaper than Opus (output tokens) | A·B·C·D default |
+| Sonnet 5 | $3 / $15 (promo $2/$10 through ~2026-08-31) | **Standard coding implementation·verification·refactor (default)** · strict instruction following · smallest-diff consistency · ~1.67× cheaper than Opus (output tokens) · near-parity with Opus on general reasoning/knowledge work, still ~6–17pt behind on deep-coding/olympiad-math benchmarks | A·B·C·D default |
 | Haiku 4.5 | $1 / $5 | Cleanup·labeling·repeated-pattern application·real-time response·orchestration worker (Anthropic official recommendation) | E always, B/C on downgrade |
 
 > Switch command: `/model opus` · `/model sonnet` · `/model haiku`
 > Fast mode: `/fast` (same model, faster output) — usable alongside Haiku work
 > **Anthropic official recommended pattern**: decompose complex work into "Sonnet orchestrator + Haiku worker parallel" — more cost-efficient than mapping a single Opus to a single task. ([Haiku 4.5 announcement](https://www.anthropic.com/news/claude-haiku-4-5))
+
+### §Fable 5 (exception escalation only, HARNESS-MODEL-ROUTING-1, 2026-07-06)
+
+> **SSOT for Fable 5**: all other skill files (`CLAUDE.md`, `gate-a`, `audit`, `doc-cleanup`) reference this section rather than re-describing Fable 5 — edit here only.
+
+- **Positioning**: per Anthropic's official docs, Fable 5 is "Anthropic's most capable widely released model, built for the most demanding reasoning and long-horizon agentic work" (Mythos-class). Despite the name, it is **not** a storytelling/creative-writing specialist model — that framing appears only in third-party marketing blogs, not in Anthropic's own positioning.
+- **Absent from the official routing matrix**: Anthropic's "choosing a model" matrix lists only Opus 4.8 / Sonnet 5 / Haiku 4.5 as routing targets for coding/agentic/enterprise/cost-sensitive work. Fable 5 sits outside that matrix as a separate premium option.
+- **Price**: $10 / $50 per 1M (in/out) — exactly 2× Opus 4.8 ($5/$25).
+- **Benchmark edge**: SWE-bench Verified 95.0% vs Opus 4.8's 88.6% — a real capability edge exists, but whether it justifies 2× cost at single-developer session scale is unproven (no usage data yet).
+- **Harness rule (user decision, 2026-07-06)**: Fable 5 is **not** part of the regular R/V/D routing table for any Gate. Invoke it only when **both** conditions hold: (a) the task is a large-scale migration or a multi-day full-autonomy session, and (b) the user has explicitly approved the escalation in a sentence (e.g. 「Fable 5로 진행 승인」). It never appears as an auto-produced recommendation — only as a current-model value once the user has manually switched to it.
+- **Basis**: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_MODEL_ROUTING_RESEARCH_V1.md` (106-agent deep research, 2026-07-06).
