@@ -32,6 +32,7 @@ effort: high
 - **If not obvious** (network·environment·design defect), enter Step 3 classification immediately without entering the loop.
 - **★ reward-hacking guard (R-2-G)**: During the loop, **test files·test commands·CI config are read-only** (no modification) — disabling verification via `@Disabled`·`assert true`·tampering with expected values to force a pass is a PROC violation. After the loop ends, check the `tests/` diff, and **if there is a test change, treat the gate as failed** (a legitimate test reinforcement is a Gate C-stage deliverable, not this loop's deliverable — separate it as FIX-B). See CLAUDE.md 「검증 루프 중 통과 목적의 테스트 수정 금지」.
 - **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output.
+- **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git restore .` (or `git stash`) to revert to the last clean state ③ verify the repo compiles/runs clean ④ report to the user: which files were reverted + why the fix could not proceed → request a new Gate A re-plan.
 
 > Detail → `plans/agents_instructions/gate-c-instruction.md` (3-iteration protocol · reward-hacking 4 patterns)
 
@@ -91,6 +92,26 @@ Check the 7 items below against the Gate C changed files, and record the result 
    - Perform the refactoring — no additional feature changes beyond the Gate A plan scope
    - Re-verify — re-run the existing tests with the same Docker command
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+Fill the following if the respective files exist at the target repo root:
+
+**TEST_PLAN.md** — `## Verification Checklist` section:
+- Fill after Gate D run completes: list happy/error test PASS results, regression count
+- Update `DOC_INDEX.md` `TEST_PLAN.md` row → `Complete` (both Gate C and D sections now filled)
+
+**ERROR_HANDLING.md** — `## Failure Paths` + `## Recovery Strategies`:
+- Fill only if Gate D found failures or documented error paths (FIX-B/DEP items qualify)
+- If Gate D found no failures → leave marker in place (correct empty state — do not write "N/A")
+- Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
+
+**DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
+- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Consequences (per `/init` Step 10-b format)
+- If no non-obvious decision → leave marker in place
+- Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
+
+If none of the above files exist: skip silently.
+
 6. Update the 3 documents (status: `D (확인 대기)`, write the Gate D block) — **run the file-editing tool**
    - `00_MODERNIZATION_MASTER_PLAN.md` §7
    - `SESSION_INDEX.md` YAML
@@ -135,7 +156,7 @@ During Gate D execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): errors already in the standard failure·error taxonomy (PROC/ENV/TYPE/LOGIC/VERIFY/SEC/API)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → halt the session → request the user re-plan Gate A.
+**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above (git restore to last clean state) ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
 

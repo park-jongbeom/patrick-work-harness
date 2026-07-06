@@ -74,6 +74,7 @@ Inspect the current repo state across 4 axes. Mark each ✅ (ok) or ❌ (needs u
 | B | **Stop hook 3종** | `.claude/settings.json` Stop array contains all 3: `session-dashboard-sync.py`, `gate-e-sync-guard.py`, `error-topics-guard.py` | Any of the 3 is absent |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `SESSION_INDEX.md` and `CURRENT_SESSION.md` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
+| E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
 
 Output the checklist table with ✅/❌ per row, then:
 - If all ✅: "모든 항목 최신 상태 — 갱신 불필요합니다."
