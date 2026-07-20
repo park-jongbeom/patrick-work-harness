@@ -1,7 +1,7 @@
 {
   "name": "patrick-work-harness",
   "displayName": "Patrick Work Harness",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Claude Code harness — Gate A~E process automation skills + hooks integration plugin",
   "author": {
     "name": "Patrick",

@@ -35,7 +35,7 @@ Resolve the latest engine version via this priority order:
 
 1. `${CLAUDE_PLUGIN_ROOT}/plugin.json` → `version` (plugin-install topology)
 2. Local patrick-work-harness clone: search for `plugin.json` under common paths
-   (`/media/ubuntu/data120g/patrick-work-harness/plugin.json`, `~/.claude/plugins/*/plugin.json`)
+   (`<로컬 하네스 체크아웃>/plugin.json`, `~/.claude/plugins/*/plugin.json`)
 3. If neither is found: halt with "Cannot resolve engine version — ensure CLAUDE_PLUGIN_ROOT is set or patrick-work-harness is cloned locally."
 
 | Comparison | Action |
@@ -74,7 +74,7 @@ Inspect the current repo state across 4 axes. Mark each ✅ (ok) or ❌ (needs u
 | A | **HARNESS zone** | `CLAUDE.md` contains `<!-- HARNESS:START v{latest} -->` | Version tag differs from `latest` |
 | B | **Stop hook 3종** | `.claude/settings.json` Stop array contains all 3: `session-dashboard-sync.py`, `gate-e-sync-guard.py`, `error-topics-guard.py` | Any of the 3 is absent |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
-| D | **Session stubs** | `SESSION_INDEX.md` and `CURRENT_SESSION.md` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
+| D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
 
 Output the checklist table with ✅/❌ per row, then:
@@ -163,7 +163,7 @@ Only when `session_docs: true` in `harness-answers.yml` AND stub(s) are absent.
 
 Create missing stubs using the same templates as `/init` Step 5:
 
-**SESSION_INDEX.md** stub:
+**${SESSION_INDEX_FILE}** stub:
 ```markdown
 ---
 project: "{project_repo}"
@@ -181,7 +181,7 @@ next_action: "새 작업 시 /gate-a로 시작."
 |---------|------|--------|------|
 ```
 
-**CURRENT_SESSION.md** stub:
+**${CURRENT_SESSION_FILE}** stub:
 ```markdown
 # 현재 세션 상태
 

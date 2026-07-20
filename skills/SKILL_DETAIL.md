@@ -16,7 +16,7 @@ description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e,
 
 Consuming projects track work-in-progress via one of two plan-doc **tiers**, recorded in `harness-answers.yml → plan_tier`:
 
-- **`plan_tier: "2"`** (or **field absent** — pre-existing repos initialized before this field existed default to `"2"`, never error or re-prompt): a separate **index** doc (`<master_plan_file>`, default `00_MASTER_PLAN.md`) plus a **sub-platform detail-plan** doc (`<detail_plan_file>`) that owns its own session table (conventionally §7).
+- **`plan_tier: "2"`** (or **field absent** — pre-existing repos initialized before this field existed default to `"2"`, never error or re-prompt): a separate **index** doc (`<master_plan_file>`, default `${MASTER_PLAN_FILE}`) plus a **sub-platform detail-plan** doc (`<detail_plan_file>`) that owns its own session table (conventionally §7).
 - **`plan_tier: "1"`**: a single **plan doc** (`<single_plan_file>`, default `WORK_PLAN.md`) that carries both index and session-table roles via `## Phase N` sections.
 
 **Plan-doc update (tier-aware)** — apply this whenever a Gate needs to record session status into the plan document(s):
@@ -24,7 +24,7 @@ Consuming projects track work-in-progress via one of two plan-doc **tiers**, rec
 - **`plan_tier: "2"`** → update `<detail_plan_file>` §7 (this session's row/entry) **and** `<master_plan_file>` (index — priority/next-action touch only; the index is not a per-session refresh target, per the existing rule)
 - **`plan_tier: "1"`** → update the matching `## Phase N` section of `<single_plan_file>` (create/update the session's row under that Phase). No separate index update — the single doc *is* the index.
 
-Do not assert a fixed document count ("3 documents", "4 documents") in prose — say "the applicable plan document(s)" and let the tier-aware bullets above do the counting. The actual total also depends on `session_docs` (whether `SESSION_INDEX.md`/`CURRENT_SESSION.md` exist as separate files), which is orthogonal to `plan_tier`.
+Do not assert a fixed document count ("3 documents", "4 documents") in prose — say "the applicable plan document(s)" and let the tier-aware bullets above do the counting. The actual total also depends on `session_docs` (whether `${SESSION_INDEX_FILE}`/`${CURRENT_SESSION_FILE}` exist as separate files), which is orthogonal to `plan_tier`.
 
 ---
 
@@ -33,7 +33,7 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 ### §1. PROC-MODEL-RUBRIC Philosophy and Sources
 
 > **Revision (PROC-MODEL-RUBRIC-1/2, 2026-05-06 · model-generation refresh HARNESS-MODEL-ROUTING-1, 2026-07-06)**: Single-score summation → tier mapping abolished. Model is decided by **3-axis independent measurement** (R / V / D).
-> Basis: Anthropic official positioning (Sonnet 5=coding mainstay·Opus 4.8=long horizon·science reasoning·Haiku 4.5=1/3 the cost of Sonnet coding)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern·deep-research findings on the current 4-model lineup (`REPORTS/HARNESS_MODEL_ROUTING_RESEARCH_V1.md`).
+> Basis: Anthropic official positioning (Sonnet 5=coding mainstay·Opus 4.8=long horizon·science reasoning·Haiku 4.5=1/3 the cost of Sonnet coding)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern·deep-research findings on the current 4-model lineup ((internal research note, if your project maintains one)).
 > Sources: [Anthropic Opus 4.8](https://www.anthropic.com/news/claude-opus-4) · [Sonnet 5](https://www.anthropic.com/news/claude-sonnet-5) · [Haiku 4.5](https://www.anthropic.com/news/claude-haiku-4-5) · [METR Time Horizon by Domain](https://metr.org/blog/2025-07-14-how-does-time-horizon-vary-across-domains/)
 
 ### §2. Estimation Guide
@@ -113,4 +113,4 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 - **Price**: $10 / $50 per 1M (in/out) — exactly 2× Opus 4.8 ($5/$25).
 - **Benchmark edge**: SWE-bench Verified 95.0% vs Opus 4.8's 88.6% — a real capability edge exists, but whether it justifies 2× cost at single-developer session scale is unproven (no usage data yet).
 - **Harness rule (user decision, 2026-07-06)**: Fable 5 is **not** part of the regular R/V/D routing table for any Gate. Invoke it only when **both** conditions hold: (a) the task is a large-scale migration or a multi-day full-autonomy session, and (b) the user has explicitly approved the escalation in a sentence (e.g. 「Fable 5로 진행 승인」). It never appears as an auto-produced recommendation — only as a current-model value once the user has manually switched to it.
-- **Basis**: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_MODEL_ROUTING_RESEARCH_V1.md` (106-agent deep research, 2026-07-06).
+- **Basis**: (internal research note, if your project maintains one) (106-agent deep research, 2026-07-06).

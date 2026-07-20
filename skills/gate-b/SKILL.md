@@ -6,7 +6,7 @@ effort: low
 
 # Gate B Procedure — Comprehension Gate (follow order strictly)
 
-> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via retrieval forced through guided questioning. Defense against AI-era cognitive debt (MIT 2025). Canonical: `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §2` (original design) + `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_GATE_B_SOCRATIC_RESEARCH_V1.md` (guided-questioning redesign, 2026-07-06).
+> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via retrieval forced through guided questioning. Defense against AI-era cognitive debt (MIT 2025). Canonical: (internal research note, if your project maintains one) (original design) + (internal research note, if your project maintains one) (guided-questioning redesign, 2026-07-06).
 > **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
 ## Step 0. 3-way risk classification
@@ -35,7 +35,7 @@ Classify the Gate A plan by risk level and determine the path:
 
 ## Step 2. Force retrieval via guided questioning (non-trivial paths only)
 
-**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force actual retrieval — the active ingredient is retrieval, not the dialogue format itself (Dunlosky 2013 meta-review: retrieval/spaced practice = high utility, free self-explanation = only moderate utility). Basis and evidence-strength ratings → `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_GATE_B_SOCRATIC_RESEARCH_V1.md`.
+**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force actual retrieval — the active ingredient is retrieval, not the dialogue format itself (Dunlosky 2013 meta-review: retrieval/spaced practice = high utility, free self-explanation = only moderate utility). Basis and evidence-strength ratings → (internal research note, if your project maintains one).
 
 - **Large blast radius**: AI asks **2~4 questions, one at a time** (do not reveal the next question until the current one is answered — prevents reading-ahead gaming), **before the user sees AI-written code**. Question template: ①why is this change needed ②what is the core mechanism ③what is the most fragile break point ④(if relevant) how to roll it back. AI only evaluates — it does not answer for the user.
 - **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing — zero user retrieval. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
@@ -70,8 +70,8 @@ Add 1 row to `plans/learning/comprehension_ledger.md`:
 ## Step 5. Update the plan document(s) (status: `B (확인 대기)`) — **run the file-editing tool**
 
 - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
-- `SESSION_INDEX.md` YAML
-- `CURRENT_SESSION.md` dashboard + Gate B block
+- `${SESSION_INDEX_FILE}` YAML
+- `${CURRENT_SESSION_FILE}` dashboard + Gate B block
 > **session-dashboard.html update**: `session-dashboard-sync.py` runs as the first Stop hook entry, auto-regenerating the HTML. No skill Bash Step needed.
 
 6. STOP — await user document review·confirmation
@@ -86,5 +86,5 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ```
 ---
 **다음 단계**: Gate B 확인 후 「Gate C 시작」또는 「구현」으로 응답하면 `/gate-c` (Gate C 구현)가 시작됩니다.
-**권장 모델 전환**: CURRENT_SESSION.md "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
+**권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
 ```

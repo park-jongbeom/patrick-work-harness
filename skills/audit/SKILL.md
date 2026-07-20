@@ -34,9 +34,9 @@ effort: medium
 **Measurement targets (5 metadata)** — measure directly with the commands below, then substitute into the R/V/D items:
 
 ```bash
-# (1) SESSION_INDEX.md YAML header — extract sessions_since_audit + last_audit_date
+# (1) ${SESSION_INDEX_FILE} YAML header — extract sessions_since_audit + last_audit_date
 grep -E "^(sessions_since_audit|last_audit_date):" \
-  ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md
+  ${CLAUDE_PROJECT_DIR}/${SESSION_INDEX_FILE}
 
 # (2) §5 「즉시 처리 대상」 item count
 #     plan_tier: "2" (or field absent):
@@ -53,7 +53,7 @@ grep -nE "^- \[(DEP-[0-9]+|R[0-9]+)\]" \
   | grep -v "RESOLVED\|✅ E\|완료" | wc -l
 
 # (4) Active chain transition point — whether the most recent ✅E session is the last row of its chain
-#     In the SESSION_INDEX.md table, look at the most recent ✅E row; if all same-chain follow-up sessions are complete/absent, it is a transition point
+#     In the ${SESSION_INDEX_FILE} table, look at the most recent ✅E row; if all same-chain follow-up sessions are complete/absent, it is a transition point
 #     Not grep-able automatically → operator judgment (confirmable during Step 1 status collection)
 
 # (5) §5 dependency-waiting + conditional total count (for V-A2 measurement)
@@ -160,8 +160,8 @@ Response handling:
 Read the applicable plan document(s) (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) plus:
 
 1. Plan document — `plan_tier: "2"` (or field absent) → `<master_plan_file>`: §2 priority, §3 active tracks, §4 next action, §5 handoff notes; `plan_tier: "1"` → `<single_plan_file>`: equivalent priority/active-track/next-action/handoff sections
-2. `SESSION_INDEX.md` — YAML header + session table
-3. `CURRENT_SESSION.md` — dashboard + active Gate block
+2. `${SESSION_INDEX_FILE}` — YAML header + session table
+3. `${CURRENT_SESSION_FILE}` — dashboard + active Gate block
 
 Additionally if needed:
 - `plan_tier: "2"` only → `<detail_plan_file>` §7 (session table)
@@ -179,7 +179,7 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 | 2 | **Declared-order forcing violation** | Was the declared order (MVP Phase 1~4 / a chain like P0-NEW-1~5 / sub-sessions `-a→-b→-c`) not regressed | Order violation = FAIL |
 | 3 | **Gate process adherence** | Any code change without Gate A approval, Gate skipping, or retroactive after-the-fact recording | PROC violation found = FAIL |
 | 4 | **Prohibited-pattern violation** | Was no code violating per-repo CLAUDE.md prohibitions written in the current session | Violation found = WARN (fixable immediately) / FAIL (already committed) |
-| 5 | **Document sync** | `plan_tier: "2"` (or field absent) → do `<detail_plan_file>` §7 session status + SESSION_INDEX.md + CURRENT_SESSION.md (3 locations) agree; `plan_tier: "1"` → does `<single_plan_file>`'s Phase-section status + SESSION_INDEX.md + CURRENT_SESSION.md (2 locations — no separate index-vs-detail leg) agree | Mismatch = WARN |
+| 5 | **Document sync** | `plan_tier: "2"` (or field absent) → do `<detail_plan_file>` §7 session status + ${SESSION_INDEX_FILE} + ${CURRENT_SESSION_FILE} (3 locations) agree; `plan_tier: "1"` → does `<single_plan_file>`'s Phase-section status + ${SESSION_INDEX_FILE} + ${CURRENT_SESSION_FILE} (2 locations — no separate index-vs-detail leg) agree | Mismatch = WARN |
 | 6 | **Missing handoffs** | Is there an unprocessed FIX-B/DEP in §5 that is being ignored by the current session | Omission = WARN |
 | 7 | **Permanent DEP Ledger mandatory re-verification** | Among `CLAUDE_DETAIL.md §Permanent DEP Ledger` items, was one re-verified at the first Gate C after its dependent session reached ✅E | Mandatory re-verification not done = FAIL |
 | 8 | **Graduation-candidate identification** | List rules·items with 0 firings over the past 6 months and propose them as graduation candidates (do not delete directly — user decides) | ≥1 graduation candidate → WARN (deletion recommended), none → ✅ |
@@ -188,7 +188,7 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 
 > **Scope of check item #2**: Includes the MVP demo guardrail Phase 1~4 (CLAUDE.md §MVP) + active-chain order (items marked "order forced" in the plan document's priority section — `<master_plan_file> §2` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent section under `plan_tier: "1"` — e.g. P0-NEW-1 → ... → P0-NEW-5 no-parallel) + sub-session (`-a`,`-b`,…) order.
 
-> **Check item #10 rationale·scope (MAINT-AUDIT-1, 2026-06-21)**: AI code generation tends to create new code rather than reuse existing → duplicate·copy-paste increase is the #1 signal (GitClear 211M lines: 2024 duplicate code blocks ↑8×·refactor (move) 24.1%→9.5%·copy-paste overtook refactor for the first time ever). This extends what audit *already prohibits* ("no logic duplication"·"no `String.contains()` substring matching") to **quantitative enforcement·delta tracking** (not a new axis). Focus priority ① duplicate·copy-paste → ② churn (rewrite within 2 weeks — MS Research: relative churn predicts defect density at 89%) → ③ coupling·cognitive-complexity delta. Canonical research → `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §3`.
+> **Check item #10 rationale·scope (MAINT-AUDIT-1, 2026-06-21)**: AI code generation tends to create new code rather than reuse existing → duplicate·copy-paste increase is the #1 signal (GitClear 211M lines: 2024 duplicate code blocks ↑8×·refactor (move) 24.1%→9.5%·copy-paste overtook refactor for the first time ever). This extends what audit *already prohibits* ("no logic duplication"·"no `String.contains()` substring matching") to **quantitative enforcement·delta tracking** (not a new axis). Focus priority ① duplicate·copy-paste → ② churn (rewrite within 2 weeks — MS Research: relative churn predicts defect density at 89%) → ③ coupling·cognitive-complexity delta. Canonical research → (internal research note, if your project maintains one).
 
 ### Tool-conditional commands (check item #10 auxiliary measurement)
 
@@ -240,7 +240,7 @@ Output in the following format:
 
 ## Step 4. audit history record (SESSION_INDEX YAML single source)
 
-Update the 2 fields in the `SESSION_INDEX.md` YAML header:
+Update the 2 fields in the `${SESSION_INDEX_FILE}` YAML header:
 
 ```yaml
 last_audit_date: "YYYY-MM-DD"   # ← update to today's date
@@ -249,9 +249,9 @@ sessions_since_audit: 0          # ← reset to 0 (Gate E does += 1 each session
 
 Add if absent, overwrite if present. WARN/FAIL details are not accumulated into the SESSION_INDEX `priority_note` 1 line — keep them in the separate output only (this response's Step 3 output suffices).
 
-> **Single-source principle**: The `CURRENT_SESSION.md` 「마지막 /audit」 1 line used in earlier operation is no longer used (risk of being dropped during `doc-cleanup` slimming). Unified into the YAML single canonical.
+> **Single-source principle**: The `${CURRENT_SESSION_FILE}` 「마지막 /audit」 1 line used in earlier operation is no longer used (risk of being dropped during `doc-cleanup` slimming). Unified into the YAML single canonical.
 
-> **Stale-counter recommendation correction (AUDIT-COUNTER-STALE-FIX-1)**: On reset (`sessions_since_audit: 0`), if a **stale recommendation phrase** like `sessions_since_audit=N → /audit 권장` remains in the current head prose (`priority_note`/`next_action`/`CURRENT_SESSION.md` 「다음 행동」), **remove it too** (the canonical just became 0 → the recommendation is unnecessary). Preserve the past `(이전)` chain (fact at that time). This is a legitimate sync of this Step, **not** a violation of the "do not change the body" rule below. Fundamentally, if Gate E does not copy the counter number into prose (gate-e §Step 4 "do not write the counter value in prose"), the target of this correction never arises.
+> **Stale-counter recommendation correction (AUDIT-COUNTER-STALE-FIX-1)**: On reset (`sessions_since_audit: 0`), if a **stale recommendation phrase** like `sessions_since_audit=N → /audit 권장` remains in the current head prose (`priority_note`/`next_action`/`${CURRENT_SESSION_FILE}` 「다음 행동」), **remove it too** (the canonical just became 0 → the recommendation is unnecessary). Preserve the past `(이전)` chain (fact at that time). This is a legitimate sync of this Step, **not** a violation of the "do not change the body" rule below. Fundamentally, if Gate E does not copy the counter number into prose (gate-e §Step 4 "do not write the counter value in prose"), the target of this correction never arises.
 
 ### Step 4-b. On WARN/FAIL, add a §5 recommended action (optional)
 

@@ -1,17 +1,17 @@
 ---
 name: init
-description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-1 sentinel zones + session docs + D-2 provenance sidecar). Use on '/init', 'harness init', '하네스 초기화', or when bootstrapping a new project with the go-almond harness plugin."
+description: "Initialize harness scaffold files in a new repo (CLAUDE.md with D-1 sentinel zones + session docs + D-2 provenance sidecar). Use on '/init', 'harness init', '하네스 초기화', or when bootstrapping a new project with the patrick-work-harness plugin."
 ---
 
 # /init Skill — Harness Scaffold Initializer
 
-> Implements R-4-4 from `REPORTS/HARNESS_PLUGINIZATION_DESIGN_V1.md`.
+> Implements R-4-4 from (internal research note, if your project maintains one).
 > Prerequisite: harness plugin installed (plugin.json present, marketplace registered).
 > Constraint: F5 — CLAUDE.md at plugin root is NOT loaded as project context. This skill generates files directly in the target repo.
 
 ## When to Use
 
-- Bootstrapping a new repository with the go-almond harness
+- Bootstrapping a new repository with the patrick-work-harness
 - Setting up Gate A–E workflow + session document structure from scratch
 - Re-initializing after a harness version bump (when `.claude/harness-answers.yml` is absent)
 
@@ -77,14 +77,14 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `project_repo` | Short repo identifier (e.g. `go-almond`) | inferred from directory name |
+| `project_repo` | Short repo identifier (e.g. `patrick-work`) | inferred from directory name |
 | `stack` | Primary stack tag (e.g. `kotlin-spring`, `react-ts`, `python`) | inferred |
 | `phase_model` | Enable MVP Phase 1–4 guardrail in CLAUDE.md? | `true` |
-| `session_docs` | Generate SESSION_INDEX.md + CURRENT_SESSION.md stubs? | `true` |
+| `session_docs` | Generate ${SESSION_INDEX_FILE} + ${CURRENT_SESSION_FILE} stubs? | `true` |
 | `archive_path` | Absolute path for session archive files | ask user |
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
 | `plan_tier` | `"2"` (separate index + sub-platform detail-plan doc) or `"1"` (single plan doc with `## Phase N` sections) | proposed by Step 1-c, confirm/override with user |
-| `master_plan_file` | Index filename (meaningful only when `plan_tier: "2"`) | `00_MASTER_PLAN.md` |
+| `master_plan_file` | Index filename (meaningful only when `plan_tier: "2"`) | `${MASTER_PLAN_FILE}` |
 | `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
 | `single_plan_file` | Single plan-doc filename (meaningful only when `plan_tier: "1"`) | `WORK_PLAN.md` |
 | `single_plan_threshold` | Slimming line-count threshold for `single_plan_file` (meaningful only when `plan_tier: "1"`) | ask user — suggest 500 lines as a starting point, re-tune after ~10 sessions of observed growth |
@@ -162,7 +162,7 @@ See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 
 ### Step 5 — Write session document stubs (if `session_docs: true`)
 
-Generate minimal `SESSION_INDEX.md` and `CURRENT_SESSION.md` in the target repo root.
+Generate minimal `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` in the target repo root.
 
 **Plan-doc stub (tier-aware)**: additionally generate the plan document itself:
 - `plan_tier: "1"` → generate `<single_plan_file>` (default `WORK_PLAN.md`) with a `## Phase 1` skeleton
@@ -172,7 +172,7 @@ Generate minimal `SESSION_INDEX.md` and `CURRENT_SESSION.md` in the target repo 
   sub-platform detail plan is created later, at the first Gate A that needs it (per gate-a's
   **Plan-Doc Update Pattern**, see `SKILL_DETAIL.md`).
 
-**SESSION_INDEX.md stub**:
+**${SESSION_INDEX_FILE} stub**:
 ```markdown
 ---
 project: "<project_repo>"
@@ -196,7 +196,7 @@ priority_note: ""
 |------------|-------|------|--------|
 ```
 
-**CURRENT_SESSION.md stub**:
+**${CURRENT_SESSION_FILE} stub**:
 ```markdown
 # Current Session State
 
@@ -212,7 +212,7 @@ priority_note: ""
 | Start Date | — |
 ```
 
-**Stub creation must be verified (do not silently skip)**: after writing each stub, confirm the file exists (`[ -f <repo>/SESSION_INDEX.md ]` / `[ -f <repo>/CURRENT_SESSION.md ]`). If either is absent, the Write step failed — retry it before proceeding. (Recurrence guard: a prior `/init` left a repo with `harness-answers.yml` present but both session stubs missing — `session_docs: true` was set yet Step 5 did not produce the files.)
+**Stub creation must be verified (do not silently skip)**: after writing each stub, confirm the file exists (`[ -f <repo>/${SESSION_INDEX_FILE} ]` / `[ -f <repo>/${CURRENT_SESSION_FILE} ]`). If either is absent, the Write step failed — retry it before proceeding. (Recurrence guard: a prior `/init` left a repo with `harness-answers.yml` present but both session stubs missing — `session_docs: true` was set yet Step 5 did not produce the files.)
 
 ### Step 6 — Wire Stop hooks into `.claude/settings.json`
 
@@ -333,7 +333,7 @@ Trace code-verifiable data paths:
 # DATA_FLOW — <project_repo>
 
 ## Session Dashboard Pipeline
-CURRENT_SESSION.md / SESSION_INDEX.md
+${CURRENT_SESSION_FILE} / ${SESSION_INDEX_FILE}
   → session-dashboard-sync.py (Stop hook)
   → session_dashboard_parsers.py (parse)
   → session_dashboard_renderer.py (render)
@@ -565,7 +565,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C2: `_engine_version` matches `plugin.json` → `version`
 - [ ] C3: `CLAUDE.md` contains `<!-- HARNESS:START -->` and `<!-- HARNESS:END -->` and `<!-- PROJECT-OWNED below -->`
 - [ ] C4: `archive_path` / `worklog_path` appear only in `harness-answers.yml`, not duplicated as hardcoded prose in `CLAUDE.md`
-- [ ] C5: `SESSION_INDEX.md` and `CURRENT_SESSION.md` stubs exist (if `session_docs: true`)
+- [ ] C5: `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` stubs exist (if `session_docs: true`)
 - [ ] C6: `.claude/settings.json` has a `Stop` hook array wiring all 3 guards (`session-dashboard-sync.py` first, `gate-e-sync-guard.py`, `error-topics-guard.py`)
 - [ ] C7: `session-dashboard.html` exists at the repo root (generated by Step 7)
 - [ ] C8: `--docs=full` run → PROJECT_MAP.md · ARCHITECTURE.md · DATA_FLOW.md · DOC_INDEX.md all present at repo root

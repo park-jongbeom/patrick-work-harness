@@ -28,14 +28,14 @@ Migrate completed-session details to the archive and restore active documents to
 # (1) Plan-document line counts — row set depends on harness-answers.yml → plan_tier (see Step 0-B)
 #     plan_tier: "2" (or field absent):
 wc -l \
-  ${CLAUDE_PROJECT_DIR}/CURRENT_SESSION.md \
-  ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md \
+  ${CLAUDE_PROJECT_DIR}/${CURRENT_SESSION_FILE} \
+  ${CLAUDE_PROJECT_DIR}/${SESSION_INDEX_FILE} \
   ${CLAUDE_PROJECT_DIR}/<master_plan_file> \
   ${CLAUDE_PROJECT_DIR}/<detail_plan_file>
 #     plan_tier: "1":
 wc -l \
-  ${CLAUDE_PROJECT_DIR}/CURRENT_SESSION.md \
-  ${CLAUDE_PROJECT_DIR}/SESSION_INDEX.md \
+  ${CLAUDE_PROJECT_DIR}/${CURRENT_SESSION_FILE} \
+  ${CLAUDE_PROJECT_DIR}/${SESSION_INDEX_FILE} \
   ${CLAUDE_PROJECT_DIR}/<single_plan_file>
 
 # (2) §5 「즉시 처리 대상」 item count
@@ -130,8 +130,8 @@ Measure the line counts of the applicable plan documents and output a result tab
 
 | Document | Threshold | Current lines | Over? |
 |----------|-----------|---------------|-------|
-| `CURRENT_SESSION.md` | 100 lines | ? | ? |
-| `SESSION_INDEX.md` | 80 lines | ? | ? |
+| `${CURRENT_SESSION_FILE}` | 100 lines | ? | ? |
+| `${SESSION_INDEX_FILE}` | 80 lines | ? | ? |
 | `<master_plan_file>` | 450 lines | ? | ? |
 | `<detail_plan_file>` | 700 lines | ? | ? |
 
@@ -139,23 +139,23 @@ Measure the line counts of the applicable plan documents and output a result tab
 
 | Document | Threshold | Current lines | Over? |
 |----------|-----------|---------------|-------|
-| `CURRENT_SESSION.md` | 100 lines | ? | ? |
-| `SESSION_INDEX.md` | 80 lines | ? | ? |
+| `${CURRENT_SESSION_FILE}` | 100 lines | ? | ? |
+| `${SESSION_INDEX_FILE}` | 80 lines | ? | ? |
 | `<single_plan_file>` | `<single_plan_threshold>` lines (set at `/init`, no default guessed — see Threshold-adjustment guidance) | ? | ? |
 
 → **If nothing is over threshold, run only Step 4-A (index stale scan) + Step 4 (§5 reclaim verification) and finish**. Step 4-A·Step 4 run on every call regardless of threshold (preventing index-stale + handoff-stale accumulation). If all pass, output "임계 정리 불필요 — Step 4-A·Step 4만 수행".
 
 ---
 
-## Step 1 — CURRENT_SESSION.md slimming (including handoff preservation)
+## Step 1 — ${CURRENT_SESSION_FILE} slimming (including handoff preservation)
 
 **Condition**: Run only when over 100 lines.
 
 > **Responsibility separation from Gate E (SRP)**:
-> - This Step **deletes the CURRENT_SESSION.md body (completed Gate A~D blocks)**.
+> - This Step **deletes the ${CURRENT_SESSION_FILE} body (completed Gate A~D blocks)**.
 > - The original of the deleted body must already have been copied to `plans/current_work/archive/session_history/ARCHIVE_*.md` by Gate E Step 2 (a Gate E preceding precondition).
 > - **User-notice obligation**: At the end of the Step 7 result output, always include 1 line 「슬림화된 본문 원본은 archive 참조: {경로}」 so the user can trace the Gate E output location.
-> - **Reason**: 2026-04-27 user feedback — when doc-cleanup runs right after Gate E, the CURRENT_SESSION.md body disappears and causes the misunderstanding "did Gate E not happen?". The archive-path notice secures location traceability.
+> - **Reason**: 2026-04-27 user feedback — when doc-cleanup runs right after Gate E, the ${CURRENT_SESSION_FILE} body disappears and causes the misunderstanding "did Gate E not happen?". The archive-path notice secures location traceability.
 
 Rather than **simply deleting** the completed session's Gate blocks, first migrate items affecting follow-up sessions to the plan document's handoff section (`<master_plan_file> §5 인수인계 메모` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent handoff section under `plan_tier: "1"`), then delete. Preventing handoff omission is the core purpose of this Step.
 
@@ -208,7 +208,7 @@ Once handoff migration is done, delete the entire completed Gate A~E blocks. Kee
 
 ---
 
-## Step 2 — SESSION_INDEX.md slimming
+## Step 2 — ${SESSION_INDEX_FILE} slimming
 
 **Condition**: Run only when over 80 lines.
 
@@ -245,7 +245,7 @@ Once handoff migration is done, delete the entire completed Gate A~E blocks. Kee
 
 ## Step 4-A — Index canonical stale scan (R-9, runs every call regardless of threshold)
 
-> **Introduction background**: 2026-05-04 HARNESS-OPTIMIZE-1-b-1. The PLAN-SYNC-1~5 (5 repetitions total) sessions were issued to correct stale between the plan document's index §2(priority)/§3(active tracks)/§4(next action) markings (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent sections under `plan_tier: "1"`) and the canonical (`SESSION_INDEX.md` table·latest archive `final_status`). This Step absorbs that work and ends the separate session issuance.
+> **Introduction background**: 2026-05-04 HARNESS-OPTIMIZE-1-b-1. The PLAN-SYNC-1~5 (5 repetitions total) sessions were issued to correct stale between the plan document's index §2(priority)/§3(active tracks)/§4(next action) markings (`<master_plan_file>` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent sections under `plan_tier: "1"`) and the canonical (`${SESSION_INDEX_FILE}` table·latest archive `final_status`). This Step absorbs that work and ends the separate session issuance.
 
 ### Step 4-A-a: Extract check targets
 
@@ -271,7 +271,7 @@ For each extracted session ID, confirm against these two canonicals via grep:
 
 | Canonical | grep pattern | Verdict |
 |-----------|--------------|---------|
-| `SESSION_INDEX.md` table | `\| {세션ID} \|.*✅E` | If ✅E, index-stale candidate |
+| `${SESSION_INDEX_FILE}` table | `\| {세션ID} \|.*✅E` | If ✅E, index-stale candidate |
 | Latest archive | `find ${HARNESS_PLANS_DIR}/current_work/archive/session_history -name "ARCHIVE_*_{세션ID}.md"` then `grep "^final_status:"` | If `✅ E` or `✅E`, index-stale confirmed |
 
 > **Stale is confirmed only when both canonicals are ✅E.** If only one is ✅E, the canonicals themselves are inconsistent → await user-explicit decision (Step 4-A-d).
@@ -286,7 +286,7 @@ Per stale-confirmed item:
 
 ### Step 4-A-d: When canonical inconsistency is found
 
-When `SESSION_INDEX.md` and the latest archive are marked in different states (only one ✅E, etc.):
+When `${SESSION_INDEX_FILE}` and the latest archive are marked in different states (only one ✅E, etc.):
 - Register 1 line 「인덱스-정본 비정합: 세션 {ID}」 in the Step 7 result output's 「§5 외부 검증 필요 후보」 block
 - No auto-correction — only correct on the next call when the user responds explicitly with 「정본 결정: <정본 위치>」
 
@@ -311,7 +311,7 @@ Judge by each item's 「분류」 field. **Conditional** splits into **two** dep
 
 | Classification | Verdict procedure | Handling |
 |----------------|-------------------|----------|
-| `의존:<세션ID>` | Confirm whether that session is `✅E` in `SESSION_INDEX.md` | If ✅E, reclaim as "의존 해소" (Step 4-b) |
+| `의존:<세션ID>` | Confirm whether that session is `✅E` in `${SESSION_INDEX_FILE}` | If ✅E, reclaim as "의존 해소" (Step 4-b) |
 | `조건부:<조건>` **(auto-judgeable)** | Only when the condition is grep-confirmable — session ✅E·production deploy·Flyway migration·archive creation, etc. grep a clue from SESSION_INDEX·archive·WORKLOG | When a satisfaction clue is found, reclaim as "조건 해소" |
 | `조건부:<조건>` **(external verification needed)** | Line threshold·locale activation·user behavior·external operational state, etc., conditions the SKILL cannot judge by grep alone | **Do not touch** — reclaim only when the user responds explicitly with 「§5 회수 승인: 항목명」 |
 | `즉시` | grep the follow-up session ✅E archive·WORKLOG for a processing trace | Reclaim when a processing trace is found |
@@ -395,8 +395,8 @@ Re-measure line counts after the change and output in the following format:
 
 | 문서 | 이전 | 현재 | 감소 |
 |------|------|------|------|
-| CURRENT_SESSION.md | N줄 | N줄 | -N줄 (-X%) |
-| SESSION_INDEX.md | N줄 | N줄 | -N줄 (-X%) |
+| ${CURRENT_SESSION_FILE} | N줄 | N줄 | -N줄 (-X%) |
+| ${SESSION_INDEX_FILE} | N줄 | N줄 | -N줄 (-X%) |
 | {plan_tier: "2" 행 집합} <master_plan_file> | N줄 | N줄 | -N줄 (-X%) |
 | {plan_tier: "2" 행 집합} <detail_plan_file> | N줄 | N줄 | -N줄 (-X%) |
 | {또는 plan_tier: "1" 행} <single_plan_file> | N줄 | N줄 | -N줄 (-X%) |
@@ -411,7 +411,7 @@ Re-measure line counts after the change and output in the following format:
 
 슬림화된 본문 원본 (Gate E archive 참조):
   - {세션ID}: plans/current_work/archive/session_history/ARCHIVE_YYYY-MM-DD_{세션ID}.md
-  (Step 1에서 CURRENT_SESSION.md 본문을 삭제한 경우만 출력. 미삭제 시 "본문 슬림화 없음" 출력)
+  (Step 1에서 ${CURRENT_SESSION_FILE} 본문을 삭제한 경우만 출력. 미삭제 시 "본문 슬림화 없음" 출력)
 ```
 
 ---
@@ -422,8 +422,8 @@ Adjust thresholds directly in this file (`SKILL.md`) Step 0-B table.
 Adjustment basis: average added lines per session × allowed session count.
 
 **`plan_tier: "2"` current baseline (this repo's own tuned values, shipped as the default/example):**
-- CURRENT_SESSION.md 100 lines (+50~80 lines/session, slim at 1-session end)
-- SESSION_INDEX.md 80 lines (+1~2 lines/session, slim after ~30 sessions accumulated)
+- ${CURRENT_SESSION_FILE} 100 lines (+50~80 lines/session, slim at 1-session end)
+- ${SESSION_INDEX_FILE} 80 lines (+1~2 lines/session, slim after ~30 sessions accumulated)
 - `<master_plan_file>` 450 lines (§4 log·completed chains·§5 handoff accumulation — +0~3 lines/session. In HARNESS-RESEARCH-5(2026-05-25), the 600-line threshold failed to catch 507-line bloat, so lowered to 450)
 - `<detail_plan_file>` 700 lines (§7 session table — +1~5 lines/session, after ~20~50 sessions)
 
@@ -438,5 +438,5 @@ After completing the entire doc-cleanup procedure, output the block below at the
 ```
 ---
 **doc-cleanup 완료**: 토큰 최적화 원칙(progressive disclosure) 복구됨.
-다음 세션은 `SESSION_INDEX.md`의 `next_action` 항목을 확인하세요.
+다음 세션은 `${SESSION_INDEX_FILE}`의 `next_action` 항목을 확인하세요.
 ```

@@ -16,17 +16,17 @@ Before session start (before any code change):
    - If such an item is incorporated into this session's scope, delete it from §5 at Gate E
 
 0-B. **Index–canonical cross-verification** (mandatory, stale detection)
-   - Since the index is not a per-session refresh target (§6 L273), re-verify the actual Gate progress of §3/§4 ⏸/⏳/🟡 items against the canonical (`SESSION_INDEX.md` table + latest archive)
-   - On finding `final_status: ✅ E (완료)` in an archive or `✅E` in `SESSION_INDEX.md` → index stale confirmed
+   - Since the index is not a per-session refresh target (§6 L273), re-verify the actual Gate progress of §3/§4 ⏸/⏳/🟡 items against the canonical (`${SESSION_INDEX_FILE}` table + latest archive)
+   - On finding `final_status: ✅ E (완료)` in an archive or `✅E` in `${SESSION_INDEX_FILE}` → index stale confirmed
    - On finding stale: include an "index correction" Step in this Gate A plan (3rd precedent "stale correction"); if out of scope, register in §5 handoff
    - **Cross-verification scope**: only the session/track this Gate A directly touches — no exhaustive lookup (avoid overhead)
    - **Comprehension-gate ledger expiry check** (COMPREHEND-GATE-1): if this Gate A's target scope has evidence in `plans/learning/comprehension_ledger.md`, check whether `exp` has elapsed·whether the scope files materially changed — on expiry, reflect 「재검증」 in this session's trigger verdict (the auto-expiry-detection Stop hook is planned in COMPREHEND-GATE-1-b)
 
-1. Confirm `SESSION_INDEX.md` (root) exists
+1. Confirm `${SESSION_INDEX_FILE}` (root) exists
    - YES → load (YAML header only)
    - NO → create new (refer to template)
 
-2. Confirm `CURRENT_SESSION.md` (root) exists
+2. Confirm `${CURRENT_SESSION_FILE}` (root) exists
    - YES → load (only the current-session section's dashboard + active Gate block)
    - NO → create new (record this session's info)
    - ※ The same-named file under `plans/current_work/` is a redirect-guidance file — do not edit
@@ -142,7 +142,7 @@ Verdict: if all 3 axes are consistent, 「적합성 ✅ (아키텍처/Phase/금�
 
 #### 0-OSS. OSS catalog reference check (HARNESS-PLAN-AUGMENT-2, 2026-06-10)
 
-> Where "0-Fitness" above sees **internal consistency**, this check self-judges at the Gate A point whether the plan has **room to be complemented by adopting external OSS** and asks the user (user request 2026-06-09: "depending on task complexity, self-judge whether to complement the plan by referencing open source, then ask"). The reference-catalog canonical = `05_PLATFORM_MODERNIZATION/REPORTS/HARNESS_OSS_SCAN_V1.md` §4 (OSS-SCAN-1 output).
+> Where "0-Fitness" above sees **internal consistency**, this check self-judges at the Gate A point whether the plan has **room to be complemented by adopting external OSS** and asks the user (user request 2026-06-09: "depending on task complexity, self-judge whether to complement the plan by referencing open source, then ask"). The reference-catalog canonical = (internal research note, if your project maintains one) §4 (OSS-SCAN-1 output).
 
 After reading all related files, check the trigger table below. **If any applies**, propose a §4 candidate as a 1-line complement and ask whether to adopt via `AskUserQuestion` (not forced adoption — user decides):
 
@@ -245,8 +245,8 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
 2. Update the plan document(s) (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
-   - `SESSION_INDEX.md` YAML
-   - `CURRENT_SESSION.md` dashboard + the full Gate A block content (no writing a summary table only)
+   - `${SESSION_INDEX_FILE}` YAML
+   - `${CURRENT_SESSION_FILE}` dashboard + the full Gate A block content (no writing a summary table only)
      - **Intent-field obligation (DASHBOARD-INTENT-1)**: in the header, write 2 lines in plain Korean — `> **세션 주제**: <평이 한 줄>` (banner title)·`> **작업 의도**: <무엇을 왜, 1~2문장>` (banner body). No jargon·filename dumps — the banner 「🎯 지금 하는 작업」 displays these 2 lines as-is (falls back to work_topic·priority_note if absent).
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 

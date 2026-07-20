@@ -29,8 +29,8 @@ If `TEST_PLAN.md` exists at the target repo root:
 
 3. Update the plan document(s) (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
-   - `SESSION_INDEX.md` YAML
-   - `CURRENT_SESSION.md` dashboard + Gate C block
+   - `${SESSION_INDEX_FILE}` YAML
+   - `${CURRENT_SESSION_FILE}` dashboard + Gate C block
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 4. STOP — await user document review·confirmation
@@ -70,6 +70,6 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ```
 ---
 **다음 단계**: Gate C 확인 후 「Gate D 시작」또는 「검증」으로 응답하면 `/gate-d` (Gate D 검증)가 시작됩니다.
-**권장 모델 전환**: CURRENT_SESSION.md "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
+**권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
 💡 **compact 권장 시점**: Gate C 구현이 끝난 지금이 `/compact` 최적 타이밍입니다. Gate D는 테스트 결과라는 새로운 맥락으로 시작하므로, C의 시행착오 컨텍스트를 정리하면 토큰을 절약할 수 있습니다.
 ```

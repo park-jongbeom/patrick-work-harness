@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1] - 2026-07-20
+
+### Fixed
+- **공개 스킬 파일 내부 참조 잔존 정리** — 1.2.0에서 `sync-from-source.sh`에 추가된 정화 규칙(SSOT 문서명 플레이스홀더 치환·내부 리서치 문서 인용 각주화)이 저장소 **기존** 스킬 콘텐츠에는 소급 적용된 적이 없어, 스킬 7종에 내부 리서치 문서 경로(`REPORTS/HARNESS_*.md`)·SSOT 원문 파일명·로컬 절대경로·구 브랜드명이 노출된 채 남아 있던 것을 일괄 정리(11파일 ±88줄 순수 치환 + 수동 잔존 3건: harness-update 로컬경로 1·init 구 브랜드명 2). 1.2.0의 tier-aware 일반화 콘텐츠는 전량 보존 — 소스 전체 재동기화(sync)는 tier-aware 콘텐츠를 역행시키므로 수행하지 않음(역방향 절차 설계는 소스 저장소 HARNESS-SYNC-RECONCILE-2 트랙).
+- `hooks/session-dashboard-sync.py` — `PROJECT_ROOT` fallback의 사설 절대경로를 `CLAUDE_PROJECT_DIR` env 기반으로 교체(공개 저장소 이식성·경로 노출 제거). 훅 회귀 89 PASS / 0 FAIL.
+
+### Note
+- 소스 저장소 메타파일(`CHANGELOG.md`·`plugin.json`)을 본 릴리스 기준으로 역정합(backfill) — sync 실행 시 배포 저장소 릴리스 이력([1.2.0] 항목)이 삭제되던 재발 경로 차단.
+
 ## [1.2.0] - 2026-07-06
 
 ### Added

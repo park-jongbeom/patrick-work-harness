@@ -24,8 +24,8 @@ effort: low
 
    > **Separation of responsibility (SRP)**:
    > - **Gate E's responsibility**: create the new archive file + update the plan document(s) (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) + SESSION_INDEX + CURRENT_SESSION dashboard.
-   > - **Gate E's non-responsibility**: **do not delete** the CURRENT_SESSION.md body (completed Gate A~D blocks). When the threshold (100 lines) is exceeded, a separate `/doc-cleanup` SKILL slims it down.
-   > - **Reason**: Right after Gate E, the user must be able to review the Gate A~E flow as-is in CURRENT_SESSION.md. If the body disappears, the misunderstanding 「Gate E가 안 됐나?」 arises (reflecting 2026-04-27 user feedback).
+   > - **Gate E's non-responsibility**: **do not delete** the ${CURRENT_SESSION_FILE} body (completed Gate A~D blocks). When the threshold (100 lines) is exceeded, a separate `/doc-cleanup` SKILL slims it down.
+   > - **Reason**: Right after Gate E, the user must be able to review the Gate A~E flow as-is in ${CURRENT_SESSION_FILE}. If the body disappears, the misunderstanding 「Gate E가 안 됐나?」 arises (reflecting 2026-04-27 user feedback).
    > - **User guidance**: After the Step 5 update, the archive path·WORKLOG path must be noted in this response's final output (securing location traceability).
 
 ### 2-B. Layer 2 document status finalization (if `--docs=full` was used at `/init`)
@@ -39,7 +39,7 @@ If `DOC_INDEX.md` exists at the target repo root:
 
 3. **Error-case storage** (conditional) — perform the procedure below directly in this turn. (An inline copy of the same procedure as the `/error-log` Skill — that skill is not auto-loaded, so perform the below directly in this response. No separate load needed.)
 
-   **Judgment**: Check the items below in the `CURRENT_SESSION.md` Gate B~D blocks:
+   **Judgment**: Check the items below in the `${CURRENT_SESSION_FILE}` Gate B~D blocks:
    - Gate B build·type·runtime failure / Gate C FIX-B / Gate D re-verification failure / Docker·environment·permission retry
    - There is "value for the next session to reuse" (excluding simple typo·one-off mistakes)
 
@@ -77,10 +77,10 @@ If `DOC_INDEX.md` exists at the target repo root:
 
 4. **FIX-B / DEP handoff** — process Gate C's FIX-B·DEP items at the source in the same turn:
    - FIX-B item → register in the plan document (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) or as a next-session Gate A candidate
-   - Next-session decision → record in the `SESSION_INDEX.md` YAML `next_action` field
-   - `SESSION_INDEX.md` YAML `sessions_since_audit += 1`
+   - Next-session decision → record in the `${SESSION_INDEX_FILE}` YAML `next_action` field
+   - `${SESSION_INDEX_FILE}` YAML `sessions_since_audit += 1`
    - ※ **The session-status ✅E flip is performed in bulk at Step 5, not this step** — preventing Step 4/5 duplication (GATE-E-ENFORCE-1)
-   - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`CURRENT_SESSION.md` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment·HARNESS_EVOLUTION_LOG PLAN-SYNC-21). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.
+   - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`${CURRENT_SESSION_FILE}` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment·HARNESS_EVOLUTION_LOG PLAN-SYNC-21). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.
 
 4-B. **§5 handoff retrieval** (conditional) — If there is an item pulled into this session's scope from §5 at Gate A 0-A, confirm the processing trace and delete that line: `plan_tier: "2"` (or field absent) → `<master_plan_file> §5`; `plan_tier: "1"` → `<single_plan_file>`'s handoff-notes section.
 
@@ -92,15 +92,15 @@ If `DOC_INDEX.md` exists at the target repo root:
 
    **(a) Plan document(s)** — `plan_tier: "2"` (or field absent) → `<detail_plan_file>` §7, that session's row status → `✅E (날짜, 핵심지표)`; `plan_tier: "1"` → `<single_plan_file>`'s matching `## Phase N` session entry → `✅E (날짜, 핵심지표)`.
 
-   **(b) `SESSION_INDEX.md` YAML** — that session's `gate:` → `✅E (...)`
+   **(b) `${SESSION_INDEX_FILE}` YAML** — that session's `gate:` → `✅E (...)`
 
-   **(c) `CURRENT_SESSION.md`** — update **all** of ①②③ below (PROC violation if even one is omitted):
+   **(c) `${CURRENT_SESSION_FILE}`** — update **all** of ①②③ below (PROC violation if even one is omitted):
    - ① Header block `> **현재 상태**:` → `✅E 완료 (날짜)`
    - ② Dashboard table `| 현재 Gate |` → `✅E 완료`
    - ③ Dashboard table `| Gate 진행 |` row → the last `E☐`/`E⏳` to `E✅`
 
-   **Self-verification (mandatory)**: Right after the update, run `grep -c "✅E" CURRENT_SESSION.md` → confirm result ≥ 2 (header + dashboard). If less, re-check ②③.
-   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, reading the ✅E `CURRENT_SESSION.md`·`SESSION_INDEX.md` from the previous Step 5 and auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed. Separation of responsibility: the Stop hook `gate-e-sync-guard.py` is the ✅E consistency guard, `session-dashboard-sync.py` is the HTML-deliverable sync — separate responsibilities, and dashboard-sync is fail-open so it does not affect the guard behavior.
+   **Self-verification (mandatory)**: Right after the update, run `grep -c "✅E" ${CURRENT_SESSION_FILE}` → confirm result ≥ 2 (header + dashboard). If less, re-check ②③.
+   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, reading the ✅E `${CURRENT_SESSION_FILE}`·`${SESSION_INDEX_FILE}` from the previous Step 5 and auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed. Separation of responsibility: the Stop hook `gate-e-sync-guard.py` is the ✅E consistency guard, `session-dashboard-sync.py` is the HTML-deliverable sync — separate responsibilities, and dashboard-sync is fail-open so it does not affect the guard behavior.
 
 > **Enforcement device**: Omitting this Step 5(c) is detected by `plans/hooks/gate-e-sync-guard.py` (Claude Code `Stop` hook) as a SESSION_INDEX ↔ CURRENT_SESSION ✅E mismatch, blocking response termination (GATE-E-ENFORCE-1).
 > Splitting content output and document update across different turns is a PROC violation.
@@ -120,19 +120,19 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ── Gate E 산출물 위치 ──────────────────────
   archive (장문 본문) : ${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_YYYY-MM-DD_{세션ID}.md
   WORKLOG            : ${HARNESS_PLANS_DIR}/tasks/worklog/YYYY-Www.md (line N~M)
-  문서 갱신 (✅E)     : SESSION_INDEX.md · CURRENT_SESSION.md 대시보드 · {plan_tier: "2"인 경우 detail_plan_file §7 / plan_tier: "1"인 경우 single_plan_file 해당 Phase}
-  CURRENT_SESSION.md : 본문(Gate A~D 블록) 보존됨 — 슬림화는 별도 /doc-cleanup 호출 시 수행
+  문서 갱신 (✅E)     : ${SESSION_INDEX_FILE} · ${CURRENT_SESSION_FILE} 대시보드 · {plan_tier: "2"인 경우 detail_plan_file §7 / plan_tier: "1"인 경우 single_plan_file 해당 Phase}
+  ${CURRENT_SESSION_FILE} : 본문(Gate A~D 블록) 보존됨 — 슬림화는 별도 /doc-cleanup 호출 시 수행
 ────────────────────────────────────────────
 ```
 
-> Explicitly stating that the CURRENT_SESSION.md body is preserved makes the user aware that 「Gate E 결과를 그대로 검토 가능」.
+> Explicitly stating that the ${CURRENT_SESSION_FILE} body is preserved makes the user aware that 「Gate E 결과를 그대로 검토 가능」.
 
 **② Document status summary** — Right after Gate E completion, measure the applicable plan-doc line counts (row set per `harness-answers.yml → plan_tier`, see `doc-cleanup/SKILL.md §Step 0-B`) and apply doc-cleanup Step 0-A 「공유 산정 표」 directly to the current-point metadata to compute the score·grade·recommended model. Output in the format below:
 
 ```
 ── 문서 상태 ──────────────────────────────
-  CURRENT_SESSION.md          : N줄  (임계값 100줄) ✅ / ⚠️ 초과
-  SESSION_INDEX.md            : N줄  (임계값  80줄) ✅ / ⚠️ 초과
+  ${CURRENT_SESSION_FILE}          : N줄  (임계값 100줄) ✅ / ⚠️ 초과
+  ${SESSION_INDEX_FILE}            : N줄  (임계값  80줄) ✅ / ⚠️ 초과
   {plan_tier: "2" 행 집합}
   <master_plan_file>          : N줄  (임계값 450줄) ✅ / ⚠️ 초과
   <detail_plan_file>          : N줄  (임계값 700줄) ✅ / ⚠️ 초과
@@ -154,7 +154,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
 
 **③ audit recommendation judgment** (SESSION_INDEX YAML single source):
 
-Judge based on the `sessions_since_audit` field of the `SESSION_INDEX.md` YAML header (the value right after += 1 at Step 4). **The judgment·recommendation is performed only in this response output, and the counter number is not recorded in persistent-document prose** (same principle as Step 4 「카운터 값 서술 금지」 — the canonical YAML is the sole source).
+Judge based on the `sessions_since_audit` field of the `${SESSION_INDEX_FILE}` YAML header (the value right after += 1 at Step 4). **The judgment·recommendation is performed only in this response output, and the counter number is not recorded in persistent-document prose** (same principle as Step 4 「카운터 값 서술 금지」 — the canonical YAML is the sole source).
 - `sessions_since_audit ≥ 3` → output recommendation
 - `last_audit_date` field absent (first time) → output recommendation
 - **Chain-transition·priority-change point** (e.g. last ✅E of the MEETING-ALIGN chain → entering the next chain, MVP Phase transition, the plan document's priority-table update — `<master_plan_file> §2` under `plan_tier: "2"`, or `<single_plan_file>`'s equivalent priority section under `plan_tier: "1"`) → unconditionally output recommendation
@@ -181,5 +181,5 @@ If not applicable, omit this block.
 
 ```
 ---
-**세션 완료**: 다음 세션은 `SESSION_INDEX.md`의 `next_action` 항목을 확인하세요. 새 작업 시작 시 `/gate-a` (Gate A 계획)로 시작합니다.
+**세션 완료**: 다음 세션은 `${SESSION_INDEX_FILE}`의 `next_action` 항목을 확인하세요. 새 작업 시작 시 `/gate-a` (Gate A 계획)로 시작합니다.
 ```

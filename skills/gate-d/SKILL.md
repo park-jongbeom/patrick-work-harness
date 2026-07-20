@@ -24,7 +24,7 @@ effort: high
 
    > **💡 Giant test-log delegation (HARNESS-DELEGATE-1)**: When the output log is giant, as with `gradlew`/`pytest`/`npm test`, delegate the execution to an `Explore`/`Agent` subagent (Bash) and **retrieve only the PASS/FAIL + failure-summary conclusion** to save main-context tokens (only when "intermediate output ≫ conclusion" — inline is better for small ones). The main performs self-debug (2-B)·FIX-B/DEP classification based on the delegated conclusion. Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
 
-**2-B. Verification loop (R-2, external-signal based)** — On finding a test·build failure, before immediately classifying FIX-B/DEP, perform a repeating verification loop that is **closed only by external execution signals** (basis: `REPORTS/HARNESS_RIGOR_RESEARCH_V1.md §1` — Huang/DeepMind ICLR2024: pure self-correction without external signals lowers accuracy):
+**2-B. Verification loop (R-2, external-signal based)** — On finding a test·build failure, before immediately classifying FIX-B/DEP, perform a repeating verification loop that is **closed only by external execution signals** (basis: (internal research note, if your project maintains one) — Huang/DeepMind ICLR2024: pure self-correction without external signals lowers accuracy):
 
 - **Closing signal = external execution signals only** (test PASS/FAIL·build·type checker·linter). Do not close the loop on the model's self-judgment ("it's probably fixed").
 - **Upper bound ~3 times**: Read the error message·failure line, and if the cause is **obvious** (typo·null check·missing import·contract mismatch), fix inline and re-run to re-confirm via external signal. If there is progress, repeat within the upper bound.
@@ -40,7 +40,7 @@ effort: high
 
    | Class | Criteria | Document handling |
    |-------|----------|-------------------|
-   | **FIX-B** | Fixable right now with this repository's code (resolved by source·test·config change) | Reserve as next-session Gate A candidate — record in the CURRENT_SESSION.md FIX-B item |
+   | **FIX-B** | Fixable right now with this repository's code (resolved by source·test·config change) | Reserve as next-session Gate A candidate — record in the ${CURRENT_SESSION_FILE} FIX-B item |
    | **DEP** | Verifiable only after other not-yet-implemented code·infra·external API completes first | Record in the DEP item with the dependent session ID, reserve verification after that session completes |
 
    → If even 1 failure exists, it must be recorded in the table format above (table omission = PROC candidate). If all pass, 「실패 0건」 suffices.
@@ -48,7 +48,7 @@ effort: high
 ## 3-B. Code Review·Security Check (ECC code-review + security-review)
 
 **Escalation trigger (R-14, scale review depth to blast radius)**: before running the inline 7-item checklist below, check whether **either** condition applies:
-- The R/V/D decomposition recorded in `CURRENT_SESSION.md`'s Dashboard (per gate-a's "Dashboard Required Fields" — the R value from Gate A's own Step 0-A-a scoring, **not** Gate D's re-scored row) has R-axis total **≥ 6** (the same threshold Gate A uses for Opus promotion — new architecture/algorithm/security-policy decisions), **or**
+- The R/V/D decomposition recorded in `${CURRENT_SESSION_FILE}`'s Dashboard (per gate-a's "Dashboard Required Fields" — the R value from Gate A's own Step 0-A-a scoring, **not** Gate D's re-scored row) has R-axis total **≥ 6** (the same threshold Gate A uses for Opus promotion — new architecture/algorithm/security-policy decisions), **or**
 - changed files **> 7** (same count already computed for the R-12 scope guard in Gate A)
 
 **If triggered** → check whether the `/code-review` Skill is available in this environment (it is a Claude Code client capability, **not something this harness bundles or guarantees** — a project installing this harness may not have it). **If available**, invoke it (effort: `medium` when one condition holds, `high` when both hold) against the Gate C diff instead of the inline checklist below, then fold its findings into this Step's output (finding count·severity replace the 7-item table). **If unavailable**, fall back to the inline 7-item checklist below — same fallback-on-unavailability principle as gate-e's `/error-log` reference (gate-e/SKILL.md Step 3). **If not triggered at all** → run the inline 7-item checklist below as-is (this is the default path for most sessions — small/standard changes don't need multi-agent review overhead).
@@ -122,8 +122,8 @@ If none of the above files exist: skip silently.
 
 6. Update the plan document(s) (status: `D (확인 대기)`, write the Gate D block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
-   - `SESSION_INDEX.md` YAML
-   - `CURRENT_SESSION.md` — record the full test plan + execution result + FIX-B·DEP items
+   - `${SESSION_INDEX_FILE}` YAML
+   - `${CURRENT_SESSION_FILE}` — record the full test plan + execution result + FIX-B·DEP items
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 7. STOP — await user document review·confirmation
@@ -179,7 +179,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ```
 ---
 **다음 단계**: Gate D 확인 후 「Gate E 진행」또는 「세션 정리」로 응답하면 `/gate-e` (Gate E WORKLOG·아카이브)가 시작됩니다.
-**권장 모델 전환**: CURRENT_SESSION.md "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
+**권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
 💡 **캐시 TTL 참고**: Gate D 결과를 검토할 때, 5분 이내에 응답하면 프롬프트 캐시가 유지되어 토큰 비용이 절감됩니다.
 ```
 
@@ -187,6 +187,6 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ```
 ---
 **다음 단계**: Gate D 확인 후 「Gate E 진행」또는 「세션 정리」로 응답하면 `/gate-e` (Gate E WORKLOG·아카이브)가 시작됩니다.
-**권장 모델 전환**: CURRENT_SESSION.md "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
+**권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
 💡 **캐시 TTL 참고**: Gate D 결과를 검토할 때, 5분 이내에 응답하면 프롬프트 캐시가 유지되어 토큰 비용이 절감됩니다.
 ```
