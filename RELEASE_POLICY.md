@@ -17,13 +17,18 @@
 
 ## 릴리스 절차
 
+> **전부 로컬 절차** (2026-07-20, v1.2.1 직후 확정): GitHub Actions "Deploy Plugin" 워크플로우는 제거됨 — 하던 일(JSON 검증·버전 정합·Release 생성)이 전부 로컬로 수행 가능한데 러너 큐 지연에 릴리스가 인질로 잡히고, 봇 생성 Release가 수동 정리 노트를 덮어쓰는 충돌만 남기기 때문. Release 객체 자체는 여전히 필수(`install.sh`가 `releases/latest`로 버전 해석) — 아래 7단계에서 gh CLI로 생성한다.
+
 ```
-1. plugin.json version 필드 업데이트
+1. 버전 3파일 동시 업데이트: plugin.json · .claude-plugin/plugin.json · .claude-plugin/marketplace.json
 2. CHANGELOG.md 항목 추가 (Added / Fixed / Changed)
-3. git commit -m "chore: bump version to vX.Y.Z"
-4. git tag vX.Y.Z
-5. git push origin main
-6. git push origin vX.Y.Z   ← GitHub Actions "Deploy Plugin" 워크플로우 자동 트리거
+3. 로컬 정합 검증 (구 CI validate 잡 대체) — 아래 한 줄이 3값 동일을 출력해야 함:
+   jq -r '.version' plugin.json .claude-plugin/plugin.json && jq -r '.plugins[0].version' .claude-plugin/marketplace.json
+4. git commit -m "chore: bump version to vX.Y.Z"
+5. git tag vX.Y.Z
+6. git push origin main && git push origin vX.Y.Z
+7. gh release create vX.Y.Z --title "vX.Y.Z — <한 줄 요약>" --notes-file <해당 버전 CHANGELOG 절만 담은 파일>
+   (CHANGELOG 전문 붙여넣기 금지 — 해당 버전 절만. 자산 첨부 불요: install.sh는 태그 소스 tarball을 사용)
 ```
 
 ## CHANGELOG 작성 규약

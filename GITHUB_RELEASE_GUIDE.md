@@ -41,8 +41,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-> `v1.0.0` 태그가 푸시되면 `.github/workflows/deploy-plugin.yml`(ai-consulting-plans 저장소에 있음) 워크플로우가 트리거됩니다.
-> `patrick-work-harness` 저장소 자체에는 GitHub Actions 워크플로우가 없으므로, Release는 수동으로 생성합니다(아래 Step 4).
+> 이 저장소에는 GitHub Actions 워크플로우가 없습니다 — 한때 `deploy-plugin.yml`(태그 푸시 → 검증·Release 자동 생성)이 있었으나 v1.2.1 직후(2026-07-20) 제거했습니다. Release는 로컬 gh CLI로 생성합니다(`RELEASE_POLICY.md §릴리스 절차` 7단계 정본 참조).
 
 ---
 
@@ -69,9 +68,12 @@ git push origin v1.0.0
 버전 변경 시 `RELEASE_POLICY.md` 참조.
 
 ```bash
-# plugin.json version 필드 수정 후
-git add plugin.json CHANGELOG.md
+# 버전 3파일(plugin.json·.claude-plugin/plugin.json·.claude-plugin/marketplace.json) 수정 후
+git add -A
 git commit -m "chore: bump version to vX.Y.Z"
 git tag vX.Y.Z
 git push origin main && git push origin vX.Y.Z
+gh release create vX.Y.Z --title "vX.Y.Z — <한 줄 요약>" --notes-file <노트 파일>
 ```
+
+> 상세 단계(로컬 정합 검증 포함)는 `RELEASE_POLICY.md §릴리스 절차`가 정본입니다.
