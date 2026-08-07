@@ -14,6 +14,13 @@ import os
 import sys
 from pathlib import Path
 
+# Windows cp949 콘솔 UnicodeEncodeError 방지 (Python 3.7+)
+# 성공 메시지 print("✅ …") 가 터지면 바로 아래 except 가
+# 그 예외를 잡아 "동기화 실패" 를 stderr 로 출력한다 —
+# HTML 은 정상 생성됐는데 실패로 오보하는 구조.
+# HARNESS-SYNC-RECONCILE-2-b (2026-08-07)
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # 동일 디렉토리 모듈 import 보장 (Stop hook 실행 시 cwd가 hook 디렉토리가 아닐 수 있음)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

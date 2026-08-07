@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.1] - 2026-08-07
+
+> 하네스를 사용하는 **하위 프로젝트가 보고한 Windows 훅 결함 3건**에 대한 수리 릴리스. 실측 결과 1건(이해도 원장 경로)은 v1.3.0에서 이미 해소돼 있었고, 나머지 2건을 본 릴리스에서 처리한다.
+
+### Fixed
+- **`hooks/test-tampering-guard.py` — Windows cp949 콘솔에서 훅이 `exit 1`로 죽던 문제**. `print("🔍 …")` 등 stdout으로 나가는 비ASCII 문자가 원인이며, `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` 1줄로 해소(실측 cp949 `exit 1`→`0`, utf-8 무회귀). **이 훅은 PreToolUse reward-hacking 검출기이므로 크래시 = 가드 무력화** — 단순 출력 노이즈가 아니라 안전장치가 꺼지는 문제였다.
+- **`hooks/session-dashboard-sync.py` — 동기화에 성공하고도 "실패"로 보고하던 문제**. 성공 메시지 `print("✅ … 동기화 완료")`가 cp949에서 터지면 **바로 아래 `except Exception`이 그 예외를 잡아 "동기화 실패"를 stderr로 출력**했다(HTML 자체는 정상 생성). 종료코드는 수정 전후 모두 `0`이라 exit code로는 구별되지 않으며, **stderr의 거짓 실패 메시지 소멸 + stdout 성공 메시지 출현**으로 검증했다.
+- **`hooks/skill-usage-auto.py` — 스킬 사용 이력이 아무 곳에도 적재되지 않던 문제**. 기록 디렉터리를 `Path(_proj).parent / "plans" / "process_evolution"`으로 해석해 **프로젝트 안이 아니라 형제 디렉터리**를 가리켰고(`exists=False`), env 부재 시 사설 절대경로로 폴백했다. 경로가 빗나가도 훅이 조용히 통과해 **에러 없이 무효**인 상태였다. `learning_path`(v1.3.0)와 동일한 **3단 우선순위**(① 테스트 오버라이드 env → ② `harness-answers.yml` `process_evolution_path` → ③ 기본값)로 교체.
+
+### Added
+- **`process_evolution_path` 설정 필드** (`skills/init/SKILL.md` 인터뷰 항목 + `harness-answers.yml` 템플릿) — 스킬 사용 이력 디렉터리를 SSOT로 분리. 상대경로는 `CLAUDE_PROJECT_DIR` 기준 해석, 절대경로는 그대로 사용, **필드 부재 시 기존 기본값 `plans/process_evolution`으로 간주**(하위 호환 — `learning_path`·`plan_tier`와 동일 패턴).
+
+### Note
+- **인코딩 수정 범위는 훅 2종** — 보고서는 비ASCII를 출력하는 훅 8종 전부를 잠재 대상으로 지목했으나, Python은 stderr에 `backslashreplace`를 기본 적용하므로(`stdout.errors=strict` vs `stderr.errors=backslashreplace`) **stderr로만 출력하는 6종은 cp949에서도 크래시하지 않고 이스케이프 출력**된다(표시만 깨짐). 실제 차단(`exit 2`)을 발생시키는 조건에서 6종을 재실행해 `UnicodeEncodeError` 0건을 확인했고, 불필요한 변경을 피하기 위해 손대지 않았다.
+- 검증: 훅 회귀 **로컬 11파일 + 배포 10파일 전원 PASS**, 스킬의 tier-aware 일반화 콘텐츠(플레이스홀더 91곳·`plan document(s)` 문구 36곳) **전량 보존**.
+
 ## [1.3.0] - 2026-08-07
 
 ### Added

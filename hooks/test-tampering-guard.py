@@ -24,6 +24,13 @@ import subprocess
 import re
 from pathlib import Path
 
+# Windows cp949 콘솔 UnicodeEncodeError 방지 (Python 3.7+)
+# stdout 기본 errors 는 strict 라 비ASCII 출력 시 exit 1 로 죽는다
+# (stderr 는 backslashreplace 라 무관). 본 훅은 PreToolUse
+# reward-hacking 검출기 — 크래시 = 가드 무력화.
+# HARNESS-SYNC-RECONCILE-2-b (2026-08-07)
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # R-4-2-b: 3단 우선순위 (① custom env → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 _REPO_ROOT = (

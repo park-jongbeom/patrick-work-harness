@@ -20,13 +20,90 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# R-4-2-a: CLAUDE_PROJECT_DIR 기반 이식성 폴백 (env 부재 시 절대경로 유지)
-_proj = os.environ.get("CLAUDE_PROJECT_DIR")
-PROCESS_EVOLUTION_DIR = (
-    Path(_proj).parent / "plans" / "process_evolution"
-    if _proj
-    else Path(os.path.join(os.environ.get("HARNESS_PLANS_DIR", "."), "process_evolution"))
-)
+try:
+    import yaml
+    _YAML_AVAILABLE = True
+except ImportError:
+    _YAML_AVAILABLE = False
+
+# 필드 부재 시 기본값 — learning_path 와 동일한 하위 호환 패턴
+_DEFAULT_PROCESS_EVOLUTION_PATH = "plans/process_evolution"
+
+
+def _find_answers_yml():
+    """harness-answers.yml 경로 탐색 (CLAUDE_PROJECT_DIR → cwd).
+
+    docker-command-guard.py:44-54 와 동일 패턴 (정본 재사용).
+    """
+    candidates = []
+    proj = os.environ.get("CLAUDE_PROJECT_DIR")
+    if proj:
+        candidates.append(os.path.join(proj, ".claude", "harness-answers.yml"))
+    candidates.append(
+        os.path.join(os.getcwd(), ".claude", "harness-answers.yml")
+    )
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _simple_parse_process_evolution_path(text):
+    """PyYAML 미설치 대비 간이 파서 — process_evolution_path 스칼라만 추출."""
+    import re
+    m = re.search(
+        r"^process_evolution_path\s*:\s*[\"']?([^\"'#\r\n]+?)[\"']?\s*(?:#.*)?$",
+        text,
+        re.MULTILINE,
+    )
+    return m.group(1).strip() if m else None
+
+
+def _load_process_evolution_path():
+    """harness-answers.yml → process_evolution_path. 미설정·실패 시 기본값(fail-open)."""
+    path = _find_answers_yml()
+    if not path:
+        return _DEFAULT_PROCESS_EVOLUTION_PATH
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read()
+        if _YAML_AVAILABLE:
+            data = yaml.safe_load(raw) or {}
+            value = data.get("process_evolution_path")
+        else:
+            value = _simple_parse_process_evolution_path(raw)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return _DEFAULT_PROCESS_EVOLUTION_PATH
+    except Exception:
+        return _DEFAULT_PROCESS_EVOLUTION_PATH
+
+
+def _resolve_process_evolution_dir():
+    """기록 디렉터리 3단 우선순위 해석.
+
+    ① SKILL_USAGE_PROCESS_EVOLUTION_DIR env (테스트 오버라이드)
+    ② harness-answers.yml process_evolution_path (SSOT)
+    ③ 기본값 "plans/process_evolution" (필드 부재 시 하위 호환)
+
+    ②③ 의 상대경로는 CLAUDE_PROJECT_DIR(부재 시 cwd) 기준으로 해석한다.
+    comprehension-ledger-stale-guard.py 의 learning_path 해석과 동형(정본 재사용).
+
+    HARNESS-SYNC-RECONCILE-2-b (2026-08-07): 종전에는 `Path(_proj).parent / "plans"` 로
+    워크스페이스 형제 배치를 코드에 가정하고, env 부재 시 사설 절대경로로 폴백했다.
+    경로가 빗나가도 훅이 조용히 통과해 스킬 사용 이력이 아무 데도 쌓이지 않았다.
+    """
+    override = os.environ.get("SKILL_USAGE_PROCESS_EVOLUTION_DIR")
+    if override:
+        return Path(override)
+    target = Path(_load_process_evolution_path())
+    if not target.is_absolute():
+        base = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+        target = base / target
+    return target
+
+
+PROCESS_EVOLUTION_DIR = _resolve_process_evolution_dir()
 AGGREGATOR = PROCESS_EVOLUTION_DIR / "skill_usage_aggregator.py"
 MAX_AGE_HOURS = 24
 
