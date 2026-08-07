@@ -6,7 +6,7 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
 
 배경 (COMPREHEND-GATE-1-b, 2026-06-21):
   COMPREHEND-GATE-1 이 만든 이해도 게이트 증적 원장
-  (plans/learning/comprehension_ledger.md)은 각 항목의 exp(만료 조건)이
+  (원장 위치 = harness-answers.yml learning_path SSOT)은 각 항목의 exp(만료 조건)이
   지나면 재검증이 필요하다. 그러나 현재는 gate-b 게이트가
   '발동'한 세션의 Step 1 에서만 수동으로 만료를 조회한다 — 게이트가
   발동하지 않는 세션에서는 만료를 놓친다. 본 훅이 응답 종료 시점에
@@ -42,14 +42,91 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# R-4-2-a: CLAUDE_PROJECT_DIR 기반 이식성 폴백 (env 부재 시 절대경로 유지)
-_proj = os.environ.get("CLAUDE_PROJECT_DIR")
-_default_ledger = (
-    str(Path(_proj).parent / "plans" / "learning" / "comprehension_ledger.md")
-    if _proj
-    else "/media/ubuntu/data120g/plans/learning/comprehension_ledger.md"
-)
-LEDGER_PATH = os.environ.get("COMPREHENSION_LEDGER_PATH", _default_ledger)
+try:
+    import yaml
+    _YAML_AVAILABLE = True
+except ImportError:
+    _YAML_AVAILABLE = False
+
+# 필드 부재 시 기본값 — plan_tier 미기재를 "2" 로 간주하는 것과 동일한 하위 호환 패턴
+_DEFAULT_LEARNING_PATH = "plans/learning"
+LEDGER_FILENAME = "comprehension_ledger.md"
+
+
+def _find_answers_yml():
+    """harness-answers.yml 경로 탐색 (CLAUDE_PROJECT_DIR → cwd).
+
+    docker-command-guard.py:44-54 와 동일 패턴 (정본 재사용).
+    """
+    candidates = []
+    proj = os.environ.get("CLAUDE_PROJECT_DIR")
+    if proj:
+        candidates.append(os.path.join(proj, ".claude", "harness-answers.yml"))
+    candidates.append(
+        os.path.join(os.getcwd(), ".claude", "harness-answers.yml")
+    )
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _simple_parse_learning_path(text):
+    """PyYAML 미설치 대비 간이 파서 — learning_path 스칼라만 추출."""
+    m = re.search(
+        r"^learning_path\s*:\s*[\"']?([^\"'#\r\n]+?)[\"']?\s*(?:#.*)?$",
+        text,
+        re.MULTILINE,
+    )
+    return m.group(1).strip() if m else None
+
+
+def _load_learning_path():
+    """harness-answers.yml → learning_path 로드. 미설정·실패 시 기본값(fail-open)."""
+    path = _find_answers_yml()
+    if not path:
+        return _DEFAULT_LEARNING_PATH
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read()
+        if _YAML_AVAILABLE:
+            data = yaml.safe_load(raw) or {}
+            value = data.get("learning_path")
+        else:
+            value = _simple_parse_learning_path(raw)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return _DEFAULT_LEARNING_PATH
+    except Exception:
+        return _DEFAULT_LEARNING_PATH
+
+
+def _resolve_ledger_path():
+    """원장 경로 3단 우선순위 해석.
+
+    ① COMPREHENSION_LEDGER_PATH env (테스트 오버라이드)
+    ② harness-answers.yml learning_path (SSOT)
+    ③ 기본값 "plans/learning" (필드 부재 시 하위 호환)
+
+    ②③ 의 상대경로는 CLAUDE_PROJECT_DIR(부재 시 cwd) 기준으로 해석한다.
+    R-4-2-b 3단 우선순위 컨벤션 — session-dashboard-sync.py:23-29 와 동형.
+
+    HARNESS-LEDGER-PATH-1 (2026-08-07): 종전에는 `Path(_proj).parent / "plans"` 로
+    워크스페이스 형제 배치를 코드에 가정하고, env 부재 시 사설 절대경로
+    (/media/ubuntu/...)로 폴백했다. 배치 가정은 learning_path 설정값으로,
+    사설 절대경로는 cwd 폴백으로 각각 이관해 이식성을 확보한다.
+    """
+    override = os.environ.get("COMPREHENSION_LEDGER_PATH")
+    if override:
+        return override
+    learning = Path(_load_learning_path())
+    if not learning.is_absolute():
+        base = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+        learning = base / learning
+    return str(learning / LEDGER_FILENAME)
+
+
+LEDGER_PATH = _resolve_ledger_path()
 
 
 def allow():

@@ -141,12 +141,24 @@ if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
       "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
     echo "      훅 파일 → ${GLOBAL_HOOKS_DIR}/"
 
+    # 훅 배선에 쓸 Python 인터프리터 결정 (HARNESS-SYNC-RECONCILE-2-a, 2026-08-07)
+    #   Windows: `py` (Python Launcher) — Claude Code 훅은 로그인 셸을 거치지 않아
+    #            Git Bash 의 `python3` shim 을 신뢰할 수 없다.
+    #   그 외:   `python3` (POSIX 표준)
+    # 배선 문자열에만 적용 — 아래 헤레독 자체는 설치 셸(Git Bash/POSIX)에서 실행되므로 python3 유지.
+    case "${OSTYPE:-}" in
+      msys*|cygwin*|win32*) HOOK_PY="py" ;;
+      *)                    HOOK_PY="python3" ;;
+    esac
+    echo "  훅 인터프리터: ${HOOK_PY} (OSTYPE=${OSTYPE:-unknown})"
+
     # settings.json 에 훅 등록
     python3 - <<PYEOF
 import json, os, sys
 
 settings_path = os.path.expanduser("${GLOBAL_SETTINGS}")
 hooks_dir = "${GLOBAL_HOOKS_DIR}"
+hook_py = "${HOOK_PY}"
 
 # 기존 settings.json 로드 (없으면 빈 dict)
 if os.path.exists(settings_path):
@@ -162,51 +174,51 @@ NEW_HOOKS = {
     "PreToolUse": [
         {
             "matcher": "Edit|Write|Bash",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/claude-gate-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/claude-gate-guard.py"}]
         },
         {
             "matcher": "Bash",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/docker-command-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/docker-command-guard.py"}]
         },
         {
             "matcher": "Bash",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/commit-msg-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/commit-msg-guard.py"}]
         },
     ],
     "PostToolUse": [
         {
             "matcher": "Edit|Write",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/session-dashboard-sync.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/session-dashboard-sync.py"}]
         },
     ],
     "Stop": [
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/master-plan-stale-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/master-plan-stale-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/gate-a-sync-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/gate-a-sync-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/gate-e-sync-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/gate-e-sync-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/error-topics-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/error-topics-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/test-tampering-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/test-tampering-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/comprehension-ledger-stale-guard.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-ledger-stale-guard.py"}]
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"python3 {hooks_dir}/skill-usage-auto.py"}]
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/skill-usage-auto.py"}]
         },
     ],
 }

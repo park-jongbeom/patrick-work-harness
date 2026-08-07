@@ -8,13 +8,16 @@ import subprocess
 import sys
 import tempfile
 
+# Windows cp949 콘솔에서 '—'·'✅' 등 출력 시 UnicodeEncodeError 방지 (Python 3.7+)
+sys.stdout.reconfigure(encoding="utf-8")
+
 SCRIPT = os.path.join(os.path.dirname(__file__), "gate-e-sync-guard.py")
 MAX_BLOCKS = 3  # gate-e-sync-guard.py 와 동일해야 함
 
 
 def counter_file(session_id):
     safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
-    return os.path.join("/tmp", f".gate-e-sync-guard-{safe}.count")
+    return os.path.join(tempfile.gettempdir(), f".gate-e-sync-guard-{safe}.count")
 
 
 def clear_counter(session_id):
@@ -45,7 +48,7 @@ def run_hook(session_index, current_session, session_id="test-sess",
         proc = subprocess.run(
             [sys.executable, SCRIPT],
             input=json.dumps(payload),
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
         return proc.returncode, proc.stderr.strip()
 

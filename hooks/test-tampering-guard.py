@@ -33,14 +33,36 @@ _REPO_ROOT = (
 )
 
 
+def _is_git_repo(repo_root):
+    """Check once whether repo_root is inside a git work tree."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+    return result.returncode == 0
+
+
+_IS_GIT_REPO = _is_git_repo(_REPO_ROOT)
+
+
 def _run_git_diff(extra_args):
     """Run `git diff <extra_args>` with a returncode guard.
 
     Returns stdout on success. On git error (rc != 0) or timeout, prints a
     warning to **stderr** (never stdout — stdout feeds the diff parsers) and
     returns "". This removes the silent fail-open that previously masked the
-    pathspec-before-option bug.
+    pathspec-before-option bug. When repo_root is not a git work tree at all
+    (e.g. a Markdown-only workspace), fails silently — that is an expected
+    environment, not a tool error worth surfacing every run.
     """
+    if not _IS_GIT_REPO:
+        return ""
     try:
         result = subprocess.run(
             ["git", "diff"] + extra_args,

@@ -20,7 +20,7 @@ Before session start (before any code change):
    - On finding `final_status: ✅ E (완료)` in an archive or `✅E` in `${SESSION_INDEX_FILE}` → index stale confirmed
    - On finding stale: include an "index correction" Step in this Gate A plan (3rd precedent "stale correction"); if out of scope, register in §5 handoff
    - **Cross-verification scope**: only the session/track this Gate A directly touches — no exhaustive lookup (avoid overhead)
-   - **Comprehension-gate ledger expiry check** (COMPREHEND-GATE-1): if this Gate A's target scope has evidence in `plans/learning/comprehension_ledger.md`, check whether `exp` has elapsed·whether the scope files materially changed — on expiry, reflect 「재검증」 in this session's trigger verdict (the auto-expiry-detection Stop hook is planned in COMPREHEND-GATE-1-b)
+   - **Comprehension-gate ledger expiry check** (COMPREHEND-GATE-1): if this Gate A's target scope has evidence in the comprehension ledger (`comprehension_ledger.md` — see `.claude/harness-answers.yml` → `learning_path` (SSOT); absent field means `plans/learning`), check whether `exp` has elapsed·whether the scope files materially changed — on expiry, reflect 「재검증」 in this session's trigger verdict (auto-expiry detection is implemented as the Stop hook `comprehension-ledger-stale-guard.py` in COMPREHEND-GATE-1-b; it only runs when wired in your Claude Code settings)
 
 1. Confirm `${SESSION_INDEX_FILE}` (root) exists
    - YES → load (YAML header only)

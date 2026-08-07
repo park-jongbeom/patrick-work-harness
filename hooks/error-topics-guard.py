@@ -34,6 +34,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 try:
     import yaml
@@ -212,7 +213,7 @@ def session_id_logged(session_id, repos):
 
 def counter_path(session_id):
     safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
-    return os.path.join("/tmp", f".error-topics-guard-{safe}.count")
+    return os.path.join(tempfile.gettempdir(), f".error-topics-guard-{safe}.count")
 
 
 def read_counter(path):

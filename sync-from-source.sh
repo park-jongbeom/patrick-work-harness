@@ -95,9 +95,25 @@ if [[ -d "$HOOKS_SRC" ]]; then
     --exclude="test_progress_report_stale_guard.py" \
     "$HOOKS_SRC/" "$DEST/hooks/"
   # Sanitize: replace absolute paths in synced hook files
+  # NOTE: the two rules below only match the exact-quoted forms. Sub-path literals
+  # (e.g. ".../plans/process_evolution", ".../plans" as a default arg) slipped past them
+  # and shipped private absolute paths in released hooks — hence the catch-all rule that
+  # follows (HARNESS-SYNC-RECONCILE-2-a, 2026-08-07).
   find "$DEST/hooks" -name "*.py" | xargs sed -i \
     -e 's|"/media/ubuntu/data120g/ai-consulting-plans"|os.environ.get("CLAUDE_PROJECT_DIR", ".")|g' \
     -e 's|"/media/ubuntu/data120g"|os.environ.get("HARNESS_ROOT_DIR", ".")|g' 2>/dev/null || true
+  # Catch-all: any remaining "/media/ubuntu/data120g/plans<sub-path>" literal → env-based fallback.
+  # Keeps the string a valid Python expression (os.path.join) so the hook still parses.
+  #
+  # Order matters (recurrence guard, HARNESS-SYNC-RECONCILE-2-a Gate D):
+  #   The bare-path form can appear as the *default argument* of an existing
+  #   os.environ.get(...) call. Substituting it with another os.environ.get(...)
+  #   produced nested `get("X", os.environ.get("X", "."))`. So collapse that case
+  #   FIRST to a plain "." default, then handle the remaining standalone literals.
+  find "$DEST/hooks" -name "*.py" | xargs sed -i \
+    -e 's|os\.environ\.get(\("[A-Z_]*"\), "/media/ubuntu/data120g/plans")|os.environ.get(\1, ".")|g' \
+    -e 's|"/media/ubuntu/data120g/plans/\([A-Za-z0-9_/]*\)"|os.path.join(os.environ.get("HARNESS_PLANS_DIR", "."), "\1")|g' \
+    -e 's|"/media/ubuntu/data120g/plans"|os.environ.get("HARNESS_PLANS_DIR", ".")|g' 2>/dev/null || true
   echo "      Done."
 else
   echo "[WARN] Hooks source not found: $HOOKS_SRC — skipped."

@@ -23,7 +23,7 @@ Classify the Gate A plan by risk level and determine the path:
 
 ## Step 1. Ledger expiry·re-verification prerequisite lookup
 
-**Before** requiring an explanation, look up entries in `plans/learning/comprehension_ledger.md` by `tech_tags` match first, then fall back to `scope` text match:
+**Before** requiring an explanation, look up entries in the comprehension ledger (`comprehension_ledger.md` — see `.claude/harness-answers.yml` → `learning_path` (SSOT); absent field means `plans/learning`) by `tech_tags` match first, then fall back to `scope` text match:
 
 - **tech_tags matching (primary)**: if any tag in the ledger row's `tech_tags` column overlaps with this Gate A plan's technology area → apply expiry check
 - **Expiry verdict**:
@@ -31,7 +31,7 @@ Classify the Gate A plan by risk level and determine the path:
   - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
   - **No record** → proceed with new verification
 
-> Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end. This Step's direct lookup is the first-pass verdict.
+> Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end — **only when that hook is actually wired in your Claude Code settings**. If it is not wired, this Step's manual lookup is the sole detection path. Either way, this Step's direct lookup is the first-pass verdict.
 
 ## Step 2. Force retrieval via guided questioning (non-trivial paths only)
 
@@ -51,7 +51,7 @@ Evaluate **each question's answer independently** (not one holistic free-form pa
 
 ## Step 4. Evidence record (expiring, non-trivial paths only)
 
-Add 1 row to `plans/learning/comprehension_ledger.md`:
+Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning_path` — see Step 1):
 
 | Field | Value |
 |-------|-------|

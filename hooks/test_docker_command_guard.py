@@ -27,12 +27,16 @@ def run_hook(command=None, tool_name="Bash", payload=None, answers_yml=None):
             payload["tool_input"] = {"command": command}
 
     env = os.environ.copy()
+    # 자식 출력을 부모 디코드(utf-8)와 일치 — 미지정 시 Windows locale(cp949)
+    env["PYTHONIOENCODING"] = "utf-8"
 
     if answers_yml is not None:
         tmp = tempfile.mkdtemp()
         claude_dir = os.path.join(tmp, ".claude")
         os.makedirs(claude_dir, exist_ok=True)
-        with open(os.path.join(claude_dir, "harness-answers.yml"), "w") as f:
+        # encoding 미지정 시 cp949 기록 → 훅은 utf-8 로 읽어 파싱 실패(fail-open)
+        with open(os.path.join(claude_dir, "harness-answers.yml"), "w",
+                  encoding="utf-8") as f:
             f.write(answers_yml)
         env["CLAUDE_PROJECT_DIR"] = tmp
     else:
@@ -42,7 +46,7 @@ def run_hook(command=None, tool_name="Bash", payload=None, answers_yml=None):
     proc = subprocess.run(
         [sys.executable, SCRIPT],
         input=json.dumps(payload),
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
         env=env,
     )
     return proc.returncode, proc.stderr.strip()
@@ -146,7 +150,7 @@ def test_pass_non_bash_tool():
 def test_pass_malformed_payload():
     proc = subprocess.run(
         [sys.executable, SCRIPT], input="not json",
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert proc.returncode == 0
 

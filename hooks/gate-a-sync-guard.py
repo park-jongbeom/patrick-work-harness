@@ -32,6 +32,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 # 정본 절대경로 — R-4-2-b: 3단 우선순위 (① GATE_A_GUARD_BASE[테스트] → ② CLAUDE_PROJECT_DIR → ③ 절대경로 폴백)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
@@ -123,7 +124,7 @@ def missing_fields(cur_text):
 
 def counter_path(sid):
     safe = re.sub(r"[^\w\-]", "_", sid or "nosession")
-    return os.path.join("/tmp", f".gate-a-sync-guard-{safe}.count")
+    return os.path.join(tempfile.gettempdir(), f".gate-a-sync-guard-{safe}.count")
 
 
 def read_counter(path):

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0] - 2026-08-07
+
+### Added
+- **`learning_path` 설정 필드 신설** (`skills/init/SKILL.md` 인터뷰 항목 + `harness-answers.yml` 템플릿) — 이해도 원장(`comprehension_ledger.md`)의 위치를 SSOT로 분리. 상대경로는 `CLAUDE_PROJECT_DIR` 기준 해석, 절대경로는 그대로 사용, **필드 부재 시 기존 기본값 `plans/learning`으로 간주**(하위 호환 — `plan_tier` 미기재를 `"2"`로 간주하는 것과 동일 패턴). 종전에는 원장 경로가 훅 코드와 스킬 문서에 하드코딩돼 있어, 워크스페이스 배치가 다른 프로젝트(예: `plans/`가 아닌 `plan/`)에서는 원장을 찾지 못했다.
+- `install.sh` — 훅 배선 인터프리터 **OS 자동 분기**(`$OSTYPE` 감지 → Windows `py` / 그 외 `python3`, 11곳). Claude Code 훅은 로그인 셸을 거치지 않아 Git Bash의 `python3` shim을 신뢰할 수 없으므로 Windows에서 훅이 조용히 미동작할 수 있었다. 설치 스크립트 자신의 heredoc(`python3 - <<PYEOF`)은 설치 셸에서 실행되므로 그대로 유지.
+
+### Fixed
+- **훅 계층 Windows 이식 반영 (15파일)** — 배포본에 그동안의 Windows·인코딩 수리가 전혀 반영되지 않아, 설치 시 새 프로젝트가 이미 수정된 결함을 그대로 상속하는 상태였다. `"/tmp"` 하드코딩 **8파일 → 0건**(`tempfile.gettempdir()` 치환), `sys.stdout.reconfigure(encoding="utf-8")` **0 → 6파일**(Windows cp949 콘솔에서 `—`·`✅` 등 미지원 기호 출력 시 러너 크래시 — 하필 FAIL 분기 `print()`에만 있어 *테스트가 실패할 때만* 죽어 진짜 실패를 은폐하던 구조), `subprocess.run(..., encoding="utf-8")` 명시, `master-plan-stale-guard.py` 파서 2단 폴백.
+- `hooks/comprehension-ledger-stale-guard.py` — 원장 경로 해석을 **3단 우선순위**(① `COMPREHENSION_LEDGER_PATH` env → ② `harness-answers.yml` `learning_path` → ③ 기본값)로 교체. 종전 `Path(_proj).parent / "plans" / ...`는 특정 워크스페이스의 형제 디렉터리 배치를 코드에 가정했고, env 부재 시 사설 절대경로로 폴백했다. **경로가 틀려도 fail-open 설계상 `exit 0`이라 조용히 오작동**했다(파일 부재와 만료 0건의 관측 결과가 동일).
+- `hooks/skill-usage-auto.py`·`hooks/session_dashboard_renderer.py` — 사설 절대경로 폴백 제거(env 기반 교체). v1.2.1이 `session-dashboard-sync.py`에 적용한 것과 동종이나 누락됐던 2건.
+- `sync-from-source.sh` — 훅 sanitize sed 규칙 보강. 기존 2줄이 **정확히 따옴표로 감싼 형태만** 매치해, 하위 경로 리터럴(`".../plans/process_evolution"`)과 `os.environ.get()`의 **기본 인자 자리**에 있는 경로가 규칙을 빠져나가 사설 경로가 릴리스에 실렸다. catch-all 규칙 추가 + **선행 처리 규칙**으로 치환 중첩 방지(규칙 간 순서 의존성을 주석에 명시). 치환 결과는 `os.path.join(...)` 형태로 **Python 구문 유효성을 유지**한다.
+- `skills/gate-a/SKILL.md`·`skills/gate-b/SKILL.md` — 원장 경로 하드코딩 3곳을 `learning_path` SSOT 참조로 전환. 아울러 자동 감지 Stop 훅에 대한 서술에 **「배선돼 있을 때만 동작」 조건을 명시**(훅 축소 시 문서가 함께 갱신되지 않아 「동작한다」는 거짓 주장이 남았던 재발 경로 차단) + `gate-a`의 「planned」 스테일 서술을 구현 완료 사실로 정정.
+
+### Note
+- 스킬의 tier-aware 일반화 콘텐츠(플레이스홀더 91곳·`plan document(s)` 문구 36곳)는 **전량 보존** — 소스 저장소의 스킬은 프로젝트 고유형이고 배포본은 sed 변환을 거친 일반화 상위형이므로, 훅과 달리 **통짜 재동기화 시 역행**한다. 이번에도 원장 경로 3곳만 선택 이식했으며, 검증에서 91→91곳·36→36곳 보존을 확인했다. 스킬은 자동 역전파 불가 — **선택 이식이 정본 절차**.
+
 ## [1.2.1] - 2026-07-20
 
 ### Fixed

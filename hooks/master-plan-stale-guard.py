@@ -34,6 +34,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 # 정본 절대경로 — R-4-2-b: 3단 우선순위 (① MASTER_PLAN_GUARD_BASE[테스트] → ② CLAUDE_PROJECT_DIR → ③ 절대경로 폴백)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
@@ -78,11 +79,31 @@ def current_session_id(cur_text):
       가드가 no-op 무력화됐다. 현재 세션의 단일 진실원은 CURRENT_SESSION.md
       헤더이므로 그 '**세션 ID**' 값을 정본으로 삼는다.
       gate-a-sync-guard.py / gate-e-sync-guard.py current_session_state() 와 동일 패턴.
+
+    폴백 1단 (HARNESS-WIN-PORT-2, 2026-07-27):
+      '**세션 ID**' 필드가 없는 세션(관행상 '## {세션ID}' 헤딩만 기록)에서
+      파싱 실패 → 방어원칙(exit 0)으로 조용히 통과해 인덱스 stale을 놓치는
+      사례 실측(HARNESS-LOOP-TIER-1, L7 status 20일 미정정). 기존 패턴은
+      그대로 두고, 실패 시에만 최상단 '## {세션ID}' 헤딩으로 재시도한다.
+
+    폴백 2단 (FIX-B-STALE-GUARD-PARSER-1, 2026-07-27):
+      1단 폴백('## {세션ID}' 헤딩)이 완료 세션의 잔존 본문 소제목
+      (예: '## Gate A 계획')을 세션 ID로 오인해 'Gate'만 캡처하는 오탐
+      실측(HARNESS-WIN-PORT-3-a Gate E·doc-cleanup 응답에서 반복 재현).
+      DASHBOARD-INTENT-1(gate-a)이 항상 기록하는
+      '> **세션 주제**: {세션ID} — ...' 필드가 세션 ID를 담은 더 신뢰
+      가능한 정본이므로, '## {세션ID}' 헤딩보다 먼저 시도한다.
     """
     m_id = re.search(r"\*\*세션 ID\*\*:\s*([A-Za-z0-9][\w\-]*)", cur_text)
-    if not m_id:
-        return None
-    return m_id.group(1)
+    if m_id:
+        return m_id.group(1)
+    m_topic = re.search(r"\*\*세션 주제\*\*:\s*([A-Za-z0-9][\w\-]*)", cur_text)
+    if m_topic:
+        return m_topic.group(1)
+    m_heading = re.search(r"^##\s+([A-Za-z0-9][\w\-]*)", cur_text, re.M)
+    if m_heading:
+        return m_heading.group(1)
+    return None
 
 
 def master_plan_first_session_id(plan_text):
@@ -103,8 +124,14 @@ def master_plan_first_session_id(plan_text):
 
 
 def counter_path(session_id):
+    """
+    FIX-B-STALE-GUARD-PARSER-1(2026-07-27): 하드코딩 '/tmp' 은 Windows Python
+    에서 'D:\\tmp' (부재 경로) 로 해석되어 카운터 쓰기가 매번 조용히 실패,
+    MAX_BLOCKS 무한루프 방지가 무력화되는 버그 실측(Gate D 검증 중 발견).
+    tempfile.gettempdir() 로 OS별 실제 임시 디렉터리를 사용한다.
+    """
     safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
-    return os.path.join("/tmp", f".master-plan-stale-guard-{safe}.count")
+    return os.path.join(tempfile.gettempdir(), f".master-plan-stale-guard-{safe}.count")
 
 
 def read_counter(path):

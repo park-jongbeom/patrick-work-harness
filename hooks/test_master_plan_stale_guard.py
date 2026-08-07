@@ -8,13 +8,17 @@ import subprocess
 import sys
 import tempfile
 
+# Windows cp949 콘솔에서 '—'·'✅' 등 출력 시 UnicodeEncodeError 방지 (Python 3.7+)
+sys.stdout.reconfigure(encoding="utf-8")
+
 SCRIPT = os.path.join(os.path.dirname(__file__), "master-plan-stale-guard.py")
 MAX_BLOCKS = 3  # master-plan-stale-guard.py 와 동일해야 함
 
 
 def counter_file(session_id):
+    """master-plan-stale-guard.py counter_path() 와 동일 경로여야 clear_counter 가 유효."""
     safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
-    return os.path.join("/tmp", f".master-plan-stale-guard-{safe}.count")
+    return os.path.join(tempfile.gettempdir(), f".master-plan-stale-guard-{safe}.count")
 
 
 def clear_counter(session_id):
@@ -49,7 +53,7 @@ def run_hook(current_session_content, master_plan_content, session_id="test-sess
         proc = subprocess.run(
             [sys.executable, SCRIPT],
             input=json.dumps(payload),
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
         return proc.returncode, proc.stderr.strip()
 
@@ -173,6 +177,44 @@ def test_loop_guard_releases_after_max():
     print("  PASS: 연속 차단 한도 초과 → fail-open 탈출")
 
 
+def test_session_topic_field_fallback_allows():
+    """'**세션 ID**' 없고 '**세션 주제**'만 있는 세션 → 2단 폴백으로 정확히 추출, 일치 시 허용."""
+    clear_counter("t-topic")
+    current = (
+        '# 현재 세션 상태\n\n'
+        '> **현재 상태**: A (승인 대기)\n'
+        '> **세션 주제**: FIX-B-STALE-GUARD-PARSER-1 — 파서 오탐 수리\n'
+    )
+    code, _ = run_hook(
+        current,
+        master_plan_md("FIX-B-STALE-GUARD-PARSER-1"),
+        session_id="t-topic",
+    )
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: '**세션 주제**' 필드 폴백 → 정확 추출, 허용")
+
+
+def test_body_heading_no_longer_misparsed():
+    """'**세션 주제**' 필드가 있으면, 본문에 먼저 나오는 '## Gate A 계획' 같은
+    소제목이 있어도 그것으로 오인 캡처하지 않는다 (HARNESS-WIN-PORT-3-a 재현 케이스)."""
+    clear_counter("t-body-heading")
+    current = (
+        '# 현재 세션 상태\n\n'
+        '> **현재 상태**: ✅E 완료 (2026-07-27)\n'
+        '> **세션 주제**: HARNESS-WIN-PORT-3-a — Docker 명령 경로 치환\n\n'
+        '## Gate A 계획 (승인됨)\n\n'
+        '내용...\n'
+    )
+    code, _ = run_hook(
+        current,
+        master_plan_md("HARNESS-WIN-PORT-3-a"),
+        session_id="t-body-heading",
+    )
+    assert code == 0, f"expected 0 (no false-positive), got {code}"
+    clear_counter("t-body-heading")
+    print("  PASS: 본문 소제목 오탐 방지 — '**세션 주제**' 폴백이 우선 적용")
+
+
 def test_stop_hook_active_allows():
     """stop_hook_active=True → 스테일(불일치)이어도 즉시 허용 (무한 루프 1차 방어)."""
     clear_counter("t-active")
@@ -196,6 +238,8 @@ if __name__ == "__main__":
         test_malformed_plan_allows,
         test_status_multi_session_ids_uses_first,
         test_loop_guard_releases_after_max,
+        test_session_topic_field_fallback_allows,
+        test_body_heading_no_longer_misparsed,
         test_stop_hook_active_allows,
     ]
     print(f"master-plan-stale-guard.py 테스트 ({len(tests)}건)")

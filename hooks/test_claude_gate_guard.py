@@ -13,6 +13,9 @@ import subprocess
 import sys
 import tempfile
 
+# Windows cp949 콘솔에서 '—'·'✅' 등 출력 시 UnicodeEncodeError 방지 (Python 3.7+)
+sys.stdout.reconfigure(encoding="utf-8")
+
 SCRIPT = os.path.join(os.path.dirname(__file__), "claude-gate-guard.py")
 
 SESSION_GATE_A_PENDING = """\
@@ -96,7 +99,7 @@ def run_hook(payload, session_content=None, at_root=True):
         proc = subprocess.run(
             [sys.executable, SCRIPT],
             input=json.dumps(payload),
-            capture_output=True, text=True, cwd=repo_dir, env=env,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=repo_dir, env=env,
         )
         return proc.returncode, proc.stderr.strip()
 

@@ -25,7 +25,7 @@ _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 PROCESS_EVOLUTION_DIR = (
     Path(_proj).parent / "plans" / "process_evolution"
     if _proj
-    else Path("/media/ubuntu/data120g/plans/process_evolution")
+    else Path(os.path.join(os.environ.get("HARNESS_PLANS_DIR", "."), "process_evolution"))
 )
 AGGREGATOR = PROCESS_EVOLUTION_DIR / "skill_usage_aggregator.py"
 MAX_AGE_HOURS = 24

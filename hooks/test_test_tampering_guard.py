@@ -32,7 +32,8 @@ BASE_FOO = (
 
 
 def _git(repo, *args):
-    subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+    subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", check=True)
 
 
 def run_hook(repo):
@@ -40,8 +41,10 @@ def run_hook(repo):
     proc = subprocess.run(
         [sys.executable, SCRIPT],
         cwd=repo,
-        env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": repo},
-        capture_output=True, text=True,
+        # PYTHONIOENCODING: 자식 출력을 부모 디코드(utf-8)와 일치 — 미지정 시 cp949
+        env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": repo,
+             "PYTHONIOENCODING": "utf-8"},
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -129,6 +132,22 @@ class TestTamperingGuard(unittest.TestCase):
         diff = mod.get_git_diff_tests()
         self.assertTrue(diff.strip(),
                         "tests/ 변경이 있는데 diff가 비어있음 — git 인자순서 버그 회귀")
+
+    # ── git 비저장소 → stderr 무출력 + rc=0 (FIX-B-GITDIFF-NOISE-1) ──
+    def test_non_git_repo_silent(self):
+        non_repo = tempfile.mkdtemp(prefix="ttg-non-repo-")
+        try:
+            proc = subprocess.run(
+                [sys.executable, SCRIPT],
+                cwd=non_repo,
+                env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": non_repo,
+                     "PYTHONIOENCODING": "utf-8"},
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            self.assertEqual(proc.stderr, "", proc.stderr)
+        finally:
+            shutil.rmtree(non_repo, ignore_errors=True)
 
 
 if __name__ == "__main__":

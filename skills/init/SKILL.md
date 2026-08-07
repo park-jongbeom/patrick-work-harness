@@ -83,6 +83,7 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `session_docs` | Generate ${SESSION_INDEX_FILE} + ${CURRENT_SESSION_FILE} stubs? | `true` |
 | `archive_path` | Absolute path for session archive files | ask user |
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
+| `learning_path` | Directory holding the comprehension ledger (`comprehension_ledger.md`). Relative paths resolve against `CLAUDE_PROJECT_DIR`; absolute paths are used as-is. Omit the field to keep the legacy default | `plans/learning` |
 | `plan_tier` | `"2"` (separate index + sub-platform detail-plan doc) or `"1"` (single plan doc with `## Phase N` sections) | proposed by Step 1-c, confirm/override with user |
 | `master_plan_file` | Index filename (meaningful only when `plan_tier: "2"`) | `${MASTER_PLAN_FILE}` |
 | `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
@@ -105,6 +106,7 @@ phase_model: <answers.phase_model>
 session_docs: <answers.session_docs>
 archive_path: "<answers.archive_path>"
 worklog_path: "<answers.worklog_path>"
+learning_path: "<answers.learning_path>"
 plan_tier: "<answers.plan_tier>"
 master_plan_file: "<answers.master_plan_file>"
 detail_plan_file: "<answers.detail_plan_file>"
