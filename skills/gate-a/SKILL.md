@@ -32,7 +32,7 @@ Before session start (before any code change):
    - ※ The same-named file under `plans/current_work/` is a redirect-guidance file — do not edit
 
 3. Confirm the plan document for new work (tier-aware — see `SKILL_DETAIL.md §Plan-Doc Update Pattern`)
-   - `plan_tier: "2"` (or field absent) → new feature → can it be added to `<detail_plan_file>` §7? Independent work → no creating a separate new detail plan. Partial work → integrate into the relevant detail plan. **The index (`<master_plan_file>`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration.
+   - `plan_tier: "2"` (or field absent) → new feature → can it be added to `<detail_plan_file>` §7? Independent work → no creating a separate new detail plan. Partial work → integrate into the relevant detail plan. **The index (`<master_plan_file>`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration. **Exception: the L7 `status:` field and the §4 「현재」 line name the active session — update both at this Gate A's start** (the `master-plan-stale-guard.py` Stop hook blocks the response otherwise).
    - `plan_tier: "1"` → new feature → which existing `## Phase N` does it belong to (opening a new Phase requires this Gate A's user approval)? `<single_plan_file>` itself carries both index and session-table roles — no separate index doc to distinguish "refresh target" from.
 
 ## Gate A Procedure
