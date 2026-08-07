@@ -192,17 +192,17 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 
 ### Tool-conditional commands (check item #10 auxiliary measurement)
 
-> **Conditional**: Run via Docker only when the tool below is **installed in the repository** to back up the qualitative judgment. If not installed, skip the command and do qualitative judgment on the changed files only (real-install complete: detekt[existing]·jscpd[react devDep·MAINT-AUDIT-1-b]·radon[crawler image·MAINT-AUDIT-1-b]). Avoid dual toolchains: use only tools that coexist with each repo's existing single linter (ga-api=detekt·react-web-ga=**Biome**·college-crawler=**Ruff**). **react has no permanent dev container** (production image=nginx only), so run via a **one-shot `docker run node:20-alpine`** mount, not `docker exec` (react canonical-verification topology).
+> **Conditional**: Run via Docker only when the tool below is **installed in the repository** to back up the qualitative judgment. If not installed, skip the command and do qualitative judgment on the changed files only. **Avoid dual toolchains**: adopt only tools that coexist with each repo's existing single linter — introducing a second linter to measure maintainability would itself add maintenance burden. The commands below are **examples to localize per project**: substitute the repo directory variables and the container name for your own. A repo with no permanent dev container (e.g. a front-end whose production image is nginx only) must use a **one-shot `docker run`** mount rather than `docker exec`.
 
 ```bash
-# ga-api-platform (Kotlin) — detekt already installed (build.gradle.kts·config/detekt/). Cognitive complexity + CPD duplication
+# e.g. a Kotlin repo — detekt already installed (build.gradle.kts·config/detekt/). Cognitive complexity + CPD duplication
 sg docker -c "docker compose -f ${GA_API_PLATFORM_DIR}/docker-compose-test.yml run --rm ga-test ./gradlew detekt --no-daemon" 2>/dev/null || echo "detekt 미설치/실행불가 → 정성 판정만"
 
-# react-web-ga (TS) — jscpd (copy-paste detection·independent of Biome). No permanent dev container (production=nginx only) → run via one-shot node container
+# e.g. a TypeScript repo — jscpd (copy-paste detection·independent of Biome). No permanent dev container (production=nginx only) → run via one-shot node container
 sg docker -c "docker run --rm -v ${REACT_WEB_DIR}:/app -w /app node:20-alpine sh -c 'npm install --legacy-peer-deps >/dev/null 2>&1 && npx jscpd src'" 2>/dev/null || echo "jscpd 미설치/실행불가 → 정성 판정만"
 
-# college-crawler (Python) — radon (cognitive complexity cc·maintainability mi, runs independent of Ruff). Only if installed
-docker exec college-crawler-local radon cc src -a 2>/dev/null || echo "radon 미설치 → 정성 판정만"
+# e.g. a Python repo — radon (cognitive complexity cc·maintainability mi, runs independent of Ruff). Only if installed
+docker exec ${PYTHON_REPO_CONTAINER} radon cc src -a 2>/dev/null || echo "radon 미설치 → 정성 판정만"
 ```
 
 > **Excluded tools**: `eslint-plugin-sonarjs` (needs ESLint runtime — react is Biome single-linter)·`pylint R0801` (needs pylint — crawler is Ruff single-linter). Both would introduce a new dual toolchain, so a maintainability check would itself increase maintenance burden — a self-contradiction → not adopted (MAINT-AUDIT-1 Gate A user decision). The delta is judged qualitatively on changed files **without storing a metric snapshot** (the audit "record metadata only" principle·Step 4 maintained).

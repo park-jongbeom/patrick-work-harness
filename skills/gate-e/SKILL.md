@@ -45,12 +45,20 @@ If `DOC_INDEX.md` exists at the target repo root:
 
    → **If there is no target, output "오류 기록 대상 없음 — 생략" and proceed to Step 4.**
 
-   **Canonical location** (managed independently per repository):
-   - `react-web-ga/docs/rules/error_topics/`
-   - `ga-api-platform/docs/rules/error_topics/`
-   - `college-crawler/docs/rules/error_topics/`
+   **Canonical location** (managed independently per repository) — the target repositories are
+   listed in `.claude/harness-answers.yml` → `code_repos` (**SSOT**, shared with
+   `error-topics-guard.py`). For each entry, the path is `{repo}/docs/rules/error_topics/`.
+
+   > **If `code_repos` is absent or empty** → output
+   > **"`code_repos` 미설정 — 오류 기록 경로 없음. `harness-answers.yml`에 설정하세요"** and proceed to Step 4.
+   > Do **not** reuse the "오류 기록 대상 없음 — 생략" wording above: that one means *this session produced
+   > no error worth recording*, whereas this one means *the recording path itself is unconfigured*. Emitting
+   > the same line for both makes a configuration gap read as a normal, healthy session — the operator would
+   > keep seeing green while nothing is ever recorded.
+
    - Each folder's `README.md` is the topic index (canonical). Do not write to the ledger `../error_analysis.md`.
-   - `ai-consulting-plans`·`plans` are docs-only → record in the `error_topics/gate_process.md` of the code repository that that session worked on.
+   - Docs-only repositories (no application code) are not `code_repos` entries → record in the
+     `error_topics/gate_process.md` of the code repository that that session worked on.
 
    **Topic file mapping** (common to the three repositories):
    | File | Tag | Target error |

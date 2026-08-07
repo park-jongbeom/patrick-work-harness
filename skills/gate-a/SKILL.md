@@ -149,7 +149,7 @@ After reading all related files, check the trigger table below. **If any applies
 | Trigger (this plan's task character) | OSS candidate (§4) | Complement effect |
 |--------------------------------------|--------------------|-------------------|
 | External-library version change·DEP-BUMP·new-library introduction·framework migration | **Context7 MCP** (P0) | Inject per-version latest docs → prevent stale-API inference |
-| react-web-ga UI/flow change + E2E verification needed | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
+| Front-end UI/flow change + E2E verification needed (e.g. a React repo) | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
 | Long Gate C verification·large test logs·multi-repo simultaneous verification | **Context Engineering / 5 coordination patterns** (P1/P2) | tool-result-clearing·delegation for token saving |
 
 `AskUserQuestion` options: ① register as a separate `OSS-ADOPT-*` track / ② incorporate into this session's scope / ③ no adoption (reference only).

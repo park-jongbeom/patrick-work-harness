@@ -61,7 +61,7 @@ effort: high
 
 | Item | Check content | N/A allowed condition |
 |------|---------------|----------------------|
-| API contract | Do new·modified endpoints·interfaces match the `react-web-ga/docs/04_BACKEND_COOPERATION.md` contract | Session with no API change |
+| API contract | Do new·modified endpoints·interfaces match your project's API contract doc (e.g. `<front-repo>/docs/04_BACKEND_COOPERATION.md`) | Session with no API change |
 | Error handling | Are exception·null·failure paths handled (unhandled promise, NPE, unhandled exception, etc.) | Markdown-only repository |
 | Duplication·pattern | Did you reuse the existing helper found in Gate A Pre-Plan; is there no duplication of the same logic | Always applied |
 
