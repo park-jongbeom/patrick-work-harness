@@ -5,7 +5,7 @@
 ## 사전 준비
 
 - GitHub 계정: `park-jongbeom`
-- 로컬 저장소 위치: `/media/ubuntu/data120g/patrick-work-harness/`
+- 로컬 저장소 위치: `<your-local-path>/patrick-work-harness/` (아래 명령의 `$REPO_DIR`)
 
 ---
 
@@ -22,7 +22,8 @@
 ## Step 2 — 로컬 git 초기화 및 첫 커밋
 
 ```bash
-cd /media/ubuntu/data120g/patrick-work-harness
+REPO_DIR="<your-local-path>/patrick-work-harness"
+cd "$REPO_DIR"
 
 git init
 git add .
