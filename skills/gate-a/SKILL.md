@@ -32,7 +32,7 @@ Before session start (before any code change):
    - ※ The same-named file under `plans/current_work/` is a redirect-guidance file — do not edit
 
 3. Confirm the plan document for new work (tier-aware — see `SKILL_DETAIL.md §Plan-Doc Update Pattern`)
-   - `plan_tier: "2"` (or field absent) → new feature → can it be added to `<detail_plan_file>` §7? Independent work → no creating a separate new detail plan. Partial work → integrate into the relevant detail plan. **The index (`<master_plan_file>`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration. **Exception: the L7 `status:` field and the §4 「현재」 line name the active session — update both at this Gate A's start** (the `master-plan-stale-guard.py` Stop hook blocks the response otherwise).
+   - `plan_tier: "2"` (or field absent) → new feature → can it be added to `<detail_plan_file>` §7? Independent work → no creating a separate new detail plan. Partial work → integrate into the relevant detail plan. **The index (`<master_plan_file>`) is not a per-session refresh target** — update only on priority change·§5 handoff incorporation/migration. **Exception: the L7 `status:` field and the §4 「현재」 line name the active session — update both at this Gate A's start** (the `master-plan-stale-guard.py` Stop hook blocks the response otherwise). **When the session reaches ✅E, flip both back to the completed state in the same Gate E turn** — the hook does not guard this reverse transition, so a session left unflipped hardens into a false "awaiting approval" state (HARNESS-AUDIT62-FIX-1).
    - `plan_tier: "1"` → new feature → which existing `## Phase N` does it belong to (opening a new Phase requires this Gate A's user approval)? `<single_plan_file>` itself carries both index and session-table roles — no separate index doc to distinguish "refresh target" from.
 
 ## Gate A Procedure
@@ -176,6 +176,30 @@ If a planned new-code item can stop at rung 1~5, **remove it from the plan** (or
 
 Verdict: record the per-new-item rung number in the required output item "미니멀리즘 래더 점검". If 0 new items (reuse/edit-only), 「N/A (신규 추상화 없음)」 1 line.
 
+#### 0-Claim. Claim↔evidence cross-check (HARNESS-CLAIM-EVIDENCE-1, 2026-08-07)
+
+> The three checks above examine **the plan's content** (internal consistency·external complement·minimality). This check examines **the epistemic status of the plan's sentences**: a sentence you verified by opening a file and one you filled in by inference are **indistinguishable in style**, so an inference error survives into Gate C as if it were fact. Reuses the `gate-d/SKILL.md` "claim↔evidence cross-check" (technique-8) canonical, pulled forward from the verification point to the planning point.
+>
+> **Run this immediately before Step 1 outputs the plan text** — after the plan's sentences already exist. Step 0 (Pre-Plan) decides *what to investigate* and is finished by then; it does not re-examine sentences already written. That gap is what this check covers.
+>
+> **Especially load-bearing in an unfamiliar repository**: the less prior context you have about a codebase, the more blanks get filled by inference — so this check earns its cost most on new·rarely-touched repositories, not on the one you have been editing all week.
+
+For **each factual claim** in the plan — file/line counts, existing behavior, blast radius, "N occurrences of X", "already handled by Y", cited insertion points — tag it:
+
+| Tag | Criterion (the decisive test) | Handling |
+|-----|-------------------------------|----------|
+| **ⓐ 실측** | You ran a command **in this session** and read its output (grep count·wc·test result·file listing) | Keep — cite the command or its result |
+| **ⓑ 파일 인용** | You can state **`파일:줄`** for it, and you actually read that line in this session | Keep — cite `파일:줄` inline |
+| **ⓒ 추론** | **Everything else** — structural plausibility, memory of a prior session, "it must be like this", pattern analogy | **Promote to ⓐ/ⓑ before output** |
+
+> **The decisive test is a single question: 「can you cite `파일:줄` for this?」** If you cannot, it is ⓒ — regardless of how confident it feels. This wording is deliberate: an unfalsifiable instruction ("tag inferences") lets the model label its own inference as ⓑ, which is exactly the failure mode this check exists to catch.
+
+**Promotion**: for each ⓒ, run the command or open the file **now**, then re-tag. If the claim **cannot** be promoted (external condition·future event·another team's state), do not delete it — **state it in the risk table** with the reason it is unverifiable.
+
+Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (same natural-skip pattern as 0-OSS 「N/A」 — cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
+
+> **Known limit (do not overstate)**: this is a **self-check**, so it reduces the frequency of inference errors — it does not replace a reviewer's explicit cross-verification request. The check was introduced because its **own founding Gate A plan** self-reported 「ⓒ 0건」 while actually containing 1 ⓒ (an insertion point written from structural inference without opening the line that specified it). The `파일:줄` test is what caught it — which is both the evidence that the criterion works and the reason the criterion must stay falsifiable.
+
 1. **After reading all related files**, output the Gate A content as text
    - Changed-file list (number·path·change type)
    - Per-file detailed change content: current code structure → post-change structure, key decisions
@@ -187,6 +211,7 @@ Verdict: record the per-new-item rung number in the required output item "미니
    - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — produce 1 line by risk heuristic (AI auto + user override): 「발동(폭발반경 大→사용자 설명 / 일반 위험→AI 자기설명)」 or 「미발동(사소 CRUD·문서·정형 변경)」. On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
+   - **주장-근거 대조 점검** (HARNESS-CLAIM-EVIDENCE-1) — the "0-Claim" result above. If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line; otherwise list each unpromotable claim as `{주장} — 승격 불가: {사유}` (each must also appear in the risk table)
    - **Gate D (refactor) expectation and basis** (needed/not needed + 1-line reason)
    - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (Gate B auto-inheritance abolished):
 
