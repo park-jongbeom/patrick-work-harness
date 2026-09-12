@@ -20,6 +20,11 @@
 > **전부 로컬 절차** (2026-07-20, v1.2.1 직후 확정): GitHub Actions "Deploy Plugin" 워크플로우는 제거됨 — 하던 일(JSON 검증·버전 정합·Release 생성)이 전부 로컬로 수행 가능한데 러너 큐 지연에 릴리스가 인질로 잡히고, 봇 생성 Release가 수동 정리 노트를 덮어쓰는 충돌만 남기기 때문. Release 객체 자체는 여전히 필수(`install.sh`가 `releases/latest`로 버전 해석) — 아래 7단계에서 gh CLI로 생성한다.
 
 ```
+0. 원본 반영 (소스 저장소 수정이 있을 때만)
+   ./sync-from-source.sh <원본 경로>          # 보고만 한다. 이 저장소에는 쓰지 않는다
+   - 훅  : 보고가 종료코드 0이면 ./sync-from-source.sh --apply-hooks <원본 경로>
+   - 스킬: 통째 복사 금지(배포본이 일반화 상위형 — 1.3.0 기록). 보고에 뜬 파일만 스테이징에서 선택 이식
+   - 종료코드 1이면 보고에 뜬 사설 경로를 먼저 지운다. 지우기 전에는 --apply-hooks 가 거부된다
 1. 버전 3파일 동시 업데이트: plugin.json · .claude-plugin/plugin.json · .claude-plugin/marketplace.json
 2. CHANGELOG.md 항목 추가 (Added / Fixed / Changed)
 3. 로컬 정합 검증 (구 CI validate 잡 대체) — 아래 한 줄이 3값 동일을 출력해야 함:
@@ -38,6 +43,8 @@
 - `Changed` — 기존 동작 변경 (하위 호환 유지)
 - `Removed` — 제거된 기능 (MAJOR 버전에서만)
 - `Breaking` — 파괴적 변경 사항 (MAJOR 버전에서만, 최상단 강조)
+- CHANGELOG 는 이 저장소에서 직접 쓴다. 소스 저장소의 CHANGELOG 를 복사하지 않는다. 소스 쪽은 1.2.1 에서
+  멈춰 있어, 덮어쓰면 그 이후 릴리스 이력이 사라진다.
 
 ## 핫픽스 절차 (긴급 PATCH)
 

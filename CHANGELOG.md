@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+> 소스 저장소의 수정을 이 공개 저장소로 옮기는 경로를 안전하게 만든다. 버전 번호와 릴리스는 별도 세션에서 정한다.
+
+### Changed
+- **`sync-from-source.sh` 기본 실행이 보고 전용으로 바뀜**. 원본 스킬·훅을 임시 스테이징에 복사·정화한 뒤 이 저장소와의 차이만 출력하고, 저장소에는 아무것도 쓰지 않는다. 스킬 자동 복사는 제거했다 — 배포본이 sed 변환을 거친 일반화 상위형이라 통짜 복사 시 역행한다(1.3.0 기록의 「선택 이식이 정본 절차」). 훅 반영은 `--apply-hooks` 옵션에서만 수행하며, 원본에 없는 훅을 지우지 않고 보고만 한다. 원본 CHANGELOG 복사 단계는 삭제했다 — 소스 쪽이 1.2.1 에서 멈춰 있어 덮어쓰면 이후 릴리스 이력이 사라진다.
+- **rsync 의존 제거** — 스테이징 복사에 `tar --exclude` 를 쓴다. rsync 가 없는 환경(Windows Git Bash 기본 설치)에서 1단계 `exit 127` 로 멈추던 문제가 해소된다.
+
+### Added
+- **`sync-from-source.sh` 사설 경로 검사**. 공개 후보 파일(`git ls-files --cached --others --exclude-standard`)과 스테이징 훅에서 사설 절대경로가 나오면 종료코드 1 로 끝내고 `--apply-hooks` 를 거부한다. 스테이징 스킬에서 나온 줄은 이식 금지 경고로 표시한다. 패턴은 사용자명 없이 구조만 쓰기 때문에 이 스크립트 자체가 사설 정보를 담지 않는다. 검사에 `git grep` 을 쓰지 않는 이유는, Git Bash 가 `/` 로 시작하는 인자를 Windows 경로로 바꿔 git 에 넘겨 패턴이 조용히 0건이 되기 때문이다. 공개 후보 목록이 비면 「깨끗함」으로 보고하지 않고 오류로 멈춘다(fail-closed).
+
+### Fixed
+- **1.0.9 절에 공개돼 있던 사설 절대경로를 가림**. git 히스토리에는 그대로 남아 있다.
+- **훅 정화 sed 의 `2>/dev/null || true` 제거** — 치환 실패가 조용히 묻히던 것을 표면화한다.
+
 ## [1.3.4] - 2026-08-21
 
 > v1.3.3 이후 `skills/gate-a/SKILL.md`에 쌓인 두 세션분 수정을 릴리스한다. 코드 변경 없이 배포 절차만 밀려 있던 상태를 해소한다.
@@ -121,7 +136,7 @@
 ### Fixed
 - `session_dashboard_parsers.py` 섹션명 정합 — `## 활성·예정 세션` → `## 현재 세션`, `## 최근 완료` → `## 최근 완료 세션` 패턴 수정 (HARNESS-RENDERER-PROJECT-FIX-1). SESSION_INDEX.md 실제 섹션명과 정규식 불일치로 활성세션이 빈 상태로 렌더링되던 버그 수정.
 - `session_dashboard_parsers.py` 권장 모델 패턴 확장 — `Gate별 권장 모델` 외 `권장 모델` 필드명도 허용하여 구세션 호환성 확보.
-- `session-dashboard-sync.py` 기본 경로 하드코딩 수정 — `CLAUDE_PROJECT_DIR` 폴백 중복(`or … or …` 동일값)을 `/media/ubuntu/data120g/ai-consulting-plans` 절대경로로 교체.
+- `session-dashboard-sync.py` 기본 경로 하드코딩 수정 — `CLAUDE_PROJECT_DIR` 폴백 중복(`or … or …` 동일값)을 `<원본 작업공간 절대경로>` 로 교체. (이 자리에 있던 실제 절대경로는 2026-09-11 에 가렸다. git 히스토리에는 남아 있다.)
 
 ### Added
 - 세션 대시보드 `project` 동적 반영 — `SESSION_INDEX.md` YAML `project:` 필드를 파싱하여 HTML `<title>`·`<h1>`에 프로젝트명을 삽입 (`session_dashboard_parsers.py` + `session_dashboard_renderer.py`). 필드 부재 시 하위호환 유지(빈 문자열 폴백).
