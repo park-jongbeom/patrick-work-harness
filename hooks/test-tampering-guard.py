@@ -7,7 +7,10 @@ Patterns detected:
   A: @Disabled annotation introduced
   B: Assertion count decreased (lines removed)
   C: Mock scope reduction (marked by specific strings)
-  D: CI config change (docker-compose, workflows, build files)
+  D: CI config change — split in two (2026-09-23):
+       exec files (docker-compose, workflows, Dockerfile) → block
+       dependency files (package.json, build.gradle.kts, pytest.ini)
+         → warn only when a declaration is removed, not on pure additions
 
 Usage: PreToolUse hook or manual invocation before Gate C re-run
   $ python3 test-tampering-guard.py --check-diff
@@ -100,22 +103,43 @@ def get_git_diff_tests():
     return working + "\n" + staged
 
 
-def get_git_diff_ci_config():
-    """Get git diff for CI config files — working tree + staged."""
-    ci_patterns = [
-        "docker-compose*.yml",
-        ".github/workflows/*.yml",
-        "build.gradle.kts",
-        "package.json",
-        "pytest.ini",
-        "Dockerfile"
-    ]
+# Pattern D splits into two groups (HARNESS-CROSSCHECK-FIX-1-a-3, 2026-09-23).
+#
+# CI_EXEC: files that decide *how tests run*. Any change here can silence a
+#   failing suite, so it always blocks (exit 2) — the original behaviour.
+# DEP_DECL: files that mostly declare *dependencies*. Adding a library is
+#   routine work, not tampering; blocking it made the guard fire on ordinary
+#   commits. These only warn, and only when the change is not purely additive.
+CI_EXEC_PATTERNS = [
+    "docker-compose*.yml",
+    ".github/workflows/*.yml",
+    "Dockerfile",
+]
+DEP_DECL_PATTERNS = [
+    "build.gradle.kts",
+    "package.json",
+    "pytest.ini",
+]
+
+
+def _collect_diffs(patterns):
+    """Return [(pattern, diff)] for patterns that have a non-empty diff."""
     diffs = []
-    for pattern in ci_patterns:
+    for pattern in patterns:
         combined = _run_git_diff(["--", pattern]) + _run_git_diff(["--cached", "--", pattern])
         if combined.strip():
             diffs.append((pattern, combined))
     return diffs
+
+
+def get_git_diff_ci_config():
+    """Get git diff for execution-critical CI files — working tree + staged."""
+    return _collect_diffs(CI_EXEC_PATTERNS)
+
+
+def get_git_diff_dep_decl():
+    """Get git diff for dependency-declaration files — working tree + staged."""
+    return _collect_diffs(DEP_DECL_PATTERNS)
 
 
 def detect_pattern_a(diff):
@@ -154,12 +178,49 @@ def detect_pattern_c(diff):
     return False
 
 
+def is_add_only(diff):
+    """True when a dependency-declaration diff only *adds* things.
+
+    Why this is not just "no removed lines": JSON has no trailing comma, so
+    appending one key rewrites the previous line too —
+
+        -    "foo": "1.0.0"          ← rewritten only to gain a comma
+        +    "foo": "1.0.0",
+        +    "bar": "2.0.0"
+
+    A line-level test therefore flags almost every honest dependency bump
+    (this is exactly why the first attempt was rolled back on 2026-09-14).
+    We compare *keys* instead: if every removed key also appears among the
+    added keys, nothing was actually dropped.
+
+    Falls back to the line-level answer when no key is recognisable, so
+    non-JSON formats (build.gradle.kts, pytest.ini) keep their old behaviour —
+    those were re-measured and never had the comma problem.
+    """
+    removed_lines = [l for l in diff.splitlines()
+                     if l.startswith("-") and not l.startswith("---")]
+    if not removed_lines:
+        return True
+
+    key_re = re.compile(r'^\s*[+-]\s*"([^"]+)"\s*:')
+    removed_keys = {m.group(1) for l in removed_lines if (m := key_re.match(l))}
+    if not removed_keys:
+        # Nothing key-shaped was removed, yet lines disappeared → not additive.
+        return False
+
+    added_keys = {m.group(1) for l in diff.splitlines()
+                  if l.startswith("+") and not l.startswith("+++")
+                  and (m := key_re.match(l))}
+    return removed_keys <= added_keys
+
+
 def main():
     print("🔍 Gate B→C Transition: Checking for test-tampering patterns...\n")
 
     # Get diffs
     test_diff = get_git_diff_tests()
     ci_diffs = get_git_diff_ci_config()
+    dep_diffs = get_git_diff_dep_decl()
 
     # A/B/C (test tampering) → warning (return 1); D (CI config) → block (return 2)
     tamper_violations = []
@@ -178,10 +239,16 @@ def main():
     if detect_pattern_c(test_diff):
         tamper_violations.append(("Pattern C", "Mock scope reduction detected (real→in-memory)"))
 
-    # Pattern D: CI config changed
-    if ci_diffs:
-        for filename, diff in ci_diffs:
-            ci_violations.append(("Pattern D", f"CI config changed: {filename}"))
+    # Pattern D (exec): CI config changed → always block
+    for filename, diff in ci_diffs:
+        ci_violations.append(("Pattern D", f"CI config changed: {filename}"))
+
+    # Pattern D (deps): dependency declaration changed → warn only when a
+    # declaration was actually removed. Pure additions are ordinary work.
+    for filename, diff in dep_diffs:
+        if not is_add_only(diff):
+            tamper_violations.append(
+                ("Pattern D", f"Dependency declaration removed/rewritten: {filename}"))
 
     # Output
     if not tamper_violations and not ci_violations:
@@ -193,7 +260,9 @@ def main():
         print(f"  {pattern}: {desc}")
     print("\n💡 Guidance:")
     print("  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.")
-    print("  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.\n")
+    print("  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.")
+    print("  - Pattern D (dependency): Adding a dependency is fine and not reported;")
+    print("    this fired because a declaration was removed or rewritten.\n")
 
     # return-code contract (docstring): CI config change blocks, tampering warns.
     if ci_violations:

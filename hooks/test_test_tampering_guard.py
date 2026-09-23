@@ -133,6 +133,49 @@ class TestTamperingGuard(unittest.TestCase):
         self.assertTrue(diff.strip(),
                         "tests/ 변경이 있는데 diff가 비어있음 — git 인자순서 버그 회귀")
 
+    # ── Pattern D 분리 (HARNESS-CROSSCHECK-FIX-1-a-3, 2026-09-23) ──
+    # package.json 등 의존성 선언은 "추가"까지 막던 것이 오탐이었다.
+    # 실행 결정 파일(docker-compose 등)은 그대로 차단(위 test_pattern_d_*).
+
+    def _commit_package_json(self, body):
+        self._write("package.json", body)
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-q", "-m", "pkg")
+
+    def test_dep_add_key_passes(self):
+        """의존성 키 추가 → 통과(0). JSON 쉼표 재작성에 속지 않는다."""
+        self._commit_package_json('{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
+        self._write("package.json",
+                    '{\n  "dependencies": {\n    "foo": "1.0.0",\n    "bar": "2.0.0"\n  }\n}\n')
+        rc, out, _ = run_hook(self.repo)
+        self.assertEqual(rc, 0, out)
+
+    def test_dep_remove_key_warns(self):
+        """의존성 키 삭제 → 경고(1). 차단(2)이 아니다."""
+        self._commit_package_json(
+            '{\n  "dependencies": {\n    "foo": "1.0.0",\n    "bar": "2.0.0"\n  }\n}\n')
+        self._write("package.json", '{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
+        rc, out, _ = run_hook(self.repo)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Pattern D", out)
+
+    def test_dep_value_change_passes(self):
+        """값만 변경(버전 업) → 통과(0). 선언이 사라지지 않았다."""
+        self._commit_package_json('{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
+        self._write("package.json", '{\n  "dependencies": {\n    "foo": "2.0.0"\n  }\n}\n')
+        rc, out, _ = run_hook(self.repo)
+        self.assertEqual(rc, 0, out)
+
+    def test_gradle_add_line_passes(self):
+        """build.gradle.kts 라인 추가 → 통과(0). 비JSON도 회귀 없이 동작한다."""
+        self._write("build.gradle.kts", 'dependencies {\n    implementation("a")\n}\n')
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-q", "-m", "gradle")
+        self._write("build.gradle.kts",
+                    'dependencies {\n    implementation("a")\n    implementation("b")\n}\n')
+        rc, out, _ = run_hook(self.repo)
+        self.assertEqual(rc, 0, out)
+
     # ── git 비저장소 → stderr 무출력 + rc=0 (FIX-B-GITDIFF-NOISE-1) ──
     def test_non_git_repo_silent(self):
         non_repo = tempfile.mkdtemp(prefix="ttg-non-repo-")
