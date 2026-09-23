@@ -91,7 +91,6 @@ Stop hooks and PreToolUse hooks run automatically before/after each Claude Code 
 | `session-dashboard-sync.py` | Stop | Auto-regenerates `session-dashboard.html` |
 | `skill-usage-auto.py` | Stop | Auto-records skill usage history markers |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
-| `claude-gate-guard.py` | PreToolUse | Blocks code change attempts before Gate A approval |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
 
 ---
@@ -328,7 +327,6 @@ Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니
 | `session-dashboard-sync.py` | Stop | `session-dashboard.html` 자동 재생성 |
 | `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
-| `claude-gate-guard.py` | PreToolUse | Gate A 승인 없이 코드 변경 시도 차단 |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
 
 ---

@@ -26,10 +26,6 @@ session-dashboard-sync.py
        └─ reads  CURRENT_SESSION.md / SESSION_INDEX.md  (target repo)
        └─ writes session-dashboard.html    (target repo)
 
-claude-gate-guard.py
-  └─ reads  CURRENT_SESSION.md  (target repo, Gate 상태 파싱)
-  └─ exit 2 on violation (PreToolUse 차단)
-
 master-plan-stale-guard.py
   └─ reads  CURRENT_SESSION.md + 00_MASTER_PLAN.md  (target repo)
   └─ warns  on L7 status mismatch

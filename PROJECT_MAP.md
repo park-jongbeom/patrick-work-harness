@@ -57,7 +57,6 @@ patrick-work-harness/
 
 | Hook | Role |
 |------|------|
-| `claude-gate-guard.py` | Gate 순서 강제 (PreToolUse) |
 | `commit-msg-guard.py` | 커밋 메시지 형식 검사 |
 | `comprehension-ledger-stale-guard.py` | 이해도 원장 만료 탐지 |
 | `docker-command-guard.py` | 잘못된 docker 명령 차단 |

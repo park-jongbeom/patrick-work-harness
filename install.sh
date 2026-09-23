@@ -171,11 +171,10 @@ hooks = cfg.setdefault("hooks", {})
 
 # 등록할 훅 정의
 NEW_HOOKS = {
+    # claude-gate-guard 는 2026-09-23 에 기본 구성에서 뺐다(HARNESS-CROSSCHECK-FIX-1-a-4).
+    # 자기 자신(.claude/·모든 .md)을 면제하고 PowerShell 호출을 판정 없이 통과시켜
+    # 「걸리는 척」만 했다. 07-27 에 오탐 22·정탐 0 으로 가드를 뺀 선례와 같은 기준이다.
     "PreToolUse": [
-        {
-            "matcher": "Edit|Write|Bash",
-            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/claude-gate-guard.py"}]
-        },
         {
             "matcher": "Bash",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/docker-command-guard.py"}]

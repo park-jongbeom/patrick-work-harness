@@ -10,16 +10,20 @@ CURRENT_SESSION.md / SESSION_INDEX.md   (target repo)
   → session-dashboard.html              (target repo root)
 ```
 
-## Gate Guard Pipeline (PreToolUse)
+## PreToolUse Guards
 
 ```
-Tool 호출 시도
-  → claude-gate-guard.py  (PreToolUse)
-      → CURRENT_SESSION.md 읽기 (Gate 상태 파싱)
-      → Gate A 미승인 + 코드 편집 → exit 2 (차단)
-      → Gate < D + 테스트 명령    → exit 2 (차단)
-      → 허용 조건 → exit 0 (통과)
+Bash 호출 시도
+  → docker-command-guard.py   (비-정본 docker 명령 교정)
+  → commit-msg-guard.py       (커밋 메시지 규약)
+      → 위반 → exit 2 (차단, stderr 교정 메시지)
+      → 그 외 → exit 0 (통과)
 ```
+
+> `claude-gate-guard.py` 는 2026-09-23 에 제거했다(HARNESS-CROSSCHECK-FIX-1-a-4).
+> Gate 상태로 코드 편집을 막으려 했으나 `.claude/`·`.github/`·`CURRENT_SESSION`·
+> 모든 `.md` 를 면제하고 PowerShell 호출을 판정 없이 통과시켜, 실제로는 걸러내는 것이
+> 거의 없었다. Gate 순서는 지금 스킬 절차와 Stop 훅이 담당한다.
 
 ## HARNESS Zone Update Path
 
