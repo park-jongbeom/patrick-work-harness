@@ -109,12 +109,25 @@ if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
   else
     echo "[4/5] 스킬 설치 중..."
     mkdir -p "${CLAUDE_DIR}/skills"
-    rsync -a --delete \
+    # 🔴 --delete 를 쓰지 않는다 (2026-09-23, HARNESS-CROSSCHECK-FIX-1-a-6).
+    #    이 경로는 대상 프로젝트의 `.claude/skills/` 이고 사용자가 직접 만든 스킬이
+    #    함께 산다. --delete 는 그것들을 통째로 지웠다. 하네스 스킬만 덮어쓰고
+    #    나머지는 건드리지 않는다. 구버전 하네스 스킬이 남는 문제는 아래에서 알린다.
+    BEFORE_LIST=$(ls -1 "${CLAUDE_DIR}/skills/" 2>/dev/null | sort)
+    rsync -a \
       --exclude="__pycache__/" \
       --exclude="*.pyc" \
       "${SRC}/skills/" "${CLAUDE_DIR}/skills/"
-    SKILL_COUNT=$(ls "${CLAUDE_DIR}/skills/" | wc -l | tr -d ' ')
-    echo "      스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
+    SKILL_COUNT=$(ls -1 "${SRC}/skills/" | wc -l | tr -d ' ')
+    echo "      하네스 스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
+
+    # 이 배포본에 없는데 대상에 남아 있는 스킬을 보고한다(지우지는 않는다).
+    SHIPPED_LIST=$(ls -1 "${SRC}/skills/" | sort)
+    STALE=$(comm -23 <(echo "$BEFORE_LIST") <(echo "$SHIPPED_LIST") | tr '\n' ' ')
+    if [[ -n "${STALE// /}" ]]; then
+      echo "      ℹ️  이 배포본에 없는 스킬이 남아 있다: ${STALE}"
+      echo "         사용자 스킬이거나 구버전 하네스 스킬이다. 판단해서 직접 정리한다."
+    fi
   fi
 else
   echo "[4/5] 스킬 설치 건너뜀"
@@ -132,13 +145,30 @@ if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
   else
     echo "[5/5] 훅 설치 중..."
 
-    # 훅 파일을 ~/.claude/hooks/ 에 복사
+    # 훅 파일을 ~/.claude/hooks/patrick-work-harness/ 에 복사.
+    # 이 폴더는 하네스 전용이라 --delete 로 구버전 훅을 정리하는 것이 맞다.
+    # 다만 사용자가 같은 이름의 폴더를 다른 용도로 쓰고 있을 수 있으므로,
+    # 하네스가 만든 폴더인지 표식으로 확인한 뒤에만 지운다 (2026-09-23).
+    OWNER_MARK="${GLOBAL_HOOKS_DIR}/.harness-owned"
+    if [[ -d "$GLOBAL_HOOKS_DIR" && ! -f "$OWNER_MARK" ]]; then
+      if [[ -n "$(ls -A "$GLOBAL_HOOKS_DIR" 2>/dev/null)" ]]; then
+        echo "      ⚠️  ${GLOBAL_HOOKS_DIR} 가 하네스가 만든 폴더가 아니다(표식 없음)."
+        echo "         내용을 지우지 않고 덮어쓰기만 한다. 구버전 훅이 남을 수 있다."
+        DELETE_OPT=""
+      else
+        DELETE_OPT="--delete"
+      fi
+    else
+      DELETE_OPT="--delete"
+    fi
     mkdir -p "$GLOBAL_HOOKS_DIR"
-    rsync -a --delete \
+    rsync -a ${DELETE_OPT} \
       --exclude="__pycache__/" \
       --exclude="*.pyc" \
       --exclude="test_*.py" \
+      --exclude=".harness-owned" \
       "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
+    printf 'patrick-work-harness install marker. Safe to delete this folder.\n' > "$OWNER_MARK"
     echo "      훅 파일 → ${GLOBAL_HOOKS_DIR}/"
 
     # 훅 배선에 쓸 Python 인터프리터 결정 (HARNESS-SYNC-RECONCILE-2-a, 2026-08-07)
@@ -241,6 +271,14 @@ for event, entries in NEW_HOOKS.items():
 
 if changed:
     os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    # 🔴 사용자의 전역 설정을 고치기 전에 백업한다 (2026-09-23).
+    #    이 파일에는 하네스와 무관한 사용자 설정이 함께 산다. 이전에는 백업 없이
+    #    덮어써서, 병합이 잘못되면 되돌릴 방법이 없었다.
+    if os.path.exists(settings_path):
+        import shutil, time
+        backup = f"{settings_path}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+        shutil.copy2(settings_path, backup)
+        print(f"      기존 설정 백업: {backup}")
     with open(settings_path, "w") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
     print(f"      settings.json 훅 등록 완료: {settings_path}")
