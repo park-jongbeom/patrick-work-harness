@@ -187,17 +187,17 @@ last_audit_date: ""
 priority_note: ""
 ---
 
-# Session Index
+# 세션 인덱스
 
-## Active / Planned Sessions
+## 현재 세션
 
-| Session ID | Title | Repo | Status |
-|------------|-------|------|--------|
+| 세션 ID | 제목 | 저장소 | 상태 |
+|---------|------|--------|------|
 
-## Recent Completed (last 7)
+## 최근 완료 세션
 
-| Session ID | Title | Repo | Status |
-|------------|-------|------|--------|
+| 세션 ID | 제목 | 저장소 | 상태 |
+|---------|------|--------|------|
 ```
 
 **${CURRENT_SESSION_FILE} stub**:
@@ -230,9 +230,9 @@ Add a `Stop` hook array to the target repo's `.claude/settings.json` (create the
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py\" 2>/dev/null || true", "timeout": 10 },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-e-sync-guard.py\" 2>/dev/null || true", "timeout": 10 },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/error-topics-guard.py\" 2>/dev/null || true", "timeout": 10 }
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py\"", "timeout": 10 },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-e-sync-guard.py\"", "timeout": 10 },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/error-topics-guard.py\"", "timeout": 10 }
         ]
       }
     ]
