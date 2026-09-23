@@ -125,7 +125,7 @@ Files created after installation:
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 11 slash commands
+    └── skills/          ← 9 slash commands
         ├── gate-a/
         ├── gate-b/
         ├── ...
@@ -353,7 +353,7 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 슬래시 커맨드 11종
+    └── skills/          ← 슬래시 커맨드 9종
         ├── gate-a/
         ├── gate-b/
         ├── ...
