@@ -93,6 +93,20 @@ Stop hooks and PreToolUse hooks run automatically before/after each Claude Code 
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
 
+> **Design note — the harness does not block edits before Gate A approval (2026-09-23).**
+> A `claude-gate-guard.py` used to sit on PreToolUse and refuse edits while a session
+> was still in Gate A. It was removed rather than repaired, because it exempted
+> `.claude/`, `.github/`, `CURRENT_SESSION` and **every `.md` file**, and branched only
+> on `tool_name == "Bash"` — so PowerShell calls passed unjudged. What it actually
+> caught was close to nothing, while any real tightening would have blocked the
+> harness from editing itself and raised the cost of a false positive (a guard with
+> 22 false positives and 0 true positives was already removed on 2026-07-27).
+>
+> Gate order is therefore held by **procedure (the gate skills) and Stop-time checks**,
+> not by pre-emptive blocking. `gate-a-sync-guard` still refuses to let a response end
+> while Gate A is in progress and the session document is missing required fields.
+> "No code before approval" is a rule the operator follows, not one the tooling enforces.
+
 ---
 
 ### Installation
@@ -268,7 +282,7 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 
 | Gate | 역할 | 설명 |
 |------|------|------|
-| A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음. |
+| A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음(절차 규칙이며 사전 차단 훅은 없다 — 위 설계 원칙 참고). |
 | B | **이해도 게이트** | 자유형 흐름 설명, 만료형 증적 원장. 단순 작업은 pass-through. |
 | C | **구현** | 코드 구현 — Gate A 계획 그대로. 외부 실행 신호(테스트 PASS/FAIL)로만 종료. |
 | D | **검증 + 리팩터** | 검증 루프, 이후 조건부 리팩터 (코드리뷰 3건 이상 또는 명시적 요청 시 실행). |
@@ -328,6 +342,19 @@ Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니
 | `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
+
+> **설계 원칙 — 이 하네스는 Gate A 승인 전 편집을 기계로 막지 않는다 (2026-09-23).**
+> 예전에는 `claude-gate-guard.py` 가 PreToolUse 에서 Gate A 진행 중의 코드 편집을
+> 거부했다. 고쳐 살리지 않고 **제거**한 이유는 그것이 실제로 막는 것이 거의 없었기
+> 때문이다. `.claude/`·`.github/`·`CURRENT_SESSION`·**모든 `.md`** 가 면제였고,
+> 코드가 `tool_name == "Bash"` 로만 분기해 PowerShell 호출은 판정 없이 지나갔다.
+> 반대로 면제를 걷어내 제대로 조이면 **하네스가 자기 자신을 고치는 것까지 막히고**
+> 오탐 비용이 커진다 — 2026-07-27 에 오탐 22·정탐 0 인 가드를 이미 같은 이유로 뺐다.
+>
+> 그래서 Gate 순서는 **절차(게이트 스킬)와 Stop 시점 검사**가 지킨다. 사전 차단은 하지
+> 않는다. `gate-a-sync-guard` 는 Gate A 진행 중에 세션 문서 필수 필드가 비어 있으면
+> 응답 종료를 막는다. **「승인 전 코드 금지」는 작업자가 지키는 규칙이지 도구가 강제하는
+> 규칙이 아니다** — 문서가 이를 강제라고 말하면 안 된다.
 
 ---
 
