@@ -113,7 +113,13 @@ if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
     #    이 경로는 대상 프로젝트의 `.claude/skills/` 이고 사용자가 직접 만든 스킬이
     #    함께 산다. --delete 는 그것들을 통째로 지웠다. 하네스 스킬만 덮어쓰고
     #    나머지는 건드리지 않는다. 구버전 하네스 스킬이 남는 문제는 아래에서 알린다.
-    BEFORE_LIST=$(ls -1 "${CLAUDE_DIR}/skills/" 2>/dev/null | sort)
+    # 🔴 LC_ALL=C 로 정렬 기준을 고정한다 (2026-09-24, HARNESS-INSTALL-COMM-1).
+    #    en_US.UTF-8 등에서 `sort` 는 대소문자를 무시해 "SKILL_DETAIL.md" 를 소문자
+    #    항목 뒤에 놓는데, `comm` 은 바이트 순서('S' < 'a')를 기대한다. 두 도구의
+    #    기준이 달라 "input is not in sorted order" 로 죽었다.
+    #    ＊`sort` 에만 붙이면 안 된다 — 비교 기준을 실제로 쓰는 쪽은 `comm` 이라
+    #      `comm` 자신에게도 같은 로케일을 줘야 한다(실측 2026-09-24).
+    BEFORE_LIST=$(ls -1 "${CLAUDE_DIR}/skills/" 2>/dev/null | LC_ALL=C sort)
     rsync -a \
       --exclude="__pycache__/" \
       --exclude="*.pyc" \
@@ -122,8 +128,13 @@ if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
     echo "      하네스 스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
 
     # 이 배포본에 없는데 대상에 남아 있는 스킬을 보고한다(지우지는 않는다).
-    SHIPPED_LIST=$(ls -1 "${SRC}/skills/" | sort)
-    STALE=$(comm -23 <(echo "$BEFORE_LIST") <(echo "$SHIPPED_LIST") | tr '\n' ' ')
+    #
+    # 🔴 이 블록은 **보고 전용**이므로 실패해도 설치를 멈추지 않는다.
+    #    실제로 2026-09-24 에 위 정렬 문제로 `comm` 이 죽으면서 **훅 설치(5/5)까지
+    #    통째로 건너뛰었다** — 부가 기능이 본체를 막았고, 스킬만 깔린 반쪽 상태가
+    #    「설치 완료」로 보였다.
+    SHIPPED_LIST=$(ls -1 "${SRC}/skills/" | LC_ALL=C sort)
+    STALE=$(LC_ALL=C comm -23 <(echo "$BEFORE_LIST") <(echo "$SHIPPED_LIST") 2>/dev/null | tr '\n' ' ') || STALE=""
     if [[ -n "${STALE// /}" ]]; then
       echo "      ℹ️  이 배포본에 없는 스킬이 남아 있다: ${STALE}"
       echo "         사용자 스킬이거나 구버전 하네스 스킬이다. 판단해서 직접 정리한다."
