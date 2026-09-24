@@ -36,7 +36,7 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | A | **Plan** | Per-file change plan — scope, steps, risks. No code until approved. |
 | B | **Comprehend** | Comprehension gate — free-form flow explanation, expiring evidence ledger. Pass-through for trivial work. |
 | C | **Implement** | Code implementation — follow Gate A plan exactly. Closes on external signals only (test PASS/FAIL). |
-| D | **Verify + refactor** | Verification loop, then conditional refactor (triggered only on 3+ code-review issues or explicit request). |
+| D | **Verify** | Test plan · execution · failure classification, and the code-review/security pass. Fills the `## Verification Checklist` marker Gate C leaves. |
 | E | **Record** | WORKLOG + long-form archive. Flip all 3 docs to ✅E. |
 
 #### Inspiration & Attribution
@@ -65,9 +65,9 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | Command | Role |
 |---------|------|
 | `/gate-a` | Build a change plan — inspect files · steps · scope, then wait for approval |
-| `/gate-b` | Implement code — follow the Gate A plan exactly, then wait for confirmation |
-| `/gate-c` | Verify — external-signal-based loop · classify FIX-B / DEP |
-| `/gate-d` | Refactor — code quality improvement (conditional, after Gate C) |
+| `/gate-b` | Comprehension gate — explain the flow in your own words; evidence ledger with expiry |
+| `/gate-c` | Implement code — follow the Gate A plan exactly, then wait for confirmation |
+| `/gate-d` | Verify — test plan · execution · failure classification (FIX-B / DEP) · code review |
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
@@ -216,7 +216,10 @@ or
 /gate-e   ← session wrap-up (WORKLOG + archive)
 ```
 
-Simple work: A→B→C→E. Complex work: A→B→C→D→E.
+**All work runs A→B→C→D→E.** Gate D is where tests are planned, run and classified, and where the
+`## Verification Checklist` marker that Gate C leaves behind gets filled — it is not an optional
+refactor step. (Pre-2026-09-24 this README said simple work could take A→B→C→E; that path skipped
+the only gate that runs tests.)
 
 #### Direction check — /audit
 
@@ -322,9 +325,9 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | 커맨드 | 역할 |
 |--------|------|
 | `/gate-a` | 변경 계획 수립 — 파일·Step·범위 점검·승인 대기 |
-| `/gate-b` | 코드 구현 — Gate A 계획 그대로 구현 후 확인 대기 |
-| `/gate-c` | 검증 — 외부 실행 신호 기반 반복 루프·FIX-B/DEP 분류 |
-| `/gate-d` | 리팩터 — 코드 품질 개선 (조건부, Gate C 후) |
+| `/gate-b` | 이해도 게이트 — 흐름을 자기 말로 설명·만료 있는 증적 원장 |
+| `/gate-c` | 코드 구현 — Gate A 계획 그대로 구현 후 확인 대기 |
+| `/gate-d` | 검증 — 시험 계획·실행·실패 분류(FIX-B/DEP)·코드리뷰 |
 | `/gate-e` | 세션 정리 — WORKLOG·archive 생성·3문서 ✅E 갱신 |
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
@@ -472,7 +475,10 @@ Gate A 승인
 /gate-e   ← 세션 정리 (WORKLOG + archive)
 ```
 
-단순 작업은 A→B→C→E, 복잡한 작업은 A→B→C→D→E 경로를 따릅니다.
+**모든 작업은 A→B→C→D→E 를 따릅니다.** Gate D 는 시험을 계획·실행하고 실패를 분류하는 단계이며,
+Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 — 선택적인 리팩터 단계가 아닙니다.
+(2026-09-24 이전 이 문서는 단순 작업에 A→B→C→E 를 안내했는데, 그 경로는 **시험을 돌리는 유일한
+게이트를 건너뜁니다.**)
 
 #### 방향성 점검 — /audit
 

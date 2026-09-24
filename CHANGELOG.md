@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+- 🔴 **README 의 Gate 역할 표기가 한 칸씩 밀린 옛 체계였다**(`HARNESS-DOC-GATE-SCHEME-1`).
+  슬래시 커맨드 표가 `/gate-b` = Implement · `/gate-c` = Verify · `/gate-d` = Refactor 로
+  적혀 있었는데, 실제는 **B = 이해도 게이트 · C = 구현 · D = 검증**이다. 영·국문 6곳을 고쳤다.
+- 🔴 **「단순 작업은 A→B→C→E」 안내를 제거**했다. 그 경로는 **시험을 돌리는 유일한 게이트인
+  Gate D 를 건너뛴다.** `gate-c` 는 「Gate D 가 변경 의도를 추적한다」·「Gate D 가
+  `## Verification Checklist` 를 채운다」·「Gate D 검증 확인 후 진행」이라고 적고 있어,
+  D 는 C 의 산출물을 받는 **필수 단계**다. 모든 작업이 A→B→C→D→E 를 따른다고 고쳤다.
+- **Gate D 의 `(refactor)` 표기를 `(verify)` 로 정정**(gate-a 3곳 · SKILL_DETAIL 1곳).
+  그 게이트의 실제 내용은 **시험 계획·실행·실패 분류와 코드리뷰**이지 리팩터가 아니다.
+  표기가 내용과 어긋나면 「선택적 리팩터」로 읽혀 건너뛰게 된다.
+
 ## [1.4.2] - 2026-09-24
 
 > 설치본과 provenance 기록이 어긋나던 문제를 양쪽에서 막는다. 실사용에서 발견했다 —

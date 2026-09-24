@@ -84,7 +84,7 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 | **B** (implement) | R≥2 unresolved-decision delegation | high | auto |
 | **C** (verify) | API/DB/SEC coupling·self-debug | medium | off |
 | **C** (verify) | Simple regression re-confirm | low | off |
-| **D** (refactor) | default | medium | off |
+| **D** (verify) | default | medium | off |
 | **E** (cleanup) | always | low (Haiku 4.5 → —) | off |
 
 > **Thinking=auto condition**: only when an R≥2 item actually needs to be resolved. If D≥1, prefer thinking=off (CoT over-elaboration conflicts with deterministic output).

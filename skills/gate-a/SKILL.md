@@ -89,7 +89,7 @@ Before session start (before any code change):
 | **A** (plan) | (1) R ≥ 6 → Opus 5.5 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 5 (default)** |
 | **B** (implement) | (1) **default Sonnet 5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
 | **C** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 |
-| **D** (refactor) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 5.5 |
+| **D** (verify) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 5.5 |
 | **E** (cleanup) | always Haiku 4.5 |
 
 > **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). Each Gate is scored independently — no inheritance. *(Why the old inheritance rule was dropped → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.)*
@@ -219,7 +219,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **주장-근거 대조 점검** (HARNESS-CLAIM-EVIDENCE-1) — the "0-Claim" result above. If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line; otherwise list each unpromotable claim as `{주장} — 승격 불가: {사유}` (each must also appear in the risk table)
-   - **Gate D (refactor) expectation and basis** (needed/not needed + 1-line reason)
+   - **Gate D (verify) expectation and basis** (needed/not needed + 1-line reason)
    - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (Gate B auto-inheritance abolished):
 
      **Mapping rule (single canonical, PROC-MODEL-RUBRIC-1 revision)** — re-score the Step 0-A-a R/V/D classification per each Gate's task character:
@@ -228,7 +228,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
      |------|-------------------|--------------|
      | **B** (implement) | **default Sonnet 5**. Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
      | **C** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5. Simple regression re-confirm (already PASS) → Haiku 4.5 | decision-rule result |
-     | **D** (refactor) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 5.5 | decision-rule result or — |
+     | **D** (verify) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 5.5 | decision-rule result or — |
      | **E** (cleanup) | always Haiku 4.5 | Haiku 4.5 |
 
      > **Fable 5.1 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5.1 note above).
