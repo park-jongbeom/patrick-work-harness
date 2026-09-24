@@ -12,6 +12,7 @@ pytest 부재 환경 대비 unittest.TestCase 기반 — `python3 test_test_tamp
 """
 
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -69,24 +70,24 @@ class TestTamperingGuard(unittest.TestCase):
 
     # ── 무변경 → 0 ──
     def test_clean_returns_0(self):
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 0, out)
 
     # ── Pattern A: @Disabled → 1 ──
     def test_pattern_a_disabled(self):
         self._write("tests/FooTest.java", BASE_FOO.replace(
             "  void a()", "  @Disabled\n  void a()"))
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern A", out)
+        self.assertIn("Pattern A", err)
 
     # ── Pattern B: assert 라인 감소 → 1 ──
     def test_pattern_b_assert_decrease(self):
         self._write("tests/FooTest.java",
                     "class FooTest {\n  void a() {  }\n  void b() {  }\n  void c() {  }\n}\n")
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern B", out)
+        self.assertIn("Pattern B", err)
 
     # ── Pattern C: mock+database 라인 제거 → 1 ──
     def test_pattern_c_mock_reduction(self):
@@ -94,23 +95,23 @@ class TestTamperingGuard(unittest.TestCase):
         _git(self.repo, "add", "-A")
         _git(self.repo, "commit", "-q", "-m", "add db")
         os.remove(Path(self.repo) / "tests/DbTest.java")
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern C", out)
+        self.assertIn("Pattern C", err)
 
     # ── Pattern D: CI config 변경 → 2 (block) ──
     def test_pattern_d_ci_change_blocks(self):
         self._write("docker-compose.yml", "services:\n  app:\n    image: CHANGED\n")
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 2, out)
-        self.assertIn("Pattern D", out)
+        self.assertIn("Pattern D", err)
 
     # ── D + A 동시 → D 우선(2) ──
     def test_d_takes_precedence(self):
         self._write("docker-compose.yml", "services:\n  app:\n    image: CHANGED\n")
         self._write("tests/FooTest.java", BASE_FOO.replace(
             "  void a()", "  @Disabled\n  void a()"))
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 2, out)
 
     # ── staged(--cached) 변조도 검출 → 1 ──
@@ -118,9 +119,9 @@ class TestTamperingGuard(unittest.TestCase):
         self._write("tests/FooTest.java", BASE_FOO.replace(
             "  void a()", "  @Disabled\n  void a()"))
         _git(self.repo, "add", "tests/FooTest.java")  # 워킹트리 clean, staged에만 존재
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern A", out)
+        self.assertIn("Pattern A", err)
 
     # ── 인자순서 회귀: tests/ 변경 시 diff 비어있지 않음 ──
     def test_arg_order_regression_nonempty_diff(self):
@@ -147,7 +148,7 @@ class TestTamperingGuard(unittest.TestCase):
         self._commit_package_json('{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
         self._write("package.json",
                     '{\n  "dependencies": {\n    "foo": "1.0.0",\n    "bar": "2.0.0"\n  }\n}\n')
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 0, out)
 
     def test_dep_remove_key_warns(self):
@@ -155,15 +156,15 @@ class TestTamperingGuard(unittest.TestCase):
         self._commit_package_json(
             '{\n  "dependencies": {\n    "foo": "1.0.0",\n    "bar": "2.0.0"\n  }\n}\n')
         self._write("package.json", '{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern D", out)
+        self.assertIn("Pattern D", err)
 
     def test_dep_value_change_passes(self):
         """값만 변경(버전 업) → 통과(0). 선언이 사라지지 않았다."""
         self._commit_package_json('{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
         self._write("package.json", '{\n  "dependencies": {\n    "foo": "2.0.0"\n  }\n}\n')
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 0, out)
 
     def test_gradle_add_line_passes(self):
@@ -173,7 +174,7 @@ class TestTamperingGuard(unittest.TestCase):
         _git(self.repo, "commit", "-q", "-m", "gradle")
         self._write("build.gradle.kts",
                     'dependencies {\n    implementation("a")\n    implementation("b")\n}\n')
-        rc, out, _ = run_hook(self.repo)
+        rc, out, err = run_hook(self.repo)
         self.assertEqual(rc, 0, out)
 
     # ── git 비저장소 → stderr 무출력 + rc=0 (FIX-B-GITDIFF-NOISE-1) ──
@@ -191,6 +192,85 @@ class TestTamperingGuard(unittest.TestCase):
             self.assertEqual(proc.stderr, "", proc.stderr)
         finally:
             shutil.rmtree(non_repo, ignore_errors=True)
+
+
+class TestA5Contracts(unittest.TestCase):
+    """HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24) 로 새로 생긴 계약 3건.
+
+    고쳤다는 주장이 아니라 **실행으로** 검증한다.
+    """
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp(prefix="a5_")
+        _git(self.repo, "init", "-q")
+        _git(self.repo, "config", "user.email", "t@e.st")
+        _git(self.repo, "config", "user.name", "t")
+        os.makedirs(os.path.join(self.repo, "tests"), exist_ok=True)
+        with open(os.path.join(self.repo, "tests", "FooTest.java"), "w",
+                  encoding="utf-8") as f:
+            f.write(BASE_FOO)
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "base")
+
+    def tearDown(self):
+        shutil.rmtree(self.repo, ignore_errors=True)
+
+    def _tamper(self):
+        with open(os.path.join(self.repo, "tests", "FooTest.java"), "w",
+                  encoding="utf-8") as f:
+            f.write(BASE_FOO.replace("  void a()", "  @Disabled\n  void a()"))
+
+    def _run(self, stdin_payload=None, env_extra=None):
+        env = {**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": self.repo,
+               "PYTHONIOENCODING": "utf-8"}
+        if env_extra:
+            env.update(env_extra)
+        proc = subprocess.run(
+            [sys.executable, SCRIPT], cwd=self.repo, env=env,
+            input=stdin_payload if stdin_payload is not None else "",
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+
+    # ── 계약 1: 차단 사유는 stderr 로 간다 (exit 2 때 Claude 가 보는 통로) ──
+    def test_reason_goes_to_stderr_not_stdout(self):
+        self._tamper()
+        rc, out, err = self._run()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("REWARD-HACKING PATTERNS DETECTED", err)
+        self.assertNotIn("REWARD-HACKING PATTERNS DETECTED", out)
+
+    # ── 계약 2: stop_hook_active 면 다시 막지 않는다 (무한 반복 방지) ──
+    def test_stop_hook_active_suppresses_repeat(self):
+        self._tamper()
+        rc_first, _, err_first = self._run()
+        self.assertEqual(rc_first, 1, err_first)      # 첫 회는 잡는다
+        rc_again, _, _ = self._run(json.dumps({"stop_hook_active": True}))
+        self.assertEqual(rc_again, 0)                 # 재개 응답은 통과
+
+    # ── 계약 2-b: 깨진 stdin 이 와도 검사는 그대로 돈다 (fail-open 아님) ──
+    def test_malformed_stdin_does_not_disable_guard(self):
+        self._tamper()
+        rc, _, err = self._run("{not json at all")
+        self.assertEqual(rc, 1, err)
+        self.assertIn("Pattern A", err)
+
+    # ── 계약 3: CLAUDE_PROJECT_DIR 은 부모가 아니라 그 경로 자체를 본다 ──
+    def test_project_dir_is_not_parent(self):
+        self._tamper()
+        env = {"CLAUDE_PROJECT_DIR": self.repo}
+        env.pop("TEST_TAMPERING_GUARD_REPO_ROOT", None)
+        proc = subprocess.run(
+            [sys.executable, SCRIPT], cwd=self.repo,
+            env={k: v for k, v in {**os.environ, **env,
+                                   "PYTHONIOENCODING": "utf-8"}.items()
+                 if k != "TEST_TAMPERING_GUARD_REPO_ROOT"},
+            input="", capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
+        # 부모를 보면 이 저장소의 변조를 놓쳐 0 이 된다.
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("Pattern A", proc.stderr)
 
 
 if __name__ == "__main__":

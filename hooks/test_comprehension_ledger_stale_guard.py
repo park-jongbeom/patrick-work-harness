@@ -45,7 +45,12 @@ def run_hook(ledger_content, session_id="test-sess", write_ledger=True,
             input=json.dumps(payload),
             capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
-        return proc.returncode, proc.stderr.strip()
+        # HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 만료 알림은 stdout 의
+        # systemMessage JSON 으로 나간다(exit 0 훅의 stderr 는 Claude 에게
+        # 전달되지 않기 때문). 경고 탐지용 채널은 stdout+stderr 를 합쳐 본다 —
+        # 어느 쪽으로 나가든 「경고가 나왔다」는 사실은 같게 판정하되,
+        # 전달 경로 자체는 test_notify_goes_to_stdout_json 이 따로 고정한다.
+        return proc.returncode, (proc.stdout + "\n" + proc.stderr).strip()
 
 
 # --- 픽스처 ---
@@ -304,6 +309,69 @@ def test_simple_parser_without_pyyaml():
     print("  PASS: PyYAML 미설치 간이 파서 — 주석·따옴표 제거 후 추출")
 
 
+# ── 전달 경로 고정 (HARNESS-CROSSCHECK-FIX-1-a-5, 2026-09-24) ──────────────
+#
+# run_hook 이 stdout+stderr 를 합쳐 보기 때문에, 경고가 stderr 로 되돌아가도
+# 위 시험들은 통과한다. 경로 자체는 여기서 고정한다.
+
+def _raw_run(ledger_content, env_extra=None):
+    """(rc, stdout, stderr) 를 가르지 않고 그대로 반환."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ledger_path = os.path.join(tmpdir, "comprehension_ledger.md")
+        with open(ledger_path, "w", encoding="utf-8") as f:
+            f.write(ledger_content)
+        env = os.environ.copy()
+        env["CLAUDE_PROJECT_DIR"] = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+        env["COMPREHENSION_LEDGER_PATH"] = ledger_path
+        if env_extra is not None:
+            for k, v in env_extra.items():
+                if v is None:
+                    env.pop(k, None)
+                else:
+                    env[k] = v
+        proc = subprocess.run(
+            [sys.executable, SCRIPT],
+            input=json.dumps({"session_id": "test-sess"}),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", env=env,
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+
+
+_EXPIRED = [("2020-01-01", "matching/ScoringService", "3개월",
+             "AI", "통과", "흐름 요약")]
+
+
+def test_notify_goes_to_stdout_json():
+    """만료 알림은 stdout 의 systemMessage JSON 으로 나간다(stderr 아님).
+
+    exit 0 인 훅의 stderr 는 Claude 에게 전달되지 않는다 — 경고가 조용히
+    사라지던 것이 P0-2 의 실체였다.
+    """
+    rc, out, err = _raw_run(ledger(_EXPIRED))
+    assert rc == 0, f"비차단이어야 한다: rc={rc}"
+    payload = json.loads(out)          # 유효한 JSON 이어야 한다
+    assert "systemMessage" in payload, f"systemMessage 없음: {payload}"
+    assert MARKER in payload["systemMessage"], payload["systemMessage"]
+    assert MARKER not in err, f"경고가 stderr 로 샜다: {err}"
+    print("  PASS: 만료 알림이 stdout systemMessage JSON 으로 전달")
+
+
+def test_notify_survives_cp949_default_stdout():
+    """PYTHONIOENCODING 이 cp949 여도 알림이 stdout 으로 나간다.
+
+    실제로 겪은 회귀다(2026-09-24): 훅에 stdout reconfigure 가 없어서
+    한글 systemMessage 가 UnicodeEncodeError 로 죽고, notify() 의 stderr
+    폴백만 타 **고친 줄 알았는데 원래 결함으로 되돌아가 있었다.**
+    폴백이 있어 합산 채널 시험은 통과했기 때문에 눈에 띄지 않았다.
+    """
+    rc, out, err = _raw_run(ledger(_EXPIRED), {"PYTHONIOENCODING": "cp949"})
+    assert rc == 0, f"비차단이어야 한다: rc={rc}"
+    assert "systemMessage" in out, f"stdout 에 안 나옴 — stderr: {err}"
+    assert MARKER not in err, f"cp949 에서 stderr 폴백으로 샜다: {err}"
+    print("  PASS: cp949 기본 stdout 에서도 systemMessage 유지")
+
+
 if __name__ == "__main__":
     tests = [
         test_empty_ledger_allows,
@@ -321,6 +389,9 @@ if __name__ == "__main__":
         test_absolute_learning_path_respected,
         test_missing_answers_yml_falls_back,
         test_simple_parser_without_pyyaml,
+        # 전달 경로 고정 (HARNESS-CROSSCHECK-FIX-1-a-5)
+        test_notify_goes_to_stdout_json,
+        test_notify_survives_cp949_default_stdout,
     ]
     print(f"comprehension-ledger-stale-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)

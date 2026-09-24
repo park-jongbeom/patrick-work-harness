@@ -13,7 +13,8 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
   원장을 스캔해 exp(N개월) 날짜가 지난 항목을 surface 한다.
 
 차단 정책 (COMPREHEND-GATE-1-b Gate A 사용자 결정):
-  **비차단** — 만료 항목 발견 시 stderr 안내만 출력하고 exit 0.
+  **비차단** — 만료 항목 발견 시 안내만 내보내고 exit 0.
+  (2026-09-24 이후 전달 경로는 stdout 의 systemMessage JSON — 아래 프로토콜 절)
   ledger 만료는 단일 응답 턴에서 고칠 수 없는 '재검증 프로세스'이고
   (다음 gate-a/gate-b Step 1 에서 수행), 기존 stale-guard 처럼
   exit 2 로 매 세션 차단하면 무관한 세션을 모두 막아 부적합하다.
@@ -27,7 +28,9 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
 
 프로토콜 (Claude Code Stop Hook):
   - 입력: stdin JSON — { session_id, stop_hook_active, ... }
-  - 비차단 알림: stderr 메시지 + exit 0 (종료를 막지 않음)
+  - 비차단 알림: **stdout 에 {"systemMessage": ...} JSON** + exit 0
+    (HARNESS-CROSSCHECK-FIX-1-a-5: exit 0 인 훅의 stderr 는 Claude 에게
+     전달되지 않아 경고가 조용히 사라졌다. stderr 는 직렬화 실패 폴백으로만 쓴다)
   - 허용: exit 0
 
 방어 원칙: 파일 부재·파싱 실패·예외·만료 0건은 무조건 exit 0
@@ -41,6 +44,14 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
+
+# 🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): stdout 을 utf-8 로 고정한다.
+#    Windows 기본 stdout 은 cp949 이고 errors 는 strict 라, 한글이 든
+#    systemMessage 를 내보내는 순간 UnicodeEncodeError 로 죽는다.
+#    이 훅은 exit 0 비차단이라 죽어도 티가 안 나고, notify() 의 stderr
+#    폴백만 타서 **경고가 Claude 에게 안 가는 원래 결함으로 되돌아간다.**
+#    (test-tampering-guard 는 2026-08-07 에 같은 이유로 이미 넣었다.)
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 try:
     import yaml
@@ -135,8 +146,22 @@ def allow():
 
 
 def notify(reason):
-    """비차단 알림 — stderr 출력 후 exit 0 (종료를 막지 않음)."""
-    print(reason, file=sys.stderr)
+    """비차단 알림 — 응답 종료를 막지 않으면서 Claude 에게 전달한다.
+
+    🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 이전에는 stderr 에 쓰고
+    exit 0 했다. **exit 0 인 훅의 stderr 는 Claude 에게 전달되지 않는다**
+    (공식 hooks 문서) — 경고가 사용자 로그에만 남고 조용히 사라졌다.
+    「알렸다」고 적혀 있으나 실제로는 아무도 못 보는 상태였다.
+
+    대신 stdout 에 `systemMessage` 를 실은 JSON 을 낸다. 비차단이라는
+    성격(exit 0)은 그대로 두고 **전달 경로만** 고친 것이다.
+    """
+    payload = {"systemMessage": reason}
+    try:
+        print(json.dumps(payload, ensure_ascii=False))
+    except (TypeError, ValueError):
+        # 직렬화 실패는 가드를 죽일 이유가 못 된다 — 최소한 로그에는 남긴다.
+        print(reason, file=sys.stderr)
     sys.exit(0)
 
 

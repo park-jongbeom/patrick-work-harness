@@ -133,6 +133,13 @@ def main() -> int:
             check=False, capture_output=True, timeout=120,
         )
     except Exception as exc:  # 무해 실패 — Stop 훅 블로킹 금지
+        # HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 여기는 stderr 로 남긴다.
+        #
+        # P0-2 는 「exit 0 훅의 경고가 Claude 에게 안 간다」인데, 이 출력은
+        # **Claude 가 알아야 할 경고가 아니라 집계 건너뜀 로그**다. 사용자
+        # 작업과 무관하고, systemMessage 로 띄우면 매 응답에 잡음만 는다.
+        # 전달 경로를 고치는 대상은 `comprehension-ledger-stale-guard` 의
+        # notify() 처럼 **사용자 행동을 요구하는 경고**로 한정한다.
         print(f"skill-usage-auto skip: {exc}", file=sys.stderr)
     return 0
 

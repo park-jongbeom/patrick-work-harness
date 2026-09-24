@@ -21,11 +21,11 @@ Returns:
   2 = error (CI config changed, block)
 """
 
+import json
 import os
 import sys
 import subprocess
 import re
-from pathlib import Path
 
 # Windows cp949 콘솔 UnicodeEncodeError 방지 (Python 3.7+)
 # stdout 기본 errors 는 strict 라 비ASCII 출력 시 exit 1 로 죽는다
@@ -34,11 +34,17 @@ from pathlib import Path
 # HARNESS-SYNC-RECONCILE-2-b (2026-08-07)
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# R-4-2-b: 3단 우선순위 (① custom env → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
+# R-4-2-b: 3단 우선순위 (① custom env → ② CLAUDE_PROJECT_DIR → ③ 폴백)
+#
+# 🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): ②에서 `.parent` 를 걷어냈다.
+#    `CLAUDE_PROJECT_DIR` 은 **프로젝트 루트 자체**인데 그 부모를 기준으로 삼아,
+#    `git diff` 가 정작 검사해야 할 저장소 밖(또는 상위 저장소)을 보고 있었다.
+#    변조를 잡는 가드가 엉뚱한 곳을 보면 **조용히 0건**을 돌려준다 —
+#    「변조 없음」과 「안 봤음」이 구분되지 않는 형태라 가장 위험하다.
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 _REPO_ROOT = (
     os.environ.get("TEST_TAMPERING_GUARD_REPO_ROOT")
-    or (str(Path(_proj).parent) if _proj else None)
+    or _proj
     or os.environ.get("HARNESS_ROOT_DIR", ".")
 )
 
@@ -214,7 +220,33 @@ def is_add_only(diff):
     return removed_keys <= added_keys
 
 
+def read_hook_input():
+    """Stop 훅 페이로드를 읽는다. 비대화형 호출(시험·CLI)에서는 빈 dict.
+
+    HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 이 훅은 Stop 에 배선돼 있으면서
+    stdin 을 전혀 읽지 않았다. 그래서 `stop_hook_active` 를 볼 수 없었고,
+    차단(exit 2) 뒤 재개된 응답에서 같은 진단이 다시 걸려 **무한 반복**이 된다.
+    """
+    try:
+        raw = sys.stdin.read() if not sys.stdin.isatty() else ""
+    except Exception:
+        return {}
+    if not raw.strip():
+        return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
 def main():
+    hook_input = read_hook_input()
+
+    # 🔴 반복 방지 — 이미 이 훅 때문에 멈췄다 재개한 응답이면 다시 막지 않는다.
+    if hook_input.get("stop_hook_active"):
+        return 0
+
     print("🔍 Gate B→C Transition: Checking for test-tampering patterns...\n")
 
     # Get diffs
@@ -255,14 +287,19 @@ def main():
         print("✅ No test-tampering patterns detected. Safe to proceed with Gate C.\n")
         return 0
 
-    print("⚠️  REWARD-HACKING PATTERNS DETECTED:\n")
+    # 🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 사유를 **stderr** 로 낸다.
+    #    exit 2 로 차단할 때 Claude 에게 전달되는 것은 stderr 이고, stdout 은
+    #    사용자 로그로만 남는다. 이전에는 전부 stdout 이라 **차단은 되는데 왜
+    #    막혔는지는 안 보이는** 상태였다 — 막힌 쪽이 고칠 수가 없다.
+    out = sys.stderr
+    print("⚠️  REWARD-HACKING PATTERNS DETECTED:\n", file=out)
     for pattern, desc in tamper_violations + ci_violations:
-        print(f"  {pattern}: {desc}")
-    print("\n💡 Guidance:")
-    print("  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.")
-    print("  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.")
-    print("  - Pattern D (dependency): Adding a dependency is fine and not reported;")
-    print("    this fired because a declaration was removed or rewritten.\n")
+        print(f"  {pattern}: {desc}", file=out)
+    print("\n💡 Guidance:", file=out)
+    print("  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.", file=out)
+    print("  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.", file=out)
+    print("  - Pattern D (dependency): Adding a dependency is fine and not reported;", file=out)
+    print("    this fired because a declaration was removed or rewritten.\n", file=out)
 
     # return-code contract (docstring): CI config change blocks, tampering warns.
     if ci_violations:
