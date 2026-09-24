@@ -66,7 +66,7 @@ awk '/^### 조건부/,/^---/' ${CLAUDE_PROJECT_DIR}/<single_plan_file> | grep -c
 | R-D2 | Index–canonical inconsistency (Step 4-A-d) ≥ 1 (canonical-decision reasoning) | +3 |
 | R-D3 | Suspect candidates (Step 6) ≥ 5 (delete·move user-approval classification reasoning) | +3 |
 
-> **R total ≥ 6 (= 2+ items)** → Opus 4.8 candidate. 0 items = standard slimming (most doc-cleanup calls land here).
+> **R total ≥ 6 (= 2+ items)** → Opus 5.5 candidate. 0 items = standard slimming (most doc-cleanup calls land here).
 
 #### V (Volume) — Sonnet ↔ Haiku branch signal
 
@@ -96,13 +96,13 @@ doc-cleanup is a single-SKILL one-shot run, so there is no Gate branching. Decis
 
 | Decision priority | Condition | Recommended model |
 |-------------------|-----------|-------------------|
-| (1) | R ≥ 6 (2+ R-D items) | **Opus 4.8** |
+| (1) | R ≥ 6 (2+ R-D items) | **Opus 5.5** |
 | (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard slimming) | **Haiku 4.5** (D forces Sonnet as default, but if R=0+V≤1 the simple fixed slimming allows Haiku downgrade) |
 | (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5 (default)** |
 
 > **Revision meaning**: The old "total ≤3 = Haiku, 4~8 = Sonnet, 9+ = Opus" + "double-count" single mapping is abolished. R/V/D 3-axis independent measurement separates "complex classification reasoning (R)" from "over-threshold volume (V)" — Opus only when R fires.
 >
-> **Fable 5**: not a regular tier in this decision table — see `SKILL_DETAIL.md §Fable 5` for the exception-escalation-only rule (applies identically to doc-cleanup).
+> **Fable 5.1**: not a regular tier in this decision table — see `SKILL_DETAIL.md §Fable 5.1` for the exception-escalation-only rule (applies identically to doc-cleanup).
 
 ### Step 0-A-b'. R-13 cost-justification guard
 

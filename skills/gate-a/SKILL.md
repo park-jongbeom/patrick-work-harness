@@ -59,7 +59,7 @@ Before session start (before any code change):
 | R4 | Science·math·statistics reasoning needed | +3 |
 | R5 | New security·auth policy (CORS·token·RBAC) | +3 |
 
-> **R total ≥ 6 (= 2+ items)** → Opus 4.8 candidate. **0 items = standard implementation** (most sessions land here).
+> **R total ≥ 6 (= 2+ items)** → Opus 5.5 candidate. **0 items = standard implementation** (most sessions land here).
 
 #### V (Volume) — Sonnet ↔ Haiku branch signal
 
@@ -86,15 +86,15 @@ Before session start (before any code change):
 
 | Gate | Decision rule (in priority order) |
 |------|-----------------------------------|
-| **A** (plan) | (1) R ≥ 6 → Opus 4.8 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 5 (default)** |
+| **A** (plan) | (1) R ≥ 6 → Opus 5.5 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 5 (default)** |
 | **B** (implement) | (1) **default Sonnet 5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
 | **C** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 |
-| **D** (refactor) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 4.8 |
+| **D** (refactor) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 5.5 |
 | **E** (cleanup) | always Haiku 4.5 |
 
 > **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). The old "Gate B = same model as A" auto-inheritance rule is abolished (PROC-MODEL-RUBRIC-1).
 >
-> **Fable 5 (exception escalation only)**: not a regular tier in the table above — Fable 5 is Anthropic's most capable widely-released model (Mythos-class) but is absent from the official model-selection matrix and priced at exactly 2× Opus 4.8. Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5`.
+> **Fable 5.1 (exception escalation only)**: not a regular tier in the table above — Fable 5.1 is Anthropic's most capable widely-released model (Mythos-class) but is absent from the official model-selection matrix and priced at exactly 2× Opus 5.5. Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5.1로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5.1`.
 
 > **Meaning of self-verification**: Gate A is "deciding the whole session's direction", so Opus promotion only when an R item (architecture decision·new algorithm, etc.) explicitly arises. Even with many changed files·repos, if R = 0, Sonnet suffices — for multi-file handling, Anthropic's official recommended "Sonnet orchestrator + Haiku worker parallel" pattern is more cost-efficient than a single Opus.
 
@@ -221,19 +221,26 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
      |------|-------------------|--------------|
      | **B** (implement) | **default Sonnet 5**. Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
      | **C** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5. Simple regression re-confirm (already PASS) → Haiku 4.5 | decision-rule result |
-     | **D** (refactor) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 4.8 | decision-rule result or — |
+     | **D** (refactor) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 5.5 | decision-rule result or — |
      | **E** (cleanup) | always Haiku 4.5 | Haiku 4.5 |
 
-     > **Fable 5 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5 note above).
+     > **Fable 5.1 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5.1 note above).
 
      **Output format**:
 
      | Gate | 권장 모델 | Effort / Thinking | 분해 (R / V / D) | 비용 정당화 (Opus 한정, R-13) |
      |------|----------|--------------------|-----------------|----------------------|
-     | B | {Opus 4.8 / Sonnet 5 / Haiku 4.5} | {high·medium·low} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
+     | B | {Opus 5.5 / Sonnet 5 / Haiku 4.5} | {high·medium·low, Haiku 는 —} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
      | C | {…} | {medium·low} / off | R={C 한정 — API/DB/SEC 결합 여부} / V=— / D={회귀 가드 多 여부} | … |
      | D | {모델 또는 —} | {medium} / off | R={리팩터 깊이 — R≥6 여부} / V=— / D={overengineering 회피 명시 여부} | … |
-     | E | Haiku 4.5 | low / off | — | — |
+     | E | Haiku 4.5 | — (effort 미지원) / off | — | — |
+
+     > **모델 라인업 기준일: 2026-09-24** (출처: 공식 Models overview 조회).
+     > 당시 현행은 **Fable 5.1 · Opus 5.5 · Sonnet 5 · Haiku 4.5** 이고, 기본 effort 는
+     > Fable 5.1 `high` · Opus 5.5 `medium` · Sonnet 5 `high` · **Haiku 4.5 미지원**이다.
+     > 🔴 **이 표는 낡는다.** 모델명을 사전지식으로 단정하지 말고, 기준일이 오래됐으면
+     > `https://platform.claude.com/docs/en/about-claude/models/overview` 를 **조회해서**
+     > 확인한 뒤 고친다 — 이전 판은 `Opus 4.8`·`Fable 5`(둘 다 레거시)에 두 세대 머물러 있었다.
 
      > **No natural-language prose**: instead of natural-language reasons like 「표준 구현 — Opus 불필요」, cite the **Step 0-A-a R/V/D decomposition** directly. That way, follow-up Gates can verify consistency using the same metadata during model verification.
      > **R-13 guard**: an Opus-produced row must have the R items in 1 line in the cost-justification column. If unmet, auto-downgrade to Sonnet (Step 0-A-b' format).

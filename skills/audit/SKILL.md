@@ -76,7 +76,7 @@ awk '/^### 의존 대기/,/^---/' \
 | R-A3 | (4) Active chain transition point (chain end → next chain entry reasoning) | +3 |
 | R-A4 | §3/§4 index–canonical inconsistency suspected (canonical-priority decision reasoning) | +3 |
 
-> **R total ≥ 6 (= 2+ items)** → Opus 4.8 candidate. 0 items = standard check (most audit calls land here).
+> **R total ≥ 6 (= 2+ items)** → Opus 5.5 candidate. 0 items = standard check (most audit calls land here).
 
 #### V (Volume) — Sonnet ↔ Haiku branch signal
 
@@ -103,13 +103,13 @@ audit is a single-SKILL one-shot run, so there is no Gate branching. Decision ru
 
 | Decision priority | Condition | Recommended model |
 |-------------------|-----------|-------------------|
-| (1) | R ≥ 6 (2+ R-A items) | **Opus 4.8** |
+| (1) | R ≥ 6 (2+ R-A items) | **Opus 5.5** |
 | (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard checks) | **Haiku 4.5** (D forces Sonnet as default, but if R=0+V≤1 the simple verdict allows Haiku downgrade) |
 | (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5 (default)** |
 
 > **Revision meaning**: The old "total ≤4 = Haiku, 5~9 = Sonnet, 10+ = Opus" single mapping is abolished. R/V/D 3-axis independent measurement separates "direction-check multi-item reasoning (R)" from "repeated-call accumulation (V)" — Opus only when R fires (avoiding systematic Opus bias).
 >
-> **Fable 5**: not a regular tier in this decision table — see `SKILL_DETAIL.md §Fable 5` for the exception-escalation-only rule (applies identically to audit).
+> **Fable 5.1**: not a regular tier in this decision table — see `SKILL_DETAIL.md §Fable 5.1` for the exception-escalation-only rule (applies identically to audit).
 
 ### Step 0-b'. R-13 cost-justification guard
 
@@ -117,7 +117,7 @@ audit is a single-SKILL one-shot run, so there is no Gate branching. Decision ru
 
 ### Step 0-c. Current-model detection
 
-From the calling Claude's system context (`You are powered by the model named {model}` form), extract a **single model-family keyword** (Opus / Sonnet / Haiku / Fable). Ignore the version number. Fable is detected as the current model only if the user has manually switched to it via exception escalation (Step 0-b Fable 5 note) — it is never produced as a recommendation, only ever detected as current.
+From the calling Claude's system context (`You are powered by the model named {model}` form), extract a **single model-family keyword** (Opus / Sonnet / Haiku / Fable). Ignore the version number. Fable is detected as the current model only if the user has manually switched to it via exception escalation (Step 0-b Fable 5.1 note) — it is never produced as a recommendation, only ever detected as current.
 
 If keyword extraction fails, treat as "detection failure" and STOP conservatively.
 
