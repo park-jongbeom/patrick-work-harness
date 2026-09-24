@@ -104,7 +104,26 @@ def _resolve_process_evolution_dir():
 
 
 PROCESS_EVOLUTION_DIR = _resolve_process_evolution_dir()
-AGGREGATOR = PROCESS_EVOLUTION_DIR / "skill_usage_aggregator.py"
+
+
+def _resolve_aggregator() -> Path:
+    """집계기 경로 — 사용자 배치본 우선, 없으면 하네스 배포본.
+
+    🔴 HARNESS-ANALYTICS-PORT-1 (2026-09-24): 이전에는 `process_evolution` 밑만
+    봤고, 하네스는 그 스크립트를 **배포하지 않았다**. 그래서 이 훅은
+    `hooks.json` 에 등록돼 매 응답마다 돌면서 **아무 일도 하지 않고 exit 0**
+    이었다(실측). 선언(훅 등록)과 이행(집계기 존재)이 따로 놀던 자리다.
+
+    사용자가 `process_evolution` 에 자기 판본을 두면 그것을 쓰고, 없으면
+    하네스가 같이 깐 것을 쓴다.
+    """
+    user_copy = PROCESS_EVOLUTION_DIR / "skill_usage_aggregator.py"
+    if user_copy.is_file():
+        return user_copy
+    return Path(__file__).resolve().parent / "skill_usage_aggregator.py"
+
+
+AGGREGATOR = _resolve_aggregator()
 MAX_AGE_HOURS = 24
 
 

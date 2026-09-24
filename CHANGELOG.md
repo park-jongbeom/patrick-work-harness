@@ -15,6 +15,17 @@
   이 하네스의 세션 ID 규칙(`-a-1`·`-b-2`)에 소문자가 들어가므로, 실제로
   `HARNESS-CROSSCHECK-FIX-1-a-3` 이 **`HARNESS-CROSSCHECK-FIX-1-` 까지만** 표시됐다.
   그럴듯한 값이라 눈에 띄지 않는다. 시험을 쓰다가 발견했다.
+- 🔴 **`skill-usage-auto` 훅이 매 응답마다 돌면서 아무 일도 하지 않았다**(`HARNESS-ANALYTICS-PORT-1`).
+  **계기**: P2-8(기록·측정 재료 없음)을 보려다 훅이 호출하는 `skill_usage_aggregator.py` 가
+  **저장소에 없는 것**을 발견했다. **실측**: 직접 실행하니 출력 없이 `rc=0` — 선언(훅 등록)과
+  이행(집계기 존재)이 따로 놀던 자리다. **조치**: 집계기를 배포본으로 이식하고(사설 절대경로
+  `/home/ubuntu/...` → `Path.home()`, 집계 대상 스킬 목록을 실제 배포 9종으로, 시간대를
+  `HARNESS_TZ_OFFSET` 로 조정 가능하게), 훅이 **사용자 배치본 우선 · 배포본 폴백**으로 찾게 했다.
+  **기대 효과**: 스킬별 호출 횟수·시간대·Gate 시퀀스가 월별 md 로 쌓인다 — 실행해 보니
+  Gate A~E 41~56회 대 `audit` 2회·`doc-cleanup` 1회로 **편중이 수치로 드러났다.**
+- **`skill_usage_aggregator` 시험 신설**(7건). 합성 JSONL 로 결정론적으로 잰다. **집계 목록이
+  실제 배포 스킬과 일치하는지**도 시험으로 고정했다 — 원본 목록은 이 배포본에 없는
+  `error-log`·`export-roles` 를 세고 있어, 없는 스킬을 「0회 — 통합·폐기 후보」로 보고했다.
 - **`session_dashboard_renderer` 시험 신설**(12건, `HARNESS-TEST-GAP-3`). 이로써 **시험 없는
   훅이 0개**가 됐다. 배너 제목의 **폴백 체인**(`intent_title` → `current_title` → `work_topic`
   → `last_completed_title` → 자리표시자)과 세션 dict 계약(`id`·`repo`·`status`·`title`)을 고정했다.
