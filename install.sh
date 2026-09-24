@@ -301,6 +301,27 @@ else
   echo "[5/5] 훅 설치 건너뜀"
 fi
 
+# ── provenance 갱신 (HARNESS-INSTALL-PROVENANCE-1, 2026-09-24) ──
+#
+# 🔴 install.sh 는 지금까지 harness-answers.yml 을 건드리지 않았고, 그래서
+#    설치본은 새 버전인데 `_engine_version` 은 옛 값으로 남았다. `/harness-update`
+#    는 그 필드만 보고 판정하므로 **이미 설치된 것을 다시 설치하라**고 안내한다
+#    (2026-09-24 실측: 필드 1.3.4 / 실제 훅 12개·claude-gate-guard 0 = v1.4.1).
+#
+#    이 파일은 사용자 응답이 담긴 설정이므로 `_engine_version` 한 줄만 바꾸고
+#    나머지는 건드리지 않는다. 수정 전 타임스탬프 백업을 남긴다.
+ANSWERS="${CLAUDE_DIR}/harness-answers.yml"
+if [[ "$DRY_RUN" == false && -f "$ANSWERS" ]]; then
+  BARE_VERSION="${VERSION#v}"
+  CURRENT_PROV=$(grep -E '^_engine_version:' "$ANSWERS" | head -1 | sed -E 's/.*"(.*)".*/\1/')
+  if [[ "$CURRENT_PROV" != "$BARE_VERSION" ]]; then
+    cp "$ANSWERS" "${ANSWERS}.bak-$(date +%Y%m%d-%H%M%S)"
+    sed -i.tmp -E "s|^_engine_version:.*|_engine_version: \"${BARE_VERSION}\"|" "$ANSWERS"
+    rm -f "${ANSWERS}.tmp"
+    echo "      provenance 갱신: _engine_version ${CURRENT_PROV:-미기재} → ${BARE_VERSION}"
+  fi
+fi
+
 # ── 완료 ─────────────────────────────────────────────────
 echo ""
 if [[ "$DRY_RUN" == true ]]; then
