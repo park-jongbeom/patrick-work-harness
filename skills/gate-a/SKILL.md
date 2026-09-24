@@ -291,6 +291,20 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
 
 3. STOP — await user document review·approval
 
+### Layer 2 document update (if `--docs=full` was used at `/init`)
+
+If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or changes a feature**:
+- Fill `## Overview` (what the feature is, in 2–3 lines) and `## Acceptance Criteria`
+  (the observable conditions that decide "done") from the plan you just produced
+- Update `DOC_INDEX.md`: `FEATURE_SPEC.md` row `Status` → `Partial`
+- **Pure refactor·infra·doc sessions → leave it untouched and say so in one line.** A skeleton that
+  stays a skeleton is the correct outcome when there is no feature; do not invent one to fill it.
+
+> Added 2026-09-24 (HARNESS-DOC-GATE-SCHEME-2). `/init` assigned `FEATURE_SPEC.md` to Gate A from the
+> start, but **no gate skill actually wrote it** — the same gap `API_SPEC.md` had. Acceptance criteria
+> are decided while planning, so the work belongs here.
+
+
 ## Gate A Approval Interpretation
 
 - 「진행」「다음 작업」 alone are not interpreted as Gate A approval

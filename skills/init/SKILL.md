@@ -373,7 +373,7 @@ install.sh (--version / --target / --dry-run flags)
 | DATA_FLOW.md | 1 | /init | Generated |
 | DOC_INDEX.md | meta | /init | Generated |
 | FEATURE_SPEC.md | 2 | Gate A | Pending |
-| API_SPEC.md | 2 | Gate B | Pending |
+| API_SPEC.md | 2 | Gate C | Pending |
 | TEST_PLAN.md | 2 | Gate C–D | Pending |
 | ERROR_HANDLING.md | 2 | Gate D | Pending |
 | DECISION_LOG.md | 2 | All gates (ADR) | Pending |
@@ -391,7 +391,7 @@ No content is filled in — markers indicate which Gate fills each section.
 | Document | Updated by | Purpose |
 |----------|------------|---------|
 | FEATURE_SPEC.md | Gate A | Feature intent + acceptance criteria |
-| API_SPEC.md | Gate B | Endpoint contracts + request/response shapes |
+| API_SPEC.md | Gate C | Endpoint contracts + request/response shapes |
 | TEST_PLAN.md | Gate C–D | Test cases + verification checklist |
 | ERROR_HANDLING.md | Gate D | Failure paths + recovery strategies |
 | DECISION_LOG.md | All gates (ADR) | Architecture decisions + rationale |
@@ -477,7 +477,7 @@ This step defines **what content to write into each Layer 2 document** at each G
 | Document | Gate | Section to fill | Content guideline |
 |----------|------|-----------------|-------------------|
 | FEATURE_SPEC.md | A | Feature intent + acceptance criteria | Write 2–5 acceptance criteria based on the Gate A plan scope |
-| API_SPEC.md | B | Endpoint contracts + request/response shapes | Write only endpoints touched in this session |
+| API_SPEC.md | C | Endpoint contracts + request/response shapes | Write only endpoints touched in this session |
 | TEST_PLAN.md | C | Test cases | List happy/edge/error cases per changed unit |
 | TEST_PLAN.md | D | Verification checklist | Fill after Gate D run completes |
 | ERROR_HANDLING.md | D | Failure paths + recovery strategies | Document failures found in Gate D verification |
@@ -501,7 +501,7 @@ Same pattern as Step 9: if the Layer 2 file already exists with user content (no
 - AC2: <measurable criterion>
 ```
 
-**API_SPEC.md** (Gate B fills):
+**API_SPEC.md** (Gate C fills):
 ```markdown
 ## Endpoints Changed
 <!-- Gate B에서 채워짐 -->
@@ -579,7 +579,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C12: Each Layer 2 file contains Gate markers (`<!-- Gate` appears ≥ 1 per file) and no filled content
 - [ ] C13: DOC_INDEX.md Layer 2 rows show `Skeleton` status (not `Pending`) after Step 9
 - [ ] C14: FEATURE_SPEC.md has content filled in the Gate A section (not just a marker)
-- [ ] C15: API_SPEC.md has content filled in the Gate B section
+- [ ] C15: API_SPEC.md has content filled in the Gate C section
 - [ ] C16: TEST_PLAN.md has content filled in Gate C and D sections
 - [ ] C17: ERROR_HANDLING.md has content filled in the Gate D section
 - [ ] C18: DECISION_LOG.md has at least one ADR entry (any gate)

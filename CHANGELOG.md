@@ -10,6 +10,13 @@
   Gate D 를 건너뛴다.** `gate-c` 는 「Gate D 가 변경 의도를 추적한다」·「Gate D 가
   `## Verification Checklist` 를 채운다」·「Gate D 검증 확인 후 진행」이라고 적고 있어,
   D 는 C 의 산출물을 받는 **필수 단계**다. 모든 작업이 A→B→C→D→E 를 따른다고 고쳤다.
+- 🔴 **Layer 2 문서 2개가 「담당 Gate 지정만 있고 실제로 채우는 스킬이 없었다」**
+  (`HARNESS-DOC-GATE-SCHEME-2`). `/init` 은 `FEATURE_SPEC.md` 를 Gate A, `API_SPEC.md` 를
+  Gate B 에 배정해 놓았지만 **어느 게이트 스킬도 그 문서를 쓰지 않았다.** 게다가 `API_SPEC`
+  의 지정 Gate B 는 현행 체계에서 **이해도 게이트**다. 지정을 `Gate C`(구현)로 옮기고,
+  `gate-a` 에 `FEATURE_SPEC` · `gate-c` 에 `API_SPEC` 갱신 지시를 넣었다.
+  **해당 없는 세션(기능 없음·API 변경 없음)에서는 건드리지 않고 한 줄로 밝히게** 했다 —
+  틀을 채우려고 없는 계약을 지어내는 것이 더 나쁘다.
 - **Gate D 의 `(refactor)` 표기를 `(verify)` 로 정정**(gate-a 3곳 · SKILL_DETAIL 1곳).
   그 게이트의 실제 내용은 **시험 계획·실행·실패 분류와 코드리뷰**이지 리팩터가 아니다.
   표기가 내용과 어긋나면 「선택적 리팩터」로 읽혀 건너뛰게 된다.

@@ -27,6 +27,18 @@ If `TEST_PLAN.md` exists at the target repo root:
 - Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
 - If `TEST_PLAN.md` does not exist: skip silently.
 
+If `API_SPEC.md` exists **and this session changed an endpoint contract**:
+- Fill `## Endpoints` and `## Request / Response Shapes` for the changed endpoints only
+- Update `DOC_INDEX.md`: `API_SPEC.md` row `Status` → `Partial` (or `Complete` if every endpoint this
+  session touches is now documented)
+- **No API change → leave it untouched and say so in one line.** A skeleton that stays a skeleton is
+  the correct outcome for a session with no endpoint work; do not invent contracts to fill it.
+
+> Added 2026-09-24 (HARNESS-DOC-GATE-SCHEME-2). `/init` has always assigned `API_SPEC.md` to a gate,
+> but **no gate skill actually wrote it** — the assignment pointed at Gate B, which is the
+> comprehension gate under the current scheme. Endpoint contracts are produced while implementing,
+> so the work belongs here.
+
 3. Update the plan document(s) (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
