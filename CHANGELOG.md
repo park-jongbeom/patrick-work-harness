@@ -45,6 +45,19 @@
   (차단)과 **의존성 선언**(제거될 때만 경고)으로 나눴다. 순수 추가 판별은 줄 단위가 아니라 **키 집합
   비교**로 한다 — JSON 은 trailing comma 때문에 항목을 추가하면 직전 줄이 재작성돼, 줄 기반 판별이
   무력화됐다.
+- 🔴 **exit 0 으로 끝나는 훅의 경고가 Claude 에게 전달되지 않던 문제**
+  (`HARNESS-CROSSCHECK-FIX-1-a-5`). `comprehension-ledger-stale-guard` 의 만료 알림이 stderr + exit 0
+  이었다 — 그 조합은 사용자 로그에만 남고 Claude 에게는 가지 않는다. **stdout 의 `systemMessage` JSON**
+  으로 바꿨다(비차단 성격은 유지하고 전달 경로만 교체). 같은 커밋에서 그 훅에 stdout UTF-8 고정을
+  넣었다 — 없으면 Windows 기본 cp949 에서 한글 알림이 `UnicodeEncodeError` 로 죽고 stderr 폴백만 타
+  **고치기 전 상태로 조용히 되돌아간다.**
+- **`test-tampering-guard` 의 기준 경로·출력·반복 방지**(`HARNESS-CROSSCHECK-FIX-1-a-5`).
+  ⓐ `CLAUDE_PROJECT_DIR` 의 `.parent` 를 걷어냈다 — 그 변수는 프로젝트 루트 자체라, `git diff` 가
+  검사 대상 저장소 밖을 보고 **조용히 0건**을 돌려주고 있었다(「변조 없음」과 구분되지 않는다).
+  ⓑ 차단 사유를 **stderr** 로 보낸다 — `exit 2` 때 Claude 에게 전달되는 통로가 stderr 이고,
+  이전에는 전부 stdout 이라 막히는데 이유는 안 보였다. ⓒ Stop 훅인데 stdin 을 읽지 않아
+  `stop_hook_active` 를 볼 수 없었다 — 차단 뒤 재개된 응답에서 같은 진단이 다시 걸려 반복된다.
+  깨진 stdin 에서는 검사를 그대로 수행한다(여기서 fail-open 하면 가드를 끄는 스위치가 된다).
 - **템플릿 배선에서 차단 무력화 래퍼 제거**(`HARNESS-CROSSCHECK-FIX-1-a-2`). `init`·`harness-update`
   스킬이 훅을 등록할 때 붙이던 래퍼가 종료코드를 삼켜, 차단해야 할 상황에서 통과시켰다.
 - 1.0.9 절에 공개돼 있던 사설 절대경로를 가림. git 히스토리에는 그대로 남아 있다.
