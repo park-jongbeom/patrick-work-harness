@@ -128,9 +128,20 @@ Purpose: avoid writing a duplicate implementation, and pass existing patterns to
 
 > **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — college-crawler↔ga-api-platform schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
 
+> **What each Step-0 self-check looks at** (consolidated 2026-09-24 — each check used to restate the
+> others' scope, so the same comparison was written three times):
+>
+> | Check | Looks at |
+> |---|---|
+> | (before them) duplicate-avoidance | **Internal reuse** only |
+> | `0-Fitness` | **Internal consistency** — plan vs system direction |
+> | `0-OSS` | **External complement** — is there OSS for this |
+> | `0-Ladder` | **Minimality** — the least code that works |
+> | `0-Claim` | **Epistemic status** — measured (ⓐⓑ) vs inferred (ⓒ) |
+
 #### 0-Fitness. System fitness check (HARNESS-PLAN-AUGMENT-1, 2026-06-09)
 
-> The duplicate-avoidance investigation above sees only **internal reuse**. This check self-checks **within Gate A** whether the plan is consistent with the system direction (the current `/audit` is a post-check — this check pulls part of it forward to the Gate A point).
+> Pulls part of `/audit` (a post-check) forward to the Gate A point.
 
 After reading all related files, self-check the 3 axes below in 1 line each and record the result in the required output item "시스템 적합성 점검":
 
@@ -142,7 +153,7 @@ Verdict: if all 3 axes are consistent, 「적합성 ✅ (아키텍처/Phase/금�
 
 #### 0-OSS. OSS catalog reference check (HARNESS-PLAN-AUGMENT-2, 2026-06-10)
 
-> Where "0-Fitness" above sees **internal consistency**, this check self-judges at the Gate A point whether the plan has **room to be complemented by adopting external OSS** and asks the user (user request 2026-06-09: "depending on task complexity, self-judge whether to complement the plan by referencing open source, then ask"). The reference-catalog canonical = (internal research note, if your project maintains one) §4 (OSS-SCAN-1 output).
+> Self-judge, then **ask the user** (user request 2026-06-09: "depending on task complexity, self-judge whether to complement the plan by referencing open source, then ask"). Reference-catalog canonical = (internal research note, if your project maintains one) §4 (OSS-SCAN-1 output).
 
 After reading all related files, check the trigger table below. **If any applies**, propose a §4 candidate as a 1-line complement and ask whether to adopt via `AskUserQuestion` (not forced adoption — user decides):
 
@@ -158,7 +169,7 @@ Verdict: if no trigger applies, 「OSS 참조 N/A (트리거 미해당)」 1 lin
 
 #### 0-Ladder. Minimalism ladder check (R-4-6, 2026-06-23 · ponytail OSS)
 
-> Where "0-Fitness" sees internal consistency and "0-OSS" sees external complement, this check forces the plan to write **the least code that works**. Source: `DietrichGebert/ponytail` (OSS, MIT) decision ladder — "the best code is the code you never wrote". Canonical rule = `CLAUDE.md §Prohibited` minimalism ladder.
+> Source: `DietrichGebert/ponytail` (OSS, MIT) decision ladder — "the best code is the code you never wrote". Canonical rule = `CLAUDE.md §Prohibited` minimalism ladder.
 
 For **each new file·method·abstraction** the plan introduces, apply the 7-rung ladder top-down and **stop at the first rung that satisfies the task**, then record that rung number:
 
