@@ -140,6 +140,36 @@ class TestDashboardOutput(AggregatorTestBase):
                          f"배포만={shipped - set(sua.NINE_SKILLS)}")
 
 
+class TestWindowTimezone(unittest.TestCase):
+    """🔴 윈도우 끝(=생성일·월 라벨)은 **현지 시간대**로 잡아야 한다.
+
+    2026-09-25 01:34(KST) 에 돌린 산출물에 「생성일 2026-09-24」 가 찍혔다.
+    `datetime.now(timezone.utc)` 로 잡아서, KST 기준 **자정~오전 9시 사이에
+    날짜가 하루 밀린** 것이다. 월말 자정 직후면 **월 라벨까지 전달로 밀려**
+    엉뚱한 파일에 덮어쓴다.
+
+    어제 「시간대를 일반화했다」고 적었지만 실제로는 시간대 분포 집계에만
+    적용됐고 윈도우 계산은 UTC 그대로였다 — 일반화가 절반만 됐던 자리다.
+    """
+
+    def test_month_label_uses_local_timezone(self):
+        """KST 01:00 = UTC 전날 16:00. 월 라벨이 UTC 기준이면 하루 밀린다."""
+        root = Path(tempfile.mkdtemp(prefix="tz_"))
+        (root / "p").mkdir()
+        out = root / "out.md"
+        try:
+            argv = ["skill_usage_aggregator.py",
+                    "--projects-dir", str(root), "--output", str(out)]
+            with unittest.mock.patch.object(sua.sys, "argv", argv):
+                sua.main()
+            text = out.read_text(encoding="utf-8")
+            expected = datetime.now(sua.KST).strftime("%Y-%m-%d")
+            self.assertIn(f"**생성일**: {expected}", text,
+                          "생성일이 현지 날짜와 다르다 — UTC 로 잡고 있지 않은지 볼 것")
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+
 class TestPortability(unittest.TestCase):
     """이식 시 일반화한 부분 — 사설 경로·시간대."""
 

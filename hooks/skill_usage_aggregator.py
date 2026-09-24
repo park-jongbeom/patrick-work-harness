@@ -415,7 +415,18 @@ def main() -> int:
         else:
             window_end = target_month.replace(month=target_month.month + 1) - timedelta(seconds=1)
     else:
-        window_end = datetime.now(timezone.utc)
+        # 🔴 HARNESS-ANALYTICS-PORT-2 (2026-09-25): 현지 시간대로 잡는다.
+        #
+        # 종전에는 `datetime.now(timezone.utc)` 였다. UTC 로 잡으면 KST 사용자
+        # 기준 **자정~오전 9시 사이에 날짜가 하루 밀린다** — 9/25 01:34 에
+        # 돌린 산출물에 「생성일 2026-09-24」 가 찍혔다(실측). 월말 자정 직후면
+        # **월 라벨까지 전달로 밀려** 엉뚱한 파일에 덮어쓴다.
+        #
+        # 비교 자체는 tz-aware 라 UTC 로 해도 정확하다. 틀리는 것은 **사람이 읽는
+        # 날짜·월 라벨**이고, 그래서 `KST`(=HARNESS_TZ_OFFSET) 로 잡는다.
+        # 어제 시간대를 일반화했다지만 238줄 시간대 분포에만 적용됐고
+        # 여기는 UTC 그대로였다 — 일반화가 절반만 된 자리다.
+        window_end = datetime.now(KST)
     window_start = window_end - timedelta(days=args.window_days)
 
     if not args.projects_dir.exists():
