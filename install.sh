@@ -51,10 +51,54 @@ fi
 # ── 버전 결정 ────────────────────────────────────────────
 if [[ "$VERSION" == "latest" ]]; then
   echo "[1/5] 최신 릴리즈 버전 조회 중..."
-  VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\(.*\)".*/\1/')
+  # 🔴 `set -euo pipefail` 아래에서 `curl -f` 를 **대입문에 직접 쓰면 안 된다**
+  #    (2026-09-25 실측). 403 이면 curl 이 rc=22 로 끝나고, 대입 실패가 곧
+  #    스크립트 종료라 **아래 [ERROR] 안내가 한 번도 출력되지 않았다**.
+  #    사용자 화면에는 `curl: (22) ... 403` 한 줄만 남아 무엇을 해야 할지
+  #    알 수 없었다 — 안내를 적어두고도 도달하지 못하던 자리다.
+  #
+  #    그래서 ① rc 를 직접 받고 ② HTTP 코드를 따로 받아 **원인을 구분**한다.
+  HTTP_CODE=$(curl -sS -o "${TMPDIR:-/tmp}/harness-latest.json" -w '%{http_code}' \
+    "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || HTTP_CODE="000"
+
+  if [[ "$HTTP_CODE" == "200" ]]; then
+    VERSION=$(grep '"tag_name"' "${TMPDIR:-/tmp}/harness-latest.json" \
+      | head -1 | sed 's/.*"tag_name": *"\(.*\)".*/\1/')
+  else
+    VERSION=""
+  fi
+  rm -f "${TMPDIR:-/tmp}/harness-latest.json"
+
   if [[ -z "$VERSION" ]]; then
-    echo "[ERROR] GitHub API에서 최신 버전을 가져오지 못했습니다."
+    echo ""
+    case "$HTTP_CODE" in
+      403|429)
+        echo "[ERROR] GitHub API 요청 한도를 초과했습니다 (HTTP ${HTTP_CODE})."
+        echo ""
+        echo "  버전 조회는 비인증 호출이라 IP 당 시간당 60회로 제한됩니다."
+        echo "  공용 IP·CI·잦은 재설치 환경에서 걸릴 수 있으며, 보통 1시간 안에 풀립니다."
+        echo ""
+        echo "  ⏩ 지금 바로 설치하려면 버전을 직접 지정하세요 (조회를 건너뜁니다):"
+        echo ""
+        echo "       install.sh --version <태그>"
+        echo ""
+        echo "     최신 태그는 아래에서 확인할 수 있습니다:"
+        echo "       https://github.com/${REPO}/releases/latest"
+        ;;
+      000)
+        echo "[ERROR] GitHub API 에 연결하지 못했습니다 (네트워크·DNS·프록시)."
+        echo ""
+        echo "  연결을 확인한 뒤 다시 실행하거나, 버전을 직접 지정하세요:"
+        echo "       install.sh --version <태그>"
+        ;;
+      *)
+        echo "[ERROR] 최신 버전을 가져오지 못했습니다 (HTTP ${HTTP_CODE})."
+        echo ""
+        echo "  버전을 직접 지정해 설치할 수 있습니다:"
+        echo "       install.sh --version <태그>"
+        ;;
+    esac
+    echo ""
     exit 1
   fi
 fi
