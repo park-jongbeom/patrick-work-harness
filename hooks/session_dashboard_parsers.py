@@ -52,7 +52,7 @@ def parse_current_session(content):
     }
 
     # 세션 ID + 괄호 안 작업 주제 (예: "PLAN-SYNC-18 (audit 10회차 산출물 흡수 — ...)")
-    match = re.search(r"\*\*세션 ID\*\*:\s*([A-Z0-9\-]+)(?:\s*\(([^)]+)\))?", content)
+    match = re.search(r"\*\*세션 ID\*\*:\s*([A-Za-z0-9\-]+)(?:\s*\(([^)]+)\))?", content)
     if match:
         data["session_id"] = match.group(1)
         if match.group(2):

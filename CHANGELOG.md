@@ -10,6 +10,16 @@
   Gate D 를 건너뛴다.** `gate-c` 는 「Gate D 가 변경 의도를 추적한다」·「Gate D 가
   `## Verification Checklist` 를 채운다」·「Gate D 검증 확인 후 진행」이라고 적고 있어,
   D 는 C 의 산출물을 받는 **필수 단계**다. 모든 작업이 A→B→C→D→E 를 따른다고 고쳤다.
+- 🔴 **대시보드가 세션 ID 를 잘라서 표시하고 있었다**(`HARNESS-TEST-GAP-2`).
+  `session_dashboard_parsers` 의 세션 ID 정규식이 `[A-Z0-9\-]+` 라 **소문자를 받지 못했다.**
+  이 하네스의 세션 ID 규칙(`-a-1`·`-b-2`)에 소문자가 들어가므로, 실제로
+  `HARNESS-CROSSCHECK-FIX-1-a-3` 이 **`HARNESS-CROSSCHECK-FIX-1-` 까지만** 표시됐다.
+  그럴듯한 값이라 눈에 띄지 않는다. 시험을 쓰다가 발견했다.
+- **`session_dashboard_parsers` 시험 신설**(12건). 이 모듈은 `session-dashboard-sync` 가
+  import 하지만 시험이 없었다. 계약 3가지(`parse_current_session` → dict ·
+  `parse_session_index` → **8-tuple** · `_strip_history` → **리터럴** `
+> (이전 ` 절단)를
+  **실행해서 확인한 뒤** 고정했다 — 처음에 추측으로 쓴 시험 6건이 전부 틀렸다.
 - 🔴 **Layer 2 문서 2개가 「담당 Gate 지정만 있고 실제로 채우는 스킬이 없었다」**
   (`HARNESS-DOC-GATE-SCHEME-2`). `/init` 은 `FEATURE_SPEC.md` 를 Gate A, `API_SPEC.md` 를
   Gate B 에 배정해 놓았지만 **어느 게이트 스킬도 그 문서를 쓰지 않았다.** 게다가 `API_SPEC`
