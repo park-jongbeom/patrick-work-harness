@@ -12,6 +12,12 @@ effort: high
 - If the current failure matches a ledger entry → no new investigation needed, classify as DEP immediately
 - If a dependent session has reached ✅E completion → **mandatory re-verification**, then update the entry
 
+## 3-A. Test Plan·Execution·Failure Classification
+
+> Header added 2026-09-24 (HARNESS-CONTEXT-DIET-1). Steps 1–3 below used to sit **under the DEP-ledger
+> heading with no heading of their own**, so the ledger lookup (3 lines) and Gate D's main procedure
+> (~5,000 chars) measured as one 5,042-char section. Same content, correct boundary.
+
 1. **After reading all files changed in Gate C**, output the test plan as text — the items below are mandatory:
    - Test file list (new/modified distinction, paths)
    - Per-file test cases: state input·condition·expected result at the `describe` / `it` unit
