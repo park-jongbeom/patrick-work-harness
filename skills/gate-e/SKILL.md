@@ -154,11 +154,10 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ────────────────────────────────────────────
 ```
 
-> **Recommended-model computation (forced procedure)**:
-> 1. **Shared scoring table**: Apply the `doc-cleanup/SKILL.md §Step 0-A-a` table (including the double-add rule) and the §0-A-b grade-judgment table **directly to the current-point metadata** to compute. Not "delegation" but **executing the shared canonical in this response**.
-> 2. **Measurement commands**: Run doc-cleanup §0-A-a's 4 Bash commands (wc + 3× awk|grep) directly in this response to secure the metadata. No estimation·omission.
-> 3. **R/V/D decomposition output obligation**: The 「R/V/D 분해: …」 line **must not show a total score (R/V/D 3-axis independent decomposition obligation)** — omitting the breakdown is a **PROC violation**.
-> 4. **Sync guarantee**: This recommended model **must, when doc-cleanup is called right after Gate E, be re-computed with the same metadata·same table at Step 0-A and yield the same result**. If different, operator measurement error → both responses traceable via explicit score breakdown.
+> **Recommended-model computation (forced procedure)** → `SKILL_DETAIL.md §Recommended-Model Computation`
+> (4 mandatory steps; not auto-loaded — `Read` it if the obligations are in question).
+> **This call site's specifics**: target = `doc-cleanup/SKILL.md` §Step 0-A-a table (including the
+> double-add rule) + §0-A-b grade judgment; measurement = its **4 Bash commands** (wc + 3× awk|grep).
 
 **③ audit recommendation judgment** (SESSION_INDEX YAML single source):
 
@@ -176,12 +175,13 @@ When recommending:
    {현재 모델이 권장 이상이면}: ✅ 현재 {현재모델} ≥ 권장 — 바로 `/audit` 호출 가능
 ```
 
-> **Recommended-model computation (forced procedure)**:
-> 1. **Shared scoring table**: Apply the `audit/SKILL.md §Step 0-a` table (audit-specific scoring table) and the §0-b grade-judgment table **directly to the current-point metadata** to compute. Not "delegation" but **executing the shared canonical in this response**.
-> 2. **Measurement commands**: Run audit §0-a's 5 measurement commands (grep + 2× awk|grep + operator judgment) directly in this response to secure the metadata. No estimation·omission.
-> 3. **R/V/D decomposition output obligation**: The 「R/V/D 분해: …」 line **must not show a total score (R/V/D 3-axis independent decomposition obligation)** — omitting the breakdown is a **PROC violation**.
-> 4. **Current-model detection obligation**: From the system context (`You are powered by the model named {모델명}` format), extract the model-family keyword (Opus / Sonnet / Haiku). Compare the detected current model with the recommended model, substitute into the output format's `{현재모델}` / `{권장모델}` slots, and output only the relevant guidance line depending on whether the model falls short (one of ⚠️ or ✅).
-> 5. **Sync guarantee**: This recommended model **must, when `/audit` is called right after Gate E, be re-computed with the same metadata·same table at Step 0-a and yield the same result**. If different, operator measurement error → both responses traceable via explicit score breakdown.
+> **Recommended-model computation (forced procedure)** → `SKILL_DETAIL.md §Recommended-Model Computation`
+> (4 mandatory steps; not auto-loaded — `Read` it if the obligations are in question).
+> **This call site's specifics**: target = `audit/SKILL.md` §Step 0-a table (audit-specific) + §0-b
+> grade judgment; measurement = its **5 commands** (grep + 2× awk|grep + operator judgment).
+> 🔴 **audit only — current-model detection obligation**: from the system context
+> (`You are powered by the model named {모델명}`), extract the model-family keyword and use it as the
+> current model. Do not infer it from anything else.
 
 If not applicable, omit this block.
 

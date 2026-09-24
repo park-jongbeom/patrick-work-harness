@@ -149,3 +149,28 @@ was introduced because its **own founding Gate A plan** self-reported 「ⓒ 0�
 containing 1 ⓒ (an insertion point written from structural inference without opening the line that
 specified it). The `파일:줄` test is what caught it — which is both the evidence that the criterion
 works and the reason the criterion must stay falsifiable.
+
+## §Recommended-Model Computation (forced procedure, shared by gate-e → doc-cleanup / audit)
+
+> Moved out of `gate-e/SKILL.md` on 2026-09-24 (HARNESS-CONTEXT-DIET-1). gate-e carried this
+> 4–5 step procedure **twice** — once for doc-cleanup and once for audit — differing only in which
+> skill's scoring table to apply. The shared steps live here; gate-e keeps the per-target differences.
+
+When Gate E produces a recommended model for a follow-up skill, all of the following are mandatory:
+
+1. **Shared scoring table** — apply the *target skill's* scoring table and grade-judgment table
+   **directly to the current-point metadata**. This is not "delegation": it is **executing the shared
+   canonical inside this response**.
+2. **Measurement commands** — run the target skill's measurement commands directly in this response
+   to secure the metadata. **No estimation, no omission.**
+3. **R/V/D decomposition output obligation** — the 「R/V/D 분해: …」 line **must not show a total
+   score** (R/V/D 3-axis independent decomposition obligation). Omitting the breakdown is a
+   **PROC violation**.
+4. **Sync guarantee** — the recommended model **must be re-computed with the same metadata and the
+   same table when the target skill actually runs right after Gate E, and must yield the same
+   result**. A mismatch means operator measurement error; the explicit score breakdown is what makes
+   both responses traceable.
+
+**Per-target differences** (stated at each call site in gate-e, not here):
+the table section id, the command count/kind, and — for `audit` only — the current-model detection
+obligation from the system context.
