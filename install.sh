@@ -179,7 +179,15 @@ if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
       --exclude="test_*.py" \
       --exclude=".harness-owned" \
       "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
-    printf 'patrick-work-harness install marker. Safe to delete this folder.\n' > "$OWNER_MARK"
+    # 🔴 표식에 설치 버전을 기록한다 (HARNESS-INSTALL-PROVENANCE-2, 2026-09-24).
+    #    이전에는 문구 한 줄뿐이라 **설치된 것이 어느 판인지 알 방법이 없었다**.
+    #    `/harness-update` 는 harness-answers.yml 의 `_engine_version` 만 보고 판정하는데,
+    #    그 필드가 틀리면 교차 확인할 근거가 없다. 기계가 읽는 `version:` 줄을 둔다.
+    {
+      printf 'patrick-work-harness install marker. Safe to delete this folder.\n'
+      printf 'version: %s\n' "${VERSION#v}"
+      printf 'installed_at: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$OWNER_MARK"
     echo "      훅 파일 → ${GLOBAL_HOOKS_DIR}/"
 
     # 훅 배선에 쓸 Python 인터프리터 결정 (HARNESS-SYNC-RECONCILE-2-a, 2026-08-07)

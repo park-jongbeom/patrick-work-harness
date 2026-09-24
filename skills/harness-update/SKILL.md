@@ -38,6 +38,29 @@ Resolve the latest engine version via this priority order:
    (`<로컬 하네스 체크아웃>/plugin.json`, `~/.claude/plugins/*/plugin.json`)
 3. If neither is found: halt with "Cannot resolve engine version — ensure CLAUDE_PLUGIN_ROOT is set or patrick-work-harness is cloned locally."
 
+### Step 1-b — Cross-check the provenance field against what is actually installed
+
+🔴 **The `_engine_version` field can be wrong.** It is written by `/init` and `/harness-update`, and
+until 2026-09-24 `install.sh` did not touch it at all — so a repo installed via the script kept the
+old value while the hooks on disk were newer (real case: field `1.3.4`, hooks v1.4.1). Judging from
+the field alone then tells the user to re-install what is already installed.
+
+Before applying the comparison table below, read the **install marker** and compare:
+
+```bash
+# Written by install.sh since v1.4.2 (HARNESS-INSTALL-PROVENANCE-2)
+grep '^version:' ~/.claude/hooks/patrick-work-harness/.harness-owned | cut -d' ' -f2
+```
+
+| Marker vs field | Action |
+|---|---|
+| Marker **absent** (pre-v1.4.2 install, or hooks not installed) | Proceed with the field alone, and say so in the output: 「설치 표식이 없어 provenance 필드만으로 판정합니다」 |
+| Marker **== field** | Field is trustworthy → proceed to the table below |
+| Marker **!= field** | 🔴 **Report both and treat the marker as authoritative for what is on disk**: 「설치본은 {marker} 인데 provenance 필드는 {field} 입니다 — 필드를 {marker} 로 맞춘 뒤 진행합니다」. Fix the field first, then re-evaluate |
+
+> **Why the marker wins**: the field records *what a skill last claimed*; the marker records *what the
+> installer actually wrote*. When they disagree, the files on disk are the ground truth.
+
 | Comparison | Action |
 |------------|--------|
 | `_engine_version == latest` | Output "✅ 이미 최신 버전 ({ver}) — 체크리스트만 실행합니다." then jump to Step 3 (checklist only, no zone rewrite) |
