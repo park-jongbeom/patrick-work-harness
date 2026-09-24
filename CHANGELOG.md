@@ -2,19 +2,15 @@
 
 ## [Unreleased]
 
-### Fixed
-- 🔴 **README 의 Gate 역할 표기가 한 칸씩 밀린 옛 체계였다**(`HARNESS-DOC-GATE-SCHEME-1`).
-  슬래시 커맨드 표가 `/gate-b` = Implement · `/gate-c` = Verify · `/gate-d` = Refactor 로
-  적혀 있었는데, 실제는 **B = 이해도 게이트 · C = 구현 · D = 검증**이다. 영·국문 6곳을 고쳤다.
-- 🔴 **「단순 작업은 A→B→C→E」 안내를 제거**했다. 그 경로는 **시험을 돌리는 유일한 게이트인
-  Gate D 를 건너뛴다.** `gate-c` 는 「Gate D 가 변경 의도를 추적한다」·「Gate D 가
-  `## Verification Checklist` 를 채운다」·「Gate D 검증 확인 후 진행」이라고 적고 있어,
-  D 는 C 의 산출물을 받는 **필수 단계**다. 모든 작업이 A→B→C→D→E 를 따른다고 고쳤다.
-- 🔴 **대시보드가 세션 ID 를 잘라서 표시하고 있었다**(`HARNESS-TEST-GAP-2`).
-  `session_dashboard_parsers` 의 세션 ID 정규식이 `[A-Z0-9\-]+` 라 **소문자를 받지 못했다.**
-  이 하네스의 세션 ID 규칙(`-a-1`·`-b-2`)에 소문자가 들어가므로, 실제로
-  `HARNESS-CROSSCHECK-FIX-1-a-3` 이 **`HARNESS-CROSSCHECK-FIX-1-` 까지만** 표시됐다.
-  그럴듯한 값이라 눈에 띄지 않는다. 시험을 쓰다가 발견했다.
+## [1.5.0] - 2026-09-25
+
+> 09-11 수집 근거 대조 점검의 결함 **10건이 전건 해소**된 판이다(Phase 1·2·3, 09-12~25).
+> 이 릴리스의 핵심은 **「선언과 이행이 따로 놀던」 자리 네 곳**을 닫은 것이다 —
+> 훅은 등록돼 있는데 부르는 스크립트가 없고, 문서는 담당 Gate 를 지정했는데 쓰는 곳이 없고,
+> provenance 필드는 있는데 갱신 주체가 없던 상태였다. **넷 다 오류를 내지 않아** 몇 달을 버텼다.
+
+### Added
+
 - 🔴 **`skill-usage-auto` 훅이 매 응답마다 돌면서 아무 일도 하지 않았다**(`HARNESS-ANALYTICS-PORT-1`).
   **계기**: P2-8(기록·측정 재료 없음)을 보려다 훅이 호출하는 `skill_usage_aggregator.py` 가
   **저장소에 없는 것**을 발견했다. **실측**: 직접 실행하니 출력 없이 `rc=0` — 선언(훅 등록)과
@@ -23,18 +19,38 @@
   `HARNESS_TZ_OFFSET` 로 조정 가능하게), 훅이 **사용자 배치본 우선 · 배포본 폴백**으로 찾게 했다.
   **기대 효과**: 스킬별 호출 횟수·시간대·Gate 시퀀스가 월별 md 로 쌓인다 — 실행해 보니
   Gate A~E 41~56회 대 `audit` 2회·`doc-cleanup` 1회로 **편중이 수치로 드러났다.**
+
 - **`skill_usage_aggregator` 시험 신설**(7건). 합성 JSONL 로 결정론적으로 잰다. **집계 목록이
   실제 배포 스킬과 일치하는지**도 시험으로 고정했다 — 원본 목록은 이 배포본에 없는
   `error-log`·`export-roles` 를 세고 있어, 없는 스킬을 「0회 — 통합·폐기 후보」로 보고했다.
+
 - **`session_dashboard_renderer` 시험 신설**(12건, `HARNESS-TEST-GAP-3`). 이로써 **시험 없는
   훅이 0개**가 됐다. 배너 제목의 **폴백 체인**(`intent_title` → `current_title` → `work_topic`
   → `last_completed_title` → 자리표시자)과 세션 dict 계약(`id`·`repo`·`status`·`title`)을 고정했다.
   키가 빠지면 `KeyError` 로 **즉시 죽는 것**도 계약으로 두었다 — 일부만 빠진 화면은 못 알아챈다.
+
 - **`session_dashboard_parsers` 시험 신설**(12건). 이 모듈은 `session-dashboard-sync` 가
   import 하지만 시험이 없었다. 계약 3가지(`parse_current_session` → dict ·
   `parse_session_index` → **8-tuple** · `_strip_history` → **리터럴** `
-> (이전 ` 절단)를
   **실행해서 확인한 뒤** 고정했다 — 처음에 추측으로 쓴 시험 6건이 전부 틀렸다.
+
+### Fixed
+
+- 🔴 **README 의 Gate 역할 표기가 한 칸씩 밀린 옛 체계였다**(`HARNESS-DOC-GATE-SCHEME-1`).
+  슬래시 커맨드 표가 `/gate-b` = Implement · `/gate-c` = Verify · `/gate-d` = Refactor 로
+  적혀 있었는데, 실제는 **B = 이해도 게이트 · C = 구현 · D = 검증**이다. 영·국문 6곳을 고쳤다.
+
+- 🔴 **「단순 작업은 A→B→C→E」 안내를 제거**했다. 그 경로는 **시험을 돌리는 유일한 게이트인
+  Gate D 를 건너뛴다.** `gate-c` 는 「Gate D 가 변경 의도를 추적한다」·「Gate D 가
+  `## Verification Checklist` 를 채운다」·「Gate D 검증 확인 후 진행」이라고 적고 있어,
+  D 는 C 의 산출물을 받는 **필수 단계**다. 모든 작업이 A→B→C→D→E 를 따른다고 고쳤다.
+
+- 🔴 **대시보드가 세션 ID 를 잘라서 표시하고 있었다**(`HARNESS-TEST-GAP-2`).
+  `session_dashboard_parsers` 의 세션 ID 정규식이 `[A-Z0-9\-]+` 라 **소문자를 받지 못했다.**
+  이 하네스의 세션 ID 규칙(`-a-1`·`-b-2`)에 소문자가 들어가므로, 실제로
+  `HARNESS-CROSSCHECK-FIX-1-a-3` 이 **`HARNESS-CROSSCHECK-FIX-1-` 까지만** 표시됐다.
+  그럴듯한 값이라 눈에 띄지 않는다. 시험을 쓰다가 발견했다.
+
 - 🔴 **Layer 2 문서 2개가 「담당 Gate 지정만 있고 실제로 채우는 스킬이 없었다」**
   (`HARNESS-DOC-GATE-SCHEME-2`). `/init` 은 `FEATURE_SPEC.md` 를 Gate A, `API_SPEC.md` 를
   Gate B 에 배정해 놓았지만 **어느 게이트 스킬도 그 문서를 쓰지 않았다.** 게다가 `API_SPEC`
@@ -42,6 +58,7 @@
   `gate-a` 에 `FEATURE_SPEC` · `gate-c` 에 `API_SPEC` 갱신 지시를 넣었다.
   **해당 없는 세션(기능 없음·API 변경 없음)에서는 건드리지 않고 한 줄로 밝히게** 했다 —
   틀을 채우려고 없는 계약을 지어내는 것이 더 나쁘다.
+
 - **Gate D 의 `(refactor)` 표기를 `(verify)` 로 정정**(gate-a 3곳 · SKILL_DETAIL 1곳).
   그 게이트의 실제 내용은 **시험 계획·실행·실패 분류와 코드리뷰**이지 리팩터가 아니다.
   표기가 내용과 어긋나면 「선택적 리팩터」로 읽혀 건너뛰게 된다.
