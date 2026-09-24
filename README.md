@@ -120,6 +120,13 @@ Claude Code 커뮤니티 마켓플레이스에서 직접 설치:
 /plugin install patrick-work-harness
 ```
 
+Skills **and hooks** are both registered. Hooks come from the plugin's own
+`hooks/hooks.json`, which resolves paths via `${CLAUDE_PLUGIN_ROOT}` — so this
+method **does not touch your global `~/.claude/settings.json`**.
+
+> Before v1.4.0 that file did not exist, so a marketplace install registered
+> **zero hooks** while appearing to succeed.
+
 #### Method 2 — install.sh (recommended)
 
 ```bash
@@ -145,7 +152,7 @@ your-project/
         └── harness-update/
 ~/.claude/
 └── hooks/
-    └── patrick-work-harness/   ← 11 hook files
+    └── patrick-work-harness/   ← 12 hook files (10 registered + 2 shared modules)
         ├── master-plan-stale-guard.py
         ├── gate-e-sync-guard.py
         └── ...
@@ -360,7 +367,23 @@ Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니
 
 ### 설치
 
-#### 방법 1 — install.sh (권장)
+#### 방법 1 — Claude Code 마켓플레이스 (가장 간단)
+
+```
+/plugin marketplace add park-jongbeom/patrick-work-harness
+/plugin install patrick-work-harness
+```
+
+스킬과 **훅이 함께** 등록된다. 훅은 플러그인 자신의 `hooks/hooks.json` 에서 오고 경로를
+`${CLAUDE_PLUGIN_ROOT}` 로 풀기 때문에, **전역 `~/.claude/settings.json` 을 건드리지 않는다.**
+
+> v1.4.0 이전에는 그 파일이 없어서, 마켓플레이스로 설치하면 **훅이 0개**로 들어가면서도
+> 설치는 성공한 것처럼 보였다.
+
+#### 방법 2 — install.sh
+
+전역 `settings.json` 에 훅을 직접 등록하는 방식이다. 마켓플레이스를 쓰지 않을 때 선택한다.
+**수정 전에 타임스탬프 백업을 남기고, 배포본에 없는 스킬을 지우지 않는다**(v1.4.0).
 
 ```bash
 # 최신 릴리즈를 현재 프로젝트에 설치
@@ -385,7 +408,7 @@ your-project/
         └── harness-update/
 ~/.claude/
 └── hooks/
-    └── patrick-work-harness/   ← 훅 파일 11종
+    └── patrick-work-harness/   ← 훅 파일 12개 (등록 10 + 공용 모듈 2)
         ├── master-plan-stale-guard.py
         ├── gate-e-sync-guard.py
         └── ...
