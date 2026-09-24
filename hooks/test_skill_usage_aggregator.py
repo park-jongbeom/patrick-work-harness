@@ -15,6 +15,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -97,6 +98,31 @@ class TestDashboardOutput(AggregatorTestBase):
         md = sua.format_dashboard(r, now.strftime("%Y-%m"), start, now)
         for s in sua.NINE_SKILLS:
             self.assertIn(s, md, f"{s} 가 표에 없다")
+
+    def test_creates_missing_output_directory(self):
+        """🔴 출력 경로의 **부모가 없어도** 써야 한다 (2026-09-25 실측 결함).
+
+        종전 `write_text` 는 부모가 없으면 `FileNotFoundError` 로 죽었고,
+        호출자인 `skill-usage-auto` 훅은 예외를 stderr 로만 남기고 **exit 0**
+        이라 새 프로젝트에서 집계가 **매번 실패하면서 아무도 모르는** 상태가
+        됐다. 실제로 이 PC 의 볼트에는 9월분이 끝내 안 생겼다.
+
+        기존 시험이 놓친 이유: 전부 `tempfile.mkdtemp()` 로 **이미 있는**
+        디렉터리에 썼다. 여기서는 **없는 경로**를 일부러 준다.
+        """
+        now = datetime.now(timezone.utc)
+        self.write([skill_entry("gate-a", now)])
+        out = self.root / "없는폴더" / "또없는폴더" / "skill_usage_2026-09.md"
+        self.assertFalse(out.parent.exists(), "전제: 부모가 없어야 한다")
+
+        argv = ["skill_usage_aggregator.py",
+                "--projects-dir", str(self.root), "--output", str(out)]
+        with unittest.mock.patch.object(sua.sys, "argv", argv):
+            rc = sua.main()
+
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.is_file(), "부모 디렉터리를 만들고 썼어야 한다")
+        self.assertIn("gate-a", out.read_text(encoding="utf-8"))
 
     def test_deployed_skill_list_matches_shipped_skills(self):
         """집계 대상 9종이 실제 배포 스킬과 일치한다.

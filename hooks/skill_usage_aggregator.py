@@ -427,7 +427,18 @@ def main() -> int:
     dashboard = format_dashboard(result, month_label, window_start, window_end)
 
     if args.output:
-        Path(args.output).write_text(dashboard, encoding="utf-8")
+        # 🔴 HARNESS-ANALYTICS-PORT-2 (2026-09-25): 부모 디렉터리를 만든다.
+        #
+        # 종전에는 `write_text` 만 했고, 출력 경로의 부모가 없으면
+        # `FileNotFoundError` 로 죽었다. 호출자인 `skill-usage-auto` 훅은
+        # 예외를 stderr 로만 남기고 **항상 exit 0** 이라, 새 프로젝트에서는
+        # 집계가 **매번 실패하면서 아무도 모르는** 상태가 된다(실측).
+        #
+        # 시험이 이걸 못 잡은 이유: 전부 `tempfile.mkdtemp()` 로 **이미 있는**
+        # 디렉터리에 썼다. 실제 상황(디렉터리 없음)을 한 번도 재현하지 않았다.
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(dashboard, encoding="utf-8")
         print(f"dashboard 작성: {args.output}", file=sys.stderr)
     else:
         print(dashboard)
