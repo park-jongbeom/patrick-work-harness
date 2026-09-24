@@ -178,11 +178,9 @@ Verdict: record the per-new-item rung number in the required output item "미니
 
 #### 0-Claim. Claim↔evidence cross-check (HARNESS-CLAIM-EVIDENCE-1, 2026-08-07)
 
-> The three checks above examine **the plan's content** (internal consistency·external complement·minimality). This check examines **the epistemic status of the plan's sentences**: a sentence you verified by opening a file and one you filled in by inference are **indistinguishable in style**, so an inference error survives into Gate C as if it were fact. Reuses the `gate-d/SKILL.md` "claim↔evidence cross-check" (technique-8) canonical, pulled forward from the verification point to the planning point.
->
-> **Run this immediately before Step 1 outputs the plan text** — after the plan's sentences already exist. Step 0 (Pre-Plan) decides *what to investigate* and is finished by then; it does not re-examine sentences already written. That gap is what this check covers.
->
-> **Especially load-bearing in an unfamiliar repository**: the less prior context you have about a codebase, the more blanks get filled by inference — so this check earns its cost most on new·rarely-touched repositories, not on the one you have been editing all week.
+> **When**: immediately before Step 1 outputs the plan text (after the sentences exist).
+> **Why · where it pays off · known limit** → `SKILL_DETAIL.md §Claim↔Evidence Cross-Check Background`
+> (not auto-loaded — `Read` it only if the rationale is in question).
 
 For **each factual claim** in the plan — file/line counts, existing behavior, blast radius, "N occurrences of X", "already handled by Y", cited insertion points — tag it:
 
@@ -197,8 +195,6 @@ For **each factual claim** in the plan — file/line counts, existing behavior, 
 **Promotion**: for each ⓒ, run the command or open the file **now**, then re-tag. If the claim **cannot** be promoted (external condition·future event·another team's state), do not delete it — **state it in the risk table** with the reason it is unverifiable.
 
 Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (same natural-skip pattern as 0-OSS 「N/A」 — cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
-
-> **Known limit (do not overstate)**: this is a **self-check**, so it reduces the frequency of inference errors — it does not replace a reviewer's explicit cross-verification request. The check was introduced because its **own founding Gate A plan** self-reported 「ⓒ 0건」 while actually containing 1 ⓒ (an insertion point written from structural inference without opening the line that specified it). The `파일:줄` test is what caught it — which is both the evidence that the criterion works and the reason the criterion must stay falsifiable.
 
 1. **After reading all related files**, output the Gate A content as text
    - Changed-file list (number·path·change type)

@@ -46,12 +46,12 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 
 ### §3. R-13 Cost-Justification Guard (PROC-MODEL-RUBRIC-1/2)
 
-> **PROC enforcement**: When producing an Opus 5.5 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the ~1.67× output-token cost vs Sonnet ($25 vs $15 per 1M, current-gen Opus:Sonnet 5) is not justified by R items, auto-downgrade to Sonnet.
+> **PROC enforcement**: When producing an Opus 5.5 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the **2× output-token cost vs Sonnet ($20 vs $10 per 1M, Opus 5.5 : Sonnet 5, verified 2026-09-24)** is not justified by R items, auto-downgrade to Sonnet.
 
 **Opus recommendation output format**:
 
 ```
-> 💰 비용 정당화 (R-13): R{N}건 ({R 항목 1줄 나열}) — Sonnet 대비 약 1.67× 비용 정당화. 미충족 시 Sonnet 다운그레이드.
+> 💰 비용 정당화 (R-13): R{N}건 ({R 항목 1줄 나열}) — Sonnet 대비 2× 비용 정당화. 미충족 시 Sonnet 다운그레이드.
 ```
 
 **Auto-downgrade conditions**:
@@ -61,7 +61,7 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 - **R ≥ 2 (score 6+) + Opus produced** → normal
 
 **Example (normal)**:
-> 💰 비용 정당화 (R-13): R 2건 (R1 신규 도메인 모델 + R3 매칭 가중치 신규 알고리즘) — Sonnet 대비 약 1.67× 비용 정당화.
+> 💰 비용 정당화 (R-13): R 2건 (R1 신규 도메인 모델 + R3 매칭 가중치 신규 알고리즘) — Sonnet 대비 2× 비용 정당화.
 
 **STOP format (on violation)**:
 
@@ -102,8 +102,8 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 
 | Model | Price (in/out per 1M) | Fit work | Default Gate mapping |
 |-------|----------------------|----------|----------------------|
-| Opus 5.5 | $5 / $25 | Long-horizon agent · new architecture decision · science·math reasoning · high-resolution vision — **only when R items ≥ 2** | R≥6 only (A·B·D all) |
-| Sonnet 5 | $3 / $15 (promo $2/$10 through ~2026-08-31) | **Standard coding implementation·verification·refactor (default)** · strict instruction following · smallest-diff consistency · ~1.67× cheaper than Opus (output tokens) · near-parity with Opus on general reasoning/knowledge work, still ~6–17pt behind on deep-coding/olympiad-math benchmarks | A·B·C·D default |
+| Opus 5.5 | **$4 / $20** | Long-horizon agent · new architecture decision · science·math reasoning · high-resolution vision — **only when R items ≥ 2** | R≥6 only (A·B·D all) |
+| Sonnet 5 | **$2 / $10** | **Standard coding implementation·verification·refactor (default)** · strict instruction following · smallest-diff consistency · **2× cheaper than Opus (output tokens: $10 vs $20)** · near-parity with Opus on general reasoning/knowledge work, still ~6–17pt behind on deep-coding/olympiad-math benchmarks | A·B·C·D default |
 | Haiku 4.5 | $1 / $5 | Cleanup·labeling·repeated-pattern application·real-time response·orchestration worker (Anthropic official recommendation) | E always, B/C on downgrade |
 
 > Switch command: `/model opus` · `/model sonnet` · `/model haiku`
@@ -116,7 +116,36 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 
 - **Positioning**: per Anthropic's official docs, Fable 5.1 is "Anthropic's most capable widely released model, built for the most demanding reasoning and long-horizon agentic work" (Mythos-class). Despite the name, it is **not** a storytelling/creative-writing specialist model — that framing appears only in third-party marketing blogs, not in Anthropic's own positioning.
 - **Absent from the official routing matrix**: Anthropic's "choosing a model" matrix lists only Opus 5.5 / Sonnet 5 / Haiku 4.5 as routing targets for coding/agentic/enterprise/cost-sensitive work. Fable 5.1 sits outside that matrix as a separate premium option.
-- **Price**: $10 / $50 per 1M (in/out) — exactly 2× Opus 5.5 ($5/$25).
-- **Benchmark edge**: SWE-bench Verified 95.0% vs Opus 5.5's 88.6% — a real capability edge exists, but whether it justifies 2× cost at single-developer session scale is unproven (no usage data yet).
+- **Price**: $10 / $50 per 1M (in/out) — **2.5× Opus 5.5 ($4/$20)**, verified against the official
+  pricing table on 2026-09-24. *(The pre-2026-09-24 text said "2× ($5/$25)"; that was the Opus 4.8-era
+  price left behind when the model names were updated. Re-check prices when you re-check model names.)*
+- **Benchmark edge**: a real capability edge exists on agentic coding benchmarks, but whether it justifies the price gap at single-developer session scale is unproven (no usage data yet). *(Benchmark figures are not repeated here — they go stale faster than this file is edited.)*
 - **Harness rule (user decision, 2026-07-06)**: Fable 5.1 is **not** part of the regular R/V/D routing table for any Gate. Invoke it only when **both** conditions hold: (a) the task is a large-scale migration or a multi-day full-autonomy session, and (b) the user has explicitly approved the escalation in a sentence (e.g. 「Fable 5.1로 진행 승인」). It never appears as an auto-produced recommendation — only as a current-model value once the user has manually switched to it.
 - **Basis**: (internal research note, if your project maintains one) (106-agent deep research, 2026-07-06).
+
+## §Claim↔Evidence Cross-Check Background (HARNESS-CLAIM-EVIDENCE-1)
+
+> Moved out of `gate-a/SKILL.md` on 2026-09-24 (HARNESS-CONTEXT-DIET-1). The **procedure** stays in
+> gate-a; this is the *why*, which does not need to be re-read on every Gate A run.
+
+**Why this check exists.** The three checks before it examine **the plan's content** (internal
+consistency · external complement · minimality). This one examines **the epistemic status of the
+plan's sentences**: a sentence you verified by opening a file and one you filled in by inference are
+**indistinguishable in style**, so an inference error survives into Gate C as if it were fact.
+It reuses the `gate-d/SKILL.md` "claim↔evidence cross-check" (technique-8) canonical, pulled forward
+from the verification point to the planning point.
+
+**Why immediately before Step 1 output.** Run it *after the plan's sentences already exist*.
+Step 0 (Pre-Plan) decides *what to investigate* and is finished by then; it does not re-examine
+sentences already written. That gap is what this check covers.
+
+**Where it earns its cost.** Especially load-bearing in an unfamiliar repository: the less prior
+context you have about a codebase, the more blanks get filled by inference — so this check pays off
+most on new · rarely-touched repositories, not on the one you have been editing all week.
+
+**Known limit (do not overstate).** This is a **self-check**, so it reduces the frequency of
+inference errors — it does not replace a reviewer's explicit cross-verification request. The check
+was introduced because its **own founding Gate A plan** self-reported 「ⓒ 0건」 while actually
+containing 1 ⓒ (an insertion point written from structural inference without opening the line that
+specified it). The `파일:줄` test is what caught it — which is both the evidence that the criterion
+works and the reason the criterion must stay falsifiable.
