@@ -174,3 +174,18 @@ When Gate E produces a recommended model for a follow-up skill, all of the follo
 **Per-target differences** (stated at each call site in gate-e, not here):
 the table section id, the command count/kind, and — for `audit` only — the current-model detection
 obligation from the system context.
+
+## §Why the Old Model-Routing Rules Were Abolished (PROC-MODEL-RUBRIC-1/2)
+
+> Moved out of `gate-a/SKILL.md` on 2026-09-24 (HARNESS-CONTEXT-DIET-1). These explain **why the
+> current rules replaced older ones**. The rules themselves stay in gate-a; only the "what it
+> replaced" history lives here, because it is needed when someone questions the design — not on
+> every Gate A run.
+
+- **"Gate B = same model as A" auto-inheritance — abolished (PROC-MODEL-RUBRIC-1).** Each Gate is
+  scored independently, so an Opus Gate A does not drag Gate B up with it. Gate B defaults to
+  Sonnet per Anthropic's official coding positioning.
+- **"Task complexity (L·M·H) → recommended model" single mapping — abolished (PROC-MODEL-RUBRIC-2).**
+  A one-dimensional complexity label cannot stay consistent with R/V/D 3-axis scoring: two tasks
+  with the same "M" can differ on every axis. The 3-axis format also makes a follow-up Gate's model
+  verification **re-scorable with the same metadata**, which a collapsed label cannot support.

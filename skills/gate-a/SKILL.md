@@ -92,7 +92,7 @@ Before session start (before any code change):
 | **D** (refactor) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 5.5 |
 | **E** (cleanup) | always Haiku 4.5 |
 
-> **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). The old "Gate B = same model as A" auto-inheritance rule is abolished (PROC-MODEL-RUBRIC-1).
+> **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). Each Gate is scored independently — no inheritance. *(Why the old inheritance rule was dropped → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.)*
 >
 > **Fable 5.1 (exception escalation only)**: not a regular tier in the table above — Fable 5.1 is Anthropic's most capable widely-released model (Mythos-class) but is absent from the official model-selection matrix and priced at **2.5× Opus 5.5** ($10/$50 vs $4/$20, verified 2026-09-24). Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5.1로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5.1`.
 
@@ -293,7 +293,7 @@ At every Gate transition, the items below must be updated:
 - **Per-Gate recommended model** (B/C/D/E each, the result of applying the Step 0-A-b + 0-A-b'' decision rule — e.g. `B: Sonnet 5 (medium/off) / C: Haiku 4.5 (low/off) / D: 미예상 / E: Haiku 4.5 (low/off)`)
   - Format: `{모델} ({effort}/{thinking})` — writing the 3 items together is mandatory (model only is a PROC violation)
 
-> **Revision reason (PROC-MODEL-RUBRIC-2)**: The old "task complexity (L·M·H) + recommended model (Haiku·Sonnet·Opus)" single mapping cannot be consistent with R/V/D 3-axis scoring. The new format can be re-scored with the same metadata during follow-up Gate model verification.
+> **Revision reason (PROC-MODEL-RUBRIC-2)** → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.
 
 ## Model Selection Criteria (reference summary)
 
