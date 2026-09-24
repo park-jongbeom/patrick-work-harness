@@ -321,12 +321,63 @@ fi
 ANSWERS="${CLAUDE_DIR}/harness-answers.yml"
 if [[ "$DRY_RUN" == false && -f "$ANSWERS" ]]; then
   BARE_VERSION="${VERSION#v}"
-  CURRENT_PROV=$(grep -E '^_engine_version:' "$ANSWERS" | head -1 | sed -E 's/.*"(.*)".*/\1/')
+  # 🔴 `|| true` 가 없으면 설치가 여기서 죽는다 (2026-09-25 실측).
+  #    `set -euo pipefail` 아래에서 `grep` 은 **매치 실패 시 rc=1** 이고,
+  #    `_engine_version` 이 없는 답변 파일(= `init` 스킬이 막 만든 신규
+  #    프로젝트)에서 바로 그 일이 일어난다. 스크립트가 rc=1 로 끝나면서
+  #    provenance 갱신·디렉터리 생성·완료 메시지가 **전부 실행되지 않고**,
+  #    출력이 `[5/5]` 에서 끊긴 채 조용히 종료된다.
+  #    필드 부재는 오류가 아니라 **처음 기록하는 경우**다.
+  CURRENT_PROV=$(grep -E '^_engine_version:' "$ANSWERS" | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)
   if [[ "$CURRENT_PROV" != "$BARE_VERSION" ]]; then
     cp "$ANSWERS" "${ANSWERS}.bak-$(date +%Y%m%d-%H%M%S)"
-    sed -i.tmp -E "s|^_engine_version:.*|_engine_version: \"${BARE_VERSION}\"|" "$ANSWERS"
-    rm -f "${ANSWERS}.tmp"
+    if grep -qE '^_engine_version:' "$ANSWERS"; then
+      sed -i.tmp -E "s|^_engine_version:.*|_engine_version: \"${BARE_VERSION}\"|" "$ANSWERS"
+      rm -f "${ANSWERS}.tmp"
+    else
+      # 🔴 `sed` 는 **있는 줄만** 바꾼다. 필드가 없으면 아무 일도 안 하는데
+      #    아래 메시지는 「갱신」이라고 말한다 — 2026-09-25 실측으로
+      #    「미기재 → 1.5.0」 을 출력하고도 파일은 그대로였다.
+      #    없으면 **추가**한다. 그래야 `/harness-update` 가 판정할 수 있다.
+      printf '_engine_version: "%s"\n' "$BARE_VERSION" >> "$ANSWERS"
+    fi
     echo "      provenance 갱신: _engine_version ${CURRENT_PROV:-미기재} → ${BARE_VERSION}"
+  fi
+fi
+
+# ── 훅이 쓰는 디렉터리 보장 (HARNESS-INSTALL-DIRS-1, 2026-09-25) ──
+#
+# 🔴 `skill-usage-auto` 훅은 `<process_evolution_path>/skill_usage_YYYY-MM.md` 를
+#    쓰는데, 설치는 그 디렉터리를 만들지 않았다. 새 프로젝트에는 그 경로가
+#    없으므로 **첫 집계부터 매번 실패**하고, 훅은 항상 exit 0 이라 아무도 몰랐다.
+#    실측(2026-09-25): Gate 를 가장 많이 쓴 세 프로젝트에 자기 기록이 0건이었다
+#    (`homepage` 는 gate-a 만 33회를 쓰고도 산출물이 없었다).
+#
+#    집계기 쪽에도 `mkdir(parents=True)` 를 넣었지만(런타임 방어), 이식 시점에
+#    자리를 만들어 두는 것이 정본이다 — 사용자가 손으로 만들 일이 아니다.
+#
+#    ⚠ 기본값을 박지 않는다. `process_evolution_path` 는 프로젝트마다 다르다
+#    (실측: `docs/process_evolution` 로 지정한 프로젝트가 있다). 답변 파일이
+#    있으면 그 값을, 없으면 훅과 같은 기본값(`plans/process_evolution`)을 쓴다.
+if [[ "$DRY_RUN" == false ]]; then
+  PE_PATH="plans/process_evolution"
+  if [[ -f "$ANSWERS" ]]; then
+    PE_FROM_ANSWERS=$(grep -E '^process_evolution_path:' "$ANSWERS" \
+      | head -1 | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')
+    [[ -n "$PE_FROM_ANSWERS" ]] && PE_PATH="$PE_FROM_ANSWERS"
+  fi
+  # 상대경로는 대상 프로젝트 기준으로 해석한다 (훅의 해석 규칙과 동일)
+  case "$PE_PATH" in
+    /*|[A-Za-z]:*) PE_DIR="$PE_PATH" ;;
+    *)             PE_DIR="${TARGET_DIR}/${PE_PATH}" ;;
+  esac
+  if [[ -d "$PE_DIR" ]]; then
+    echo "      사용량 기록 경로 확인: ${PE_PATH}"
+  elif mkdir -p "$PE_DIR" 2>/dev/null; then
+    echo "      사용량 기록 경로 생성: ${PE_PATH}"
+  else
+    # 만들지 못해도 설치를 멈추지 않는다 — 집계기가 런타임에 다시 시도한다
+    echo "      ⚠ 사용량 기록 경로를 만들지 못했습니다: ${PE_DIR}"
   fi
 fi
 
