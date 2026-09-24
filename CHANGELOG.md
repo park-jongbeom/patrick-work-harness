@@ -15,6 +15,10 @@
   이 하네스의 세션 ID 규칙(`-a-1`·`-b-2`)에 소문자가 들어가므로, 실제로
   `HARNESS-CROSSCHECK-FIX-1-a-3` 이 **`HARNESS-CROSSCHECK-FIX-1-` 까지만** 표시됐다.
   그럴듯한 값이라 눈에 띄지 않는다. 시험을 쓰다가 발견했다.
+- **`session_dashboard_renderer` 시험 신설**(12건, `HARNESS-TEST-GAP-3`). 이로써 **시험 없는
+  훅이 0개**가 됐다. 배너 제목의 **폴백 체인**(`intent_title` → `current_title` → `work_topic`
+  → `last_completed_title` → 자리표시자)과 세션 dict 계약(`id`·`repo`·`status`·`title`)을 고정했다.
+  키가 빠지면 `KeyError` 로 **즉시 죽는 것**도 계약으로 두었다 — 일부만 빠진 화면은 못 알아챈다.
 - **`session_dashboard_parsers` 시험 신설**(12건). 이 모듈은 `session-dashboard-sync` 가
   import 하지만 시험이 없었다. 계약 3가지(`parse_current_session` → dict ·
   `parse_session_index` → **8-tuple** · `_strip_history` → **리터럴** `
