@@ -351,6 +351,333 @@
             line-height: 1.5;
         }
 
+        /* ── Gate A 계획 검토 패널 (DASHBOARD-PLAN-VIZ-1) ──
+           기존 토큰 재사용: 보라 #667eea · 카드 white/12px/그림자.
+           새 색은 위험(주황·빨강)에만 쓴다 — 색이 늘면 강조가 죽는다. */
+        .plan-review {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 8px solid #667eea;
+        }
+
+        .plan-review h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 6px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .plan-hint {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 18px;
+            line-height: 1.6;
+        }
+
+        .plan-hint code {
+            background: #f5f5f5;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
+        }
+
+        /* 총계 먼저 — blast radius 패턴(목록보다 수치가 앞) */
+        .plan-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .plan-tile {
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            padding: 12px 14px;
+        }
+
+        .plan-tile-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .plan-tile-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        /* 미승격 주장(ⓒ)이 남았을 때만 — 가장 먼저 의심할 자리 */
+        .plan-tile-warn {
+            background: #fff8e6;
+            border-left-color: #e0a800;
+        }
+
+        .plan-tile-warn .plan-tile-value {
+            color: #8a6100;
+        }
+
+        .plan-block {
+            margin-bottom: 20px;
+        }
+
+        .plan-block-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .plan-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .plan-list li {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+            padding: 7px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .plan-list li:last-child {
+            border-bottom: none;
+        }
+
+        .plan-file {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px !important;
+            word-break: break-all;
+        }
+
+        .plan-steps {
+            counter-reset: none;
+        }
+
+        .plan-step {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+
+        .plan-step-num {
+            flex: 0 0 auto;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #eef0fd;
+            color: #667eea;
+            font-size: 11px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .plan-check-fail {
+            color: #b23c3c !important;
+            font-weight: 600;
+        }
+
+        .plan-risk-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .plan-risk-table th {
+            background: #fff4f4;
+            color: #8a2b2b;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 10px;
+            border-bottom: 2px solid #f0d5d5;
+        }
+
+        .plan-risk-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+            color: #555;
+            vertical-align: top;
+            line-height: 1.6;
+        }
+
+        .plan-prose {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.7;
+        }
+
+        /* ── 시각화 보조 (DASHBOARD-PLAN-VIZ-2) ──
+           1차는 총계 타일 말고 전부 텍스트라 「잘 꾸민 목록」이었다.
+           아래는 **눈으로 비교되는 것**만 추가한다 — 막대·흐름·점. */
+
+        /* 범위 게이지 — 한도 대비 어디쯤인지 */
+        .plan-bar-row {
+            display: grid;
+            grid-template-columns: 110px 1fr auto;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .plan-bar-label {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .plan-bar-track {
+            height: 10px;
+            background: #eef0f4;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .plan-bar-fill {
+            height: 100%;
+            background: #667eea;
+            border-radius: 5px;
+        }
+
+        /* 한도 80% 이상 — 「아직 통과」와 「곧 걸린다」는 다르다 */
+        .plan-bar-near {
+            background: #e0a800;
+        }
+
+        .plan-bar-num {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        /* 실행 순서 파이프라인 — 몇 단계이고 어떤 순서인가 */
+        .plan-flow {
+            display: flex;
+            align-items: stretch;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .plan-node {
+            flex: 1 1 0;
+            min-width: 92px;
+            background: #f8f9fa;
+            border: 1px solid #e6e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 8px;
+            padding: 10px 8px;
+            text-align: center;
+        }
+
+        .plan-node-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .plan-node-cap {
+            font-size: 11px;
+            color: #555;
+            line-height: 1.4;
+            word-break: keep-all;
+        }
+
+        .plan-arrow {
+            align-self: center;
+            color: #c3c7d4;
+            font-size: 14px;
+        }
+
+        /* 파일 디렉터리 묶음 — 변경이 어디에 몰렸나 */
+        .plan-dir {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 11px !important;
+            color: #667eea !important;
+            font-weight: 700;
+            background: #f8f9fa;
+            padding: 6px 10px !important;
+            border-radius: 6px;
+            border-bottom: none !important;
+            margin-top: 6px;
+        }
+
+        .plan-dir-count {
+            background: #667eea;
+            color: white;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 10px;
+        }
+
+        .plan-file-nested {
+            padding-left: 18px !important;
+        }
+
+        /* 리스크 경중 점 — 색만으로 뜻을 전하지 않는다(범례 필수) */
+        .plan-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex: 0 0 auto;
+            vertical-align: middle;
+        }
+
+        .plan-dot-high {
+            background: #d9534f;
+        }
+
+        .plan-dot-med {
+            background: #e0a800;
+        }
+
+        .plan-dot-low {
+            background: #b8bdc9;
+        }
+
+        .plan-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .plan-legend-item {
+            font-size: 11px;
+            color: #888;
+        }
+
         @media (max-width: 768px) {
             .meta-info {
                 grid-template-columns: 1fr;
@@ -383,13 +710,40 @@
                 height: 30px;
                 font-size: 10px;
             }
+
+            .plan-tiles {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .plan-review {
+                padding: 20px;
+            }
+
+            .plan-risk-table th,
+            .plan-risk-table td {
+                padding: 6px;
+                font-size: 11px;
+            }
+
+            .plan-bar-row {
+                grid-template-columns: 84px 1fr auto;
+                gap: 8px;
+            }
+
+            .plan-flow {
+                flex-direction: column;
+            }
+
+            .plan-arrow {
+                transform: rotate(90deg);
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="last-updated">
-            📅 마지막 업데이트: 2026-06-30 22:58 KST
+            📅 마지막 업데이트: 2026-09-25 15:51 KST
         </div>
 
         <div class="purpose-banner">

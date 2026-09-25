@@ -289,6 +289,28 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
      - **Intent-field obligation (DASHBOARD-INTENT-1)**: in the header, write 2 lines in plain Korean — `> **세션 주제**: <평이 한 줄>` (banner title)·`> **작업 의도**: <무엇을 왜, 1~2문장>` (banner body). No jargon·filename dumps — the banner 「🎯 지금 하는 작업」 displays these 2 lines as-is (falls back to work_topic·priority_note if absent).
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
+   > **Human-review panel (DASHBOARD-PLAN-VIZ-1, 2026-09-25)**: the dashboard renders your
+   > `## Gate A 계획` block as a review panel — counts first (changed files · Steps · risks ·
+   > unpromoted ⓒ claims), then the R-12 scope guard, files, execution order, and the risk table.
+   > **The `.md` stays canonical**; the panel is a read-only summary and carries no approval button
+   > (Anthropic telemetry: users approve ~93% of permission prompts, and *"the more approvals a user
+   > sees, the less attention they pay to each"* — adding buttons would buy rubber-stamping, not
+   > review). Approval is still the sentence in chat, per §Gate A Approval Interpretation.
+   >
+   > **Write these headings so the panel can read them** (the parser matches loosely, and silently
+   > omits what it cannot find — a missing risk section reads to a human as *"no risks"*):
+   >
+   > | Section | Write it as | Shape that parses best |
+   > |---|---|---|
+   > | Changed files | `### 변경 파일 (N개)` | numbered list — `1. \`path/to/file.py\` (수정)` |
+   > | Execution order | `### 실행 순서` or `### 구현 Step` | numbered list, one Step per line |
+   > | Risks | `### 리스크 및 대응` | table `\| 리스크 \| 원인 \| 대응 \|` |
+   > | Scope guard | `### Gate A 범위 점검` | `- [x]` / `- [ ]` checkboxes (an unchecked box shows red) |
+   > | Verification | `### Gate D 예상` | 1 line |
+   >
+   > Keep the ⓐ/ⓑ/ⓒ tags from `0-Claim` in the plan text — the panel counts ⓒ and flags it amber,
+   > which is the one number a reviewer should check first.
+
 3. STOP — await user document review·approval
 
 ### Layer 2 document update (if `--docs=full` was used at `/init`)

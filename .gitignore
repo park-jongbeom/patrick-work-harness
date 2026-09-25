@@ -25,5 +25,19 @@ Thumbs.db
 .idea/
 
 # Claude Code session state (local only)
+#
+# These are per-session working documents, not publishable artifacts. The harness
+# generates them in whatever project it runs in (the output path comes from
+# CLAUDE_PROJECT_DIR), so when the harness itself is the project under work they
+# land here. What ships is the generator in hooks/, never the generated state.
+#
+# They live in .gitignore rather than .git/info/exclude on purpose: exclude is
+# not committed, so it only ever protects the one machine it was written on. A
+# fresh clone — or a second PC — would otherwise have nothing stopping
+# `git add -A` from publishing a session plan or a private path.
 .claude/state/
+.claude/harness-answers.yml
 session-dashboard.html
+CURRENT_SESSION.md
+SESSION_INDEX.md
+WORK_PLAN.md

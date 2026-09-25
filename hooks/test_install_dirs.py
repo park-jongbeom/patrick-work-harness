@@ -74,11 +74,13 @@ def _have_bash() -> bool:
 def _sh(path: Path) -> str:
     """bash 에 넘길 경로 문자열 — Windows 경로를 MSYS 형식으로 바꾼다.
 
-    두 번 틀렸던 자리다(실측 2026-09-25):
-      · `D:\\Users\\...` 그대로 → 백슬래시가 이스케이프로 먹혀
-        `D:Usersparjkkjihyun...` 이 된다
-      · `D:/Users/...` (as_posix) → Git Bash 가 드라이브 문자를 경로로
-        해석하지 못해 "No such file or directory"
+    두 번 틀렸던 자리다(실측 2026-09-25). 아래 예시는 드라이브 문자를
+    `<D>` 로 적는다 — 실제 표기로 쓰면 배포 전 사설 경로 검사
+    (`sync-from-source.sh` 의 `LEAK_PATTERN`)에 걸려 동기화가 막힌다:
+      · `<D>:\\Users\\<user>\\...` 그대로 → 백슬래시가 이스케이프로 먹혀
+        구분자가 사라진 한 덩어리가 된다
+      · `<D>:/Users/<user>/...` (as_posix) → Git Bash 가 드라이브 문자를
+        경로로 해석하지 못해 "No such file or directory"
 
     Git Bash(MSYS)는 `/d/Users/...` 형식을 쓴다. POSIX 환경에서는 경로가
     이미 그 형태이므로 변환이 일어나지 않는다.

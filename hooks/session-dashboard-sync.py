@@ -24,7 +24,11 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 # 동일 디렉토리 모듈 import 보장 (Stop hook 실행 시 cwd가 hook 디렉토리가 아닐 수 있음)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from session_dashboard_parsers import parse_current_session, parse_session_index  # noqa: E402
+from session_dashboard_parsers import (  # noqa: E402
+    parse_current_session,
+    parse_gate_a_plan,
+    parse_session_index,
+)
 from session_dashboard_renderer import generate_html  # noqa: E402
 
 # R-4-2-b: 3단 우선순위 (① custom env[테스트] → ② CLAUDE_PROJECT_DIR 파생 → ③ 절대경로 폴백)
@@ -63,6 +67,9 @@ def main():
 
         # 데이터 파싱
         current_session = parse_current_session(current_content)
+        # Gate A 계획(사람 검토용 패널). 계획이 없거나 형식이 달라 못 읽으면
+        # 빈 dict → 렌더러가 패널을 생략한다(대시보드는 계속 뜬다).
+        gate_a_plan = parse_gate_a_plan(current_content)
         (
             sessions,
             last_updated,
@@ -85,6 +92,7 @@ def main():
             project,
             gate_status,
             next_action,
+            gate_a_plan,
         )
 
         # 파일 저장
