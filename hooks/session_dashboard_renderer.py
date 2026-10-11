@@ -11,6 +11,7 @@ HSA-2-b(2026-05-28): CSS 393줄을 `dashboard.css` 외부 파일로 추출하고
 
 import html as _html
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -81,6 +82,185 @@ def _risk_legend(risks):
             f'{_esc(_SEV_LABEL[sev])} {counts[sev]}</span>\n'
         )
     return f'                <div class="plan-legend">\n{parts}                </div>\n'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 계획 전문 패널 (DASHBOARD-FULL-PLAN, 2026-10-11)
+#
+# 요약 패널(`render_gate_a_plan`)은 계획에서 다섯 가지만 골라 싣는다. 그래서
+# 계획에 적힌 배경·근거가 화면에 없었고, 사람이 화면만 보고는 이해도 질문에
+# 답할 수 없었다. 아래는 Gate 블록을 **고르지 않고 전부** 싣는다.
+#
+# 마크다운 라이브러리는 쓰지 않는다 — 훅은 추가 설치 없이 돌아야 한다. 계획
+# 문서가 실제로 쓰는 부분집합(문단·중첩 목록·표·인용·체크박스·굵게·코드)만
+# 표준 라이브러리로 바꾼다.
+# ─────────────────────────────────────────────────────────────────────
+
+_LIST_RE = re.compile(r"^(\s*)([-*]|\d+\.)\s+(.*)$")
+_TABLE_SEP_RE = re.compile(r":?-{2,}:?")
+
+
+def _md_inline(text):
+    """한 줄 안의 서식. **이스케이프가 먼저다** — 본문의 `<T>`·`&` 가 태그로
+    먹히지 않게 한 뒤, 우리가 만든 태그만 입힌다."""
+    s = _esc(text)
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+
+
+def _md_list(items, i, indent):
+    """들여쓰기 깊이로 중첩 목록을 만든다. `items` = [(들여쓰기, 번호목록?, 글)]."""
+    tag = "ol" if items[i][1] else "ul"
+    parts = []
+    while i < len(items) and items[i][0] >= indent:
+        if items[i][0] > indent:
+            sub, i = _md_list(items, i, items[i][0])
+            if parts:
+                parts[-1] += sub  # 하위 목록은 바로 위 항목 안에 넣는다
+            else:
+                parts.append(sub)
+            continue
+        text = items[i][2]
+        box = re.match(r"\[([ xX])\]\s*(.*)$", text)
+        if box:
+            mark = "☐" if box.group(1) == " " else "✅"
+            text = f"{mark} {box.group(2)}"
+        parts.append(_md_inline(text))
+        i += 1
+    body = "".join(f"<li>{p}</li>" for p in parts)
+    return f"<{tag}>{body}</{tag}>", i
+
+
+def _md_table(lines):
+    rows = []
+    for line in lines:
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        rows.append(cells)
+    has_head = len(rows) > 1 and all(
+        _TABLE_SEP_RE.fullmatch(c or "-") for c in rows[1]
+    )
+    out = '<table class="doc-table">'
+    if has_head:
+        out += "<thead><tr>" + "".join(
+            f"<th>{_md_inline(c)}</th>" for c in rows[0]
+        ) + "</tr></thead>"
+        rows = rows[2:]
+    out += "<tbody>"
+    for cells in rows:
+        out += "<tr>" + "".join(f"<td>{_md_inline(c)}</td>" for c in cells) + "</tr>"
+    return out + "</tbody></table>"
+
+
+def _md_block_to_html(md):
+    """계획 문서용 마크다운 부분집합 → HTML. 모르는 줄은 문단으로 둔다."""
+    lines = md.splitlines()
+    out, para, i = [], [], 0
+
+    def flush():
+        if para:
+            out.append("<p>" + "<br>".join(_md_inline(p) for p in para) + "</p>")
+            para.clear()
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            flush()
+            j = i + 1
+            while j < len(lines) and not lines[j].strip().startswith("```"):
+                j += 1
+            out.append("<pre>" + _esc("\n".join(lines[i + 1: j])) + "</pre>")
+            i = j + 1
+        elif not stripped:
+            flush()
+            i += 1
+        elif stripped.startswith("|"):
+            flush()
+            j = i
+            while j < len(lines) and lines[j].strip().startswith("|"):
+                j += 1
+            out.append(_md_table(lines[i:j]))
+            i = j
+        elif _LIST_RE.match(line):
+            flush()
+            items = []
+            while i < len(lines):
+                m = _LIST_RE.match(lines[i])
+                if m:
+                    items.append(
+                        (len(m.group(1)), m.group(2)[0].isdigit(), m.group(3))
+                    )
+                elif lines[i].strip() and lines[i][:1] in " \t" and items:
+                    # 항목에 이어 쓴 들여쓴 줄 — 그 항목의 일부다
+                    ind, ordered, text = items[-1]
+                    items[-1] = (ind, ordered, text + " " + lines[i].strip())
+                else:
+                    break
+                i += 1
+            out.append(_md_list(items, 0, items[0][0])[0])
+        elif stripped.startswith(">"):
+            flush()
+            quote = []
+            while i < len(lines) and lines[i].strip().startswith(">"):
+                quote.append(_md_inline(lines[i].strip()[1:].strip()))
+                i += 1
+            out.append("<blockquote>" + "<br>".join(quote) + "</blockquote>")
+        elif stripped.startswith("####"):
+            flush()
+            out.append("<h4>" + _md_inline(stripped.lstrip("#").strip()) + "</h4>")
+            i += 1
+        else:
+            para.append(stripped)
+            i += 1
+    flush()
+    return "\n".join(out)
+
+
+def render_gate_documents(docs):
+    """Gate 블록 전문 패널. 블록이 없으면 빈 문자열(섹션 생략).
+
+    - **나중 Gate 가 위**에 온다. 지금 진행 중인 것(예: Gate B 의 질문)을
+      먼저 읽게 하기 위함이다.
+    - 절 하나의 변환이 실패하면 **그 절만 원문 그대로** 보여주고 나머지는
+      계속 그린다. 절을 빼면 읽는 사람이 「렌더 문제로 빠진 것」을 「계획에
+      없는 것」으로 오해한다 — 빈 자리보다 다듬지 않은 원문이 낫다.
+    - 버튼·폼은 여기에도 없다(요약 패널과 같은 계약). 접기는 `<details>` 다.
+    """
+    if not docs:
+        return ""
+    panels = ""
+    for doc in reversed(docs):
+        gate = doc.get("gate", "")
+        toc, body = "", ""
+        for n, (title, md) in enumerate(doc.get("sections") or []):
+            anchor = f"gate-{_esc(gate).lower()}-s{n}"
+            label = title or "개요"
+            try:
+                inner = _md_block_to_html(md)
+            except Exception:  # 자유 산문이라 무엇이 올지 모른다 — 절 단위로 가둔다
+                inner = (
+                    '<p class="doc-fallback">이 절은 서식 변환에 실패해 원문 '
+                    "그대로 보여준다.</p>"
+                    f'<pre class="doc-raw">{_esc(md)}</pre>'
+                )
+            toc += f'<a class="doc-toc-item" href="#{anchor}">{_md_inline(label)}</a>\n'
+            body += (
+                f'<details class="doc-section" id="{anchor}" open>\n'
+                f"<summary>{_md_inline(label)}</summary>\n"
+                f'<div class="doc-body">\n{inner}\n</div>\n'
+                "</details>\n"
+            )
+        panels += (
+            '        <div class="gate-doc">\n'
+            f"            <h2>📖 {_esc(doc.get('heading') or 'Gate ' + gate)}"
+            " — 전문</h2>\n"
+            '            <p class="plan-hint">문서에 적힌 그대로다. 고르거나 '
+            "줄이지 않았다.</p>\n"
+            f'            <div class="doc-toc">\n{toc}            </div>\n'
+            f"{body}"
+            "        </div>\n\n"
+        )
+    return panels
 
 
 def render_gate_a_plan(plan):
@@ -247,21 +427,31 @@ def render_gate_a_plan(plan):
     risks_html = ""
     if risks:
         if any(len(r) >= 2 for r in risks):
+            # 계획이 쓴 열 이름과 열 수를 그대로 따른다. 고정 3열·고정 이름이면
+            # 4열 표의 「대응」이 잘리고, `심각도` 가 「원인」 밑에 찍힌다(실측).
+            # 헤더를 못 받은 경우(손으로 만든 dict·옛 호출부)만 예전 3열이다.
+            heads = list(plan.get("risk_header") or [])
+            if heads:
+                ncol = max(len(heads), max(len(r) for r in risks))
+                heads += [""] * (ncol - len(heads))
+            else:
+                ncol, heads = 3, ["리스크", "원인", "대응"]
+            head_html = "".join(f"<th>{_esc(h)}</th>" for h in heads)
             rows = ""
             for r in risks:
                 sev = risk_severity(r)
                 cells = f'<td><span class="plan-dot plan-dot-{sev}"></span></td>'
-                cells += "".join(f"<td>{_esc(c)}</td>" for c in r[:3])
+                cells += "".join(f"<td>{_esc(c)}</td>" for c in r[:ncol])
                 # 열 수가 모자란 행도 표가 깨지지 않게 채운다
-                cells += "<td></td>" * max(0, 3 - len(r[:3]))
+                cells += "<td></td>" * max(0, ncol - len(r[:ncol]))
                 rows += f"                        <tr>{cells}</tr>\n"
             risks_html = (
                 '            <div class="plan-block">\n'
                 '                <div class="plan-block-title">리스크 '
                 f'({len(risks)})</div>\n'
                 '                <table class="plan-risk-table">\n'
-                '                    <thead><tr><th></th><th>리스크</th>'
-                '<th>원인</th><th>대응</th></tr></thead>\n'
+                f'                    <thead><tr><th></th>{head_html}'
+                '</tr></thead>\n'
                 f'                    <tbody>\n{rows}'
                 '                    </tbody>\n'
                 '                </table>\n'
@@ -321,12 +511,14 @@ def generate_html(
     gate_status="",
     next_action="",
     gate_a_plan=None,
+    gate_docs=None,
 ):
     """HTML 생성
 
     `gate_a_plan` 은 **선택 인자**다(DASHBOARD-PLAN-VIZ-1). 기존 호출부는
     9개 인자로 그대로 호출하며, 그 경우 계획 패널만 빠지고 나머지 화면은
     바이트 동일하다 — 시험이 고정한 호출 계약을 깨지 않기 위함.
+    `gate_docs`(계획 전문, DASHBOARD-FULL-PLAN)도 같은 규약의 선택 인자다.
     """
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     css = _load_css()
@@ -428,6 +620,8 @@ def generate_html(
 
     # Gate A 계획 패널 — 계획이 없거나 못 읽으면 빈 문자열(섹션 생략)
     plan_html = render_gate_a_plan(gate_a_plan)
+    # 계획 전문 — 요약 바로 아래. 요약이 「한눈에」라면 이쪽이 「읽고 이해」다
+    plan_html += render_gate_documents(gate_docs)
 
     # HTML 템플릿
     html = f"""<!DOCTYPE html>

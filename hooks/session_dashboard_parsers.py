@@ -259,12 +259,54 @@ def _plan_block(content):
     종료는 **같은 레벨(`## `)의 다음 헤딩**이다. `### ` 하위 절은 계획의
     일부이므로 넘기면 안 된다.
     """
-    m = re.search(r"^##\s+Gate A[^\n]*\n", content, re.MULTILINE)
+    return _gate_block(content, "A")[1]
+
+
+def _gate_block(content, letter):
+    """`## Gate <letter> ...` 블록 → (헤딩 원문, 본문). 없으면 ("", "").
+
+    `_plan_block` 의 절단 규칙을 Gate 글자만 바꿔 쓸 수 있게 뺀 것이다
+    (DASHBOARD-FULL-PLAN, 2026-10-11). 계획 전문 패널이 A~D 블록을 같은
+    규칙으로 자른다.
+    """
+    m = re.search(rf"^##\s+(Gate {letter}[^\n]*)\n", content, re.MULTILINE)
     if not m:
-        return ""
+        return "", ""
     rest = content[m.end():]
     nxt = re.search(r"^##\s+", rest, re.MULTILINE)
-    return rest[: nxt.start()] if nxt else rest
+    return m.group(1).strip(), (rest[: nxt.start()] if nxt else rest)
+
+
+def parse_gate_documents(content):
+    """Gate A~D 블록을 **마크다운 원문 그대로** 절 단위로 넘긴다.
+
+    왜 `parse_gate_a_plan` 과 따로 두는가: 그쪽은 다섯 가지를 골라 한 줄씩으로
+    납작하게 만든다. 요약에는 맞지만, 계획의 배경·근거·중첩 항목은 거기서
+    사라진다 — 실측(2026-10-11)으로 계획 한 건의 줄·표 칸 135개 중 26개만
+    화면에 남았다. 사람이 화면 하나로 계획을 이해하려면 **고르지 않은 원문**이
+    필요하다. 그래서 여기서는 아무것도 고르지 않고, 다듬지도 않는다.
+
+    반환: `[{"gate": "A", "heading": "...", "sections": [(제목, 본문), ...]}, ...]`
+    `###` 앞에 놓인 글은 제목이 `""` 인 절로 넘긴다 — 버리면 화면에서 사라진다.
+    `####` 이하는 절 본문의 일부다. 블록이 없으면 빈 목록.
+    """
+    docs = []
+    if not content:
+        return docs
+    for letter in "ABCD":
+        heading, block = _gate_block(content, letter)
+        if not block.strip():
+            continue
+        marks = list(re.finditer(r"^###[ \t]+([^\n]+)$", block, re.MULTILINE))
+        sections = []
+        lead = block[: marks[0].start()] if marks else block
+        if lead.strip():
+            sections.append(("", lead.strip("\n")))
+        for i, m in enumerate(marks):
+            end = marks[i + 1].start() if i + 1 < len(marks) else len(block)
+            sections.append((m.group(1).strip(), block[m.end(): end].strip("\n")))
+        docs.append({"gate": letter, "heading": heading, "sections": sections})
+    return docs
 
 
 #: 절 시작으로 인정하는 두 표기 — `### 헤딩` 과 줄머리 굵은 라벨 `**라벨**:`.
@@ -332,6 +374,20 @@ def _table_rows(body):
     return rows[1:] if len(rows) > 1 else []  # 첫 행 = 헤더
 
 
+def _table_header(body):
+    """마크다운 표의 헤더 행(칸 목록). 표가 없으면 빈 리스트.
+
+    `_table_rows` 는 헤더를 버린다. 열 이름을 모르면 렌더러가 제 이름을
+    붙이게 되고, 그 이름이 계획의 열과 어긋난다(실측: `심각도` 열이
+    「원인」 밑에 찍혔다).
+    """
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("|"):
+            return [_strip_md(c) for c in line.strip("|").split("|")]
+    return []
+
+
 def parse_gate_a_plan(content):
     """CURRENT_SESSION.md 의 Gate A 계획을 사람이 볼 구조로 추출.
 
@@ -341,6 +397,7 @@ def parse_gate_a_plan(content):
     empty = {
         "present": False, "files": [], "steps": [], "risks": [],
         "scope_checks": [], "refs": "", "verify": "", "evidence": {},
+        "risk_header": [],
     }
     if not content:
         return empty
@@ -364,7 +421,11 @@ def parse_gate_a_plan(content):
             plan["files"].append(_clean_file_entry(m.group(1)))
         if not plan["files"]:
             for row in _table_rows(files_body):
-                plan["files"].append(_clean_file_entry(" — ".join(row[:2])))
+                # 모든 칸을 잇는다. 앞 2칸만 이으면 `| # | 저장소 | 경로 |`
+                # 표에서 정작 경로가 떨어져 나간다(실측).
+                plan["files"].append(
+                    _clean_file_entry(" — ".join(c for c in row if c))
+                )
         if not plan["files"]:
             for m in re.finditer(r"^[-*]\s+(.+?)\s*$", files_body, re.MULTILINE):
                 plan["files"].append(_clean_file_entry(m.group(1)))
@@ -383,6 +444,8 @@ def parse_gate_a_plan(content):
     if risk_body:
         for row in _table_rows(risk_body):
             plan["risks"].append([_strip_md(c) for c in row])
+        if plan["risks"]:
+            plan["risk_header"] = _table_header(risk_body)
         if not plan["risks"]:
             for m in re.finditer(r"^[-*]\s+(.+?)\s*$", risk_body, re.MULTILINE):
                 plan["risks"].append([_strip_md(m.group(1))])
@@ -470,7 +533,9 @@ def parse_gate_a_plan(content):
     # ⓒ 가 남아 있으면 「아직 확인 안 한 주장」이 있다는 뜻이다 — 사람이
     # 가장 먼저 봐야 할 신호라 개수를 따로 센다.
     for tag in ("ⓐ", "ⓑ", "ⓒ"):
-        n = block.count(tag)
+        # `ⓒ 0건` 처럼 **개수를 적은 표기**는 세지 않는다. 그것까지 세면
+        # 「미검증 주장 0건」이라고 쓴 계획에 경고 타일이 뜬다(실측).
+        n = len(re.findall(rf"{tag}(?!\s*\d+\s*건)", block))
         if n:
             plan["evidence"][tag] = n
 

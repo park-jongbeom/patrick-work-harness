@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from session_dashboard_parsers import (  # noqa: E402
     parse_current_session,
     parse_gate_a_plan,
+    parse_gate_documents,
     parse_session_index,
 )
 from session_dashboard_renderer import generate_html  # noqa: E402
@@ -70,6 +71,8 @@ def main():
         # Gate A 계획(사람 검토용 패널). 계획이 없거나 형식이 달라 못 읽으면
         # 빈 dict → 렌더러가 패널을 생략한다(대시보드는 계속 뜬다).
         gate_a_plan = parse_gate_a_plan(current_content)
+        # Gate A~D 블록 전문(고르지 않은 원문). 블록이 없으면 빈 목록 → 패널 생략.
+        gate_docs = parse_gate_documents(current_content)
         (
             sessions,
             last_updated,
@@ -93,6 +96,7 @@ def main():
             gate_status,
             next_action,
             gate_a_plan,
+            gate_docs,
         )
 
         # 파일 저장

@@ -274,3 +274,143 @@ class TestGateAPlanPanel(unittest.TestCase):
         plan = dict(self.PLAN, risks=[["단독 위험"]])
         html = sdr.render_gate_a_plan(plan)
         self.assertIn("단독 위험", html)
+
+
+class TestGateDocuments(unittest.TestCase):
+    """계획 전문 패널 (DASHBOARD-FULL-PLAN, 2026-10-11).
+
+    요약 패널은 고른 것만 보여준다. 이 패널의 계약은 **문서에 있는 것은
+    화면에도 있다**는 것이다 — 변환이 실패한 절까지 포함해서.
+    """
+
+    DOCS = [
+        {"gate": "A", "heading": "Gate A — 구현 계획", "sections": [
+            ("", "머리말 한 줄."),
+            ("실행 순서", "- **Step 1** 사전 점검\n  - 중단 조건: 값이 하나라도 남으면\n"
+                          "  - 백업 확보\n- Step 2 병합\n\n1. 첫째\n2. 둘째"),
+            ("리스크", "| # | 리스크 | 심각도 | 대응 |\n|---|---|---|---|\n"
+                       "| 1 | 기동 실패 | 심각 | `사전 대조` |"),
+            ("범위", "- [x] 파일 ≤ 7개\n- [ ] 미결 항목\n\n> 인용 한 줄\n\n"
+                     "#### 하위 제목\n\n본문 <T> & 끝"),
+        ]},
+        {"gate": "B", "heading": "Gate B — 이해도 게이트", "sections": [
+            ("질문 1", "무엇이 보이는가?"),
+        ]},
+    ]
+
+    def setUp(self):
+        self.html = sdr.render_gate_documents(self.DOCS)
+
+    def test_no_documents_render_nothing(self):
+        self.assertEqual(sdr.render_gate_documents([]), "")
+        self.assertEqual(sdr.render_gate_documents(None), "")
+
+    def test_nested_list_is_preserved(self):
+        """하위 항목이 상위 항목 **안**에 들어간다 — 납작하게 펴지 않는다."""
+        self.assertIn(
+            "<li><strong>Step 1</strong> 사전 점검"
+            "<ul><li>중단 조건: 값이 하나라도 남으면</li><li>백업 확보</li></ul></li>",
+            self.html,
+        )
+        self.assertIn("<ol><li>첫째</li><li>둘째</li></ol>", self.html)
+
+    def test_table_keeps_every_column_and_its_own_header(self):
+        for cell in ("<th>#</th>", "<th>심각도</th>", "<th>대응</th>",
+                     "<td>기동 실패</td>", "<td><code>사전 대조</code></td>"):
+            self.assertIn(cell, self.html)
+
+    def test_checkbox_quote_and_subheading(self):
+        self.assertIn("<li>✅ 파일 ≤ 7개</li>", self.html)
+        self.assertIn("<li>☐ 미결 항목</li>", self.html)
+        self.assertIn("<blockquote>인용 한 줄</blockquote>", self.html)
+        self.assertIn("<h4>하위 제목</h4>", self.html)
+
+    def test_body_is_escaped_before_formatting(self):
+        self.assertIn("본문 &lt;T&gt; &amp; 끝", self.html)
+        html = sdr.render_gate_documents([{
+            "gate": "A", "heading": "<b>제목</b>",
+            "sections": [("<script>x</script>", "`<i>` **<u>굵게</u>**")],
+        }])
+        self.assertNotIn("<script>", html)
+        self.assertNotIn("<b>제목</b>", html)
+        self.assertIn("<code>&lt;i&gt;</code>", html)
+        self.assertIn("<strong>&lt;u&gt;굵게&lt;/u&gt;</strong>", html)
+
+    def test_later_gate_comes_first(self):
+        """진행 중인 Gate(질문)가 계획보다 위다."""
+        self.assertLess(self.html.index("Gate B — 이해도 게이트"),
+                        self.html.index("Gate A — 구현 계획"))
+
+    def test_lead_section_and_toc(self):
+        self.assertIn("머리말 한 줄.", self.html)
+        self.assertIn('href="#gate-a-s1"', self.html)
+        self.assertIn('id="gate-a-s1"', self.html)
+
+    def test_failed_section_shows_raw_text_and_others_still_render(self):
+        """절 하나가 터져도 그 절은 **원문으로 남고** 나머지는 계속 그린다.
+
+        절을 빼면 읽는 사람이 렌더 문제로 빠진 것을 계획에 없는 것으로 안다.
+        """
+        real = sdr._md_block_to_html
+
+        def boom(md):
+            if "기동 실패" in md:
+                raise ValueError("변환 실패 모의")
+            return real(md)
+
+        sdr._md_block_to_html = boom
+        try:
+            html = sdr.render_gate_documents(self.DOCS)
+        finally:
+            sdr._md_block_to_html = real
+        self.assertIn("doc-raw", html)
+        self.assertIn("| 1 | 기동 실패 | 심각 | `사전 대조` |", html)
+        self.assertIn("<ol><li>첫째</li><li>둘째</li></ol>", html)
+
+    def test_panel_has_no_approval_button(self):
+        self.assertNotIn("<button", self.html)
+        self.assertNotIn("<form", self.html)
+
+    def test_omitting_documents_keeps_page_identical(self):
+        """`gate_docs` 를 안 넘긴 호출은 예전과 바이트 동일하다(시각만 다름)."""
+        import re as _re
+
+        def mask(h):
+            return _re.sub(r"마지막 업데이트: [\d\-: ]+KST", "T", h)
+
+        base = cs(session_id="DEMO-1", status="A")
+        sessions = {"active": [], "completed": []}
+        args = (base, sessions, "2026-10-11", "", "", "", "", "", "")
+        self.assertEqual(mask(sdr.generate_html(*args)),
+                         mask(sdr.generate_html(*args, None, [])))
+        with_docs = sdr.generate_html(*args, None, self.DOCS)
+        self.assertIn("gate-doc", with_docs)
+        self.assertLess(with_docs.index('class="gate-doc"'),
+                        with_docs.index("활성 세션"))
+
+
+class TestRiskTableColumns(unittest.TestCase):
+    """요약 패널의 리스크 표 — 계획의 열을 그대로 따른다."""
+
+    BASE = {"present": True, "files": [], "steps": [], "scope_checks": [],
+            "refs": "", "verify": "", "evidence": {}}
+
+    def test_uses_plan_header_and_all_columns(self):
+        plan = dict(self.BASE,
+                    risks=[["1", "기동 실패", "심각", "사전 대조"]],
+                    risk_header=["#", "리스크", "심각도", "대응"])
+        html = sdr.render_gate_a_plan(plan)
+        self.assertIn("<th></th><th>#</th><th>리스크</th><th>심각도</th>"
+                      "<th>대응</th>", html)
+        self.assertIn("<td>사전 대조</td>", html)
+
+    def test_legacy_header_when_plan_gives_none(self):
+        plan = dict(self.BASE, risks=[["오판", "정규식", "폴백"]])
+        html = sdr.render_gate_a_plan(plan)
+        self.assertIn("<th></th><th>리스크</th><th>원인</th><th>대응</th>", html)
+
+    def test_short_rows_are_padded_to_header_width(self):
+        plan = dict(self.BASE, risks=[["1", "짧은 행"]],
+                    risk_header=["#", "리스크", "심각도", "대응"])
+        html = sdr.render_gate_a_plan(plan)
+        self.assertIn("<td>짧은 행</td><td></td><td></td>", html)

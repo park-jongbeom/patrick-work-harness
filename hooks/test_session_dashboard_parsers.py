@@ -278,3 +278,138 @@ class TestVizHelpers(unittest.TestCase):
         """`(실측 6)` 표기(실측 존재)도 읽는다."""
         g = sdp.scope_gauges([(True, "변경 파일 ≤ 7개 (실측 6)")])
         self.assertEqual(g, [("변경 파일", 6, 7)])
+
+
+# 합성 문서다 — 실제 세션 계획을 시험 자료로 쓰지 않는다(공개 저장소).
+# 모양만 실측을 따른다: 3칸 파일 표 · 중첩 Step · 4열 리스크 표 · 사전 조사 절.
+_DOC = """# 현재 세션 상태
+
+> **세션 ID**: DEMO-1
+
+## Gate A — 구현 계획 (2026-10-11)
+
+계획 머리말 한 줄.
+
+### 사전 조사 결과
+
+- 새 이미지가 뜨는 순간 마이그레이션이 적용된다.
+  - 실패하면 기동이 멈춘다.
+
+### 변경 파일 목록
+
+| # | 저장소 | 경로 |
+|---|--------|------|
+| 1 | repo-a | `docs/INDEX.md` |
+
+### 리스크와 대응
+
+| # | 리스크 | 심각도 | 대응 |
+|---|--------|--------|------|
+| 1 | 기동 실패 | 심각 | 사전 대조 |
+
+### 점검 결과
+
+- 주장-근거 대조 ✅ (ⓒ 0건)
+
+#### 하위 제목
+
+하위 본문.
+
+## Gate B — 이해도 게이트
+
+- 판정: 일반 위험
+
+### 질문 1
+
+무엇이 보이는가?
+
+## 직전 완료 세션
+
+- 다른 절 — Gate 블록이 아니다.
+"""
+
+
+class TestParseGateDocuments(unittest.TestCase):
+    """계획 전문 파싱 (DASHBOARD-FULL-PLAN, 2026-10-11).
+
+    요약 파서는 다섯 가지만 골라 한 줄씩으로 만든다. 이쪽 계약은 반대다 —
+    **고르지 않고, 다듬지 않는다.**
+    """
+
+    def setUp(self):
+        self.docs = sdp.parse_gate_documents(_DOC)
+        self.by_gate = {d["gate"]: d for d in self.docs}
+
+    def test_splits_gate_blocks_in_order(self):
+        self.assertEqual([d["gate"] for d in self.docs], ["A", "B"])
+        self.assertEqual(self.by_gate["A"]["heading"],
+                         "Gate A — 구현 계획 (2026-10-11)")
+
+    def test_block_ends_at_next_same_level_heading(self):
+        """`## 직전 완료 세션` 은 Gate B 블록에 섞이지 않는다."""
+        text = "".join(b for _t, b in self.by_gate["B"]["sections"])
+        self.assertNotIn("다른 절", text)
+
+    def test_every_section_is_kept(self):
+        """요약 파서가 버리던 절(사전 조사·점검 결과)이 전부 남는다."""
+        titles = [t for t, _b in self.by_gate["A"]["sections"]]
+        self.assertEqual(
+            titles,
+            ["", "사전 조사 결과", "변경 파일 목록", "리스크와 대응", "점검 결과"],
+        )
+
+    def test_lead_text_before_first_section_is_kept(self):
+        self.assertEqual(self.by_gate["A"]["sections"][0],
+                         ("", "계획 머리말 한 줄."))
+        self.assertIn("판정: 일반 위험", self.by_gate["B"]["sections"][0][1])
+
+    def test_body_is_raw_markdown(self):
+        """중첩 항목의 들여쓰기와 표 문법이 그대로다 — 렌더러가 살려야 한다."""
+        body = dict(self.by_gate["A"]["sections"])["사전 조사 결과"]
+        self.assertIn("\n  - 실패하면 기동이 멈춘다.", body)
+        risk = dict(self.by_gate["A"]["sections"])["리스크와 대응"]
+        self.assertIn("| 1 | 기동 실패 | 심각 | 사전 대조 |", risk)
+
+    def test_deeper_heading_stays_inside_section(self):
+        body = dict(self.by_gate["A"]["sections"])["점검 결과"]
+        self.assertIn("#### 하위 제목", body)
+        self.assertIn("하위 본문.", body)
+
+    def test_no_gate_block_returns_empty_list(self):
+        self.assertEqual(sdp.parse_gate_documents("# 제목\n\n본문\n"), [])
+        self.assertEqual(sdp.parse_gate_documents(""), [])
+
+    def test_plan_block_contract_unchanged(self):
+        """일반화 뒤에도 `_plan_block` 은 Gate A 본문만 돌려준다."""
+        block = sdp._plan_block(_DOC)
+        self.assertIn("### 사전 조사 결과", block)
+        self.assertNotIn("질문 1", block)
+
+
+class TestLosslessSummaryFields(unittest.TestCase):
+    """요약 패널이 잃던 것 세 가지 — 실측으로 찾은 결함의 회귀 방지."""
+
+    def setUp(self):
+        self.plan = sdp.parse_gate_a_plan(_DOC)
+
+    def test_file_table_keeps_every_cell(self):
+        """앞 2칸만 이으면 `| # | 저장소 | 경로 |` 표에서 경로가 떨어진다."""
+        self.assertEqual(self.plan["files"], ["1 — repo-a — docs/INDEX.md"])
+
+    def test_risk_header_is_passed_through(self):
+        self.assertEqual(self.plan["risk_header"],
+                         ["#", "리스크", "심각도", "대응"])
+        self.assertEqual(self.plan["risks"],
+                         [["1", "기동 실패", "심각", "사전 대조"]])
+
+    def test_count_notation_is_not_an_unproven_claim(self):
+        """`ⓒ 0건` 은 개수를 적은 것이지 미검증 주장이 아니다."""
+        self.assertNotIn("ⓒ", self.plan["evidence"])
+
+    def test_real_tags_are_still_counted(self):
+        doc = _DOC.replace("(ⓒ 0건)", "(ⓒ 2건)\n- 추론 주장 하나 ⓒ\n- 또 하나 ⓒ")
+        self.assertEqual(sdp.parse_gate_a_plan(doc)["evidence"]["ⓒ"], 2)
+
+    def test_no_risk_table_means_no_header(self):
+        doc = "## Gate A\n\n### 리스크\n\n- 위험 하나\n"
+        self.assertEqual(sdp.parse_gate_a_plan(doc)["risk_header"], [])
