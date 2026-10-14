@@ -39,6 +39,17 @@ Classify the Gate A plan by risk level and determine the path:
 
 - **Large blast radius**: AI asks **2~4 questions, one at a time** (do not reveal the next question until the current one is answered — prevents reading-ahead gaming), **before the user sees AI-written code**. Question template: ①why is this change needed ②what is the core mechanism ③what is the most fragile break point ④(if relevant) how to roll it back. AI only evaluates — it does not answer for the user.
 - **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing — zero user retrieval. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
+- **Question source**: draw every question from **one item of the Gate A plan's `### 이해 브리핑`** — ①why → 「왜 바꾸나」, ②mechanism → 「어떻게 동작하나」, ③break point → 「가장 깨지기 쉬운 곳」, ④rollback → 「되돌리는 법」. A question must be answerable from the plan alone. If the plan has no briefing, write it into the Gate A block first (4 items, `gate-a/SKILL.md §Step 1`), then ask.
+- **Record each question when you ask it** — append it to the Gate B block of `${CURRENT_SESSION_FILE}` in the same response, so the dashboard (regenerated on Stop) already shows it when the user opens it to answer:
+
+  ```
+  ### 질문 N
+  <question text>
+  - **읽을 곳**: 이해 브리핑 「<label>」 (optionally + a `###` section title of this session's Gate A block)
+  - **평가**: (filled after the answer)
+  ```
+
+  「읽을 곳」 must name something **visible on the dashboard** — a briefing label or a `###` title. **Never line numbers**: the dashboard shows none and they drift (HARNESS-DASH-LEARN-1-a question 2 was answered from the wrong plan because a line/step pointer collided with another plan in the same file). Record only questions already asked — never the next one — and never write the answer before the user answers.
 - **Gaming guard**: an answer must cite a concrete file/line/mechanism from the Gate A plan (reuses gate-d's claim↔evidence cross-check principle). A generic answer ("이해했어요") does not pass — ask once more.
 - **Trivial**: unchanged, pass-through.
 
@@ -72,6 +83,7 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
 - `${SESSION_INDEX_FILE}` YAML
 - `${CURRENT_SESSION_FILE}` dashboard + Gate B block
+  - The Gate B block keeps every asked question with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
 > **session-dashboard.html update**: `session-dashboard-sync.py` runs as the first Stop hook entry, auto-regenerating the HTML. No skill Bash Step needed.
 
 6. STOP — await user document review·confirmation

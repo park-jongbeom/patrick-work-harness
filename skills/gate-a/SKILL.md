@@ -208,6 +208,17 @@ For **each factual claim** in the plan — file/line counts, existing behavior, 
 Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (same natural-skip pattern as 0-OSS 「N/A」 — cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
 
 1. **After reading all related files**, output the Gate A content as text
+   - **이해 브리핑** (HARNESS-DASH-LEARN-1-b, mandatory) — write it as the **first `###` section of the Gate A block**, heading exactly `### 이해 브리핑`, with exactly these 4 bold-label bullets in this order:
+
+     | Label (write verbatim) | What it must say |
+     |---|---|
+     | `- **왜 바꾸나**:` | The problem in observable terms — what goes wrong today, for whom, and why it is being fixed now |
+     | `- **어떻게 동작하나**:` | The core mechanism as **지금 → 바뀐 뒤**: what happens today, then what happens after the change, in the order it actually runs |
+     | `- **가장 깨지기 쉬운 곳**:` | The single most fragile point, what a failure there would look like to a person, and how the plan guards it |
+     | `- **되돌리는 법**:` | What exactly to revert, what state/data is left behind, and anything that cannot be undone |
+
+     Write for a reader who has **not** read the rest of the plan: plain Korean, 2~4 sentences per item. **No** session IDs, rule numbers (R-12 etc.), claim tags (ⓐⓑⓒ), or bare `파일:줄` lists — name a file only when the reader needs it, and say what it does. Empty phrases (「안정성을 높인다」「구조를 개선한다」) do not count; each item must contain something a person could check. Trivial plans (docs·config) may use 1 sentence per item but must not omit the section.
+     Why: this section is the **source of Gate B's questions** (`gate-b/SKILL.md §Step 2`) and what a reader should see first on the session dashboard (rendered as its top card from HARNESS-DASH-LEARN-1-b-2). The sections below it are its evidence. Without it, the dashboard shows only the plan's flow (files·order·risk counts) and a reader cannot answer "why" or "how" from it (HARNESS-DASH-LEARN-1-a: 135 plan lines/cells, the comprehension answers were not among the 26 the summary showed).
    - Changed-file list (number·path·change type)
    - Per-file detailed change content: current code structure → post-change structure, key decisions
    - **기존 구현 참조 경로** (Pre-Plan investigation result; "없음" if none)
@@ -302,6 +313,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
    >
    > | Section | Write it as | Shape that parses best |
    > |---|---|---|
+   > | Comprehension briefing | `### 이해 브리핑` — **first** section | 4 bold-label bullets `- **왜 바꾸나**: …` (see Step 1) |
    > | Changed files | `### 변경 파일 (N개)` | numbered list — `1. \`path/to/file.py\` (수정)` |
    > | Execution order | `### 실행 순서` or `### 구현 Step` | numbered list, one Step per line |
    > | Risks | `### 리스크 및 대응` | table `\| 리스크 \| 원인 \| 대응 \|` |
