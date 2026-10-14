@@ -504,3 +504,10 @@ class TestParseComprehension(unittest.TestCase):
     def test_empty_input_does_not_crash(self):
         self.assertEqual(sdp.parse_comprehension(""),
                          {"briefing": [], "missing": [], "questions": []})
+
+    def test_parser_failure_returns_empty(self):
+        """내부 예외는 빈 값으로 — 동기화 전체가 실패하면 안 된다."""
+        import unittest.mock as um
+        with um.patch.object(sdp, "_labeled_items", side_effect=RuntimeError):
+            self.assertEqual(sdp.parse_comprehension(_BRIEF_DOC),
+                             {"briefing": [], "missing": [], "questions": []})

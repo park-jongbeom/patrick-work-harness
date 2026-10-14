@@ -507,3 +507,13 @@ class TestComprehensionPanel(unittest.TestCase):
                          mask(sdr.generate_html(*args, plan, None, None)))
         page = sdr.generate_html(*args, plan, None, self.COMP)
         self.assertLess(page.index("이 계획 이해하기"), page.index("규모와 순서"))
+
+    def test_broken_panel_input_keeps_rest_of_page(self):
+        """패널 입력이 깨져도 대시보드 나머지는 뜬다(패널만 빠진다)."""
+        base = cs(session_id="DEMO-1", status="A")
+        sessions = {"active": [], "completed": []}
+        bad = {"briefing": [("왜 바꾸나",)], "missing": [], "questions": []}
+        page = sdr.generate_html(base, sessions, "", "", "", "", "", "", "",
+                                 None, None, bad)
+        self.assertIn("활성 세션", page)
+        self.assertNotIn('class="comp-panel"', page)

@@ -600,6 +600,14 @@ def parse_comprehension(content):
     out = {"briefing": [], "missing": [], "questions": []}
     if not content:
         return out
+    try:
+        return _parse_comprehension(content, out)
+    except Exception:  # 자유 산문 — 못 읽으면 빈 값(대시보드는 계속 뜬다)
+        return {"briefing": [], "missing": [], "questions": []}
+
+
+def _parse_comprehension(content, out):
+    """`parse_comprehension` 본체. 예외는 호출부가 가둔다."""
 
     _, a_block = _gate_block(content, "A")
     for title, body in _sections(a_block):
