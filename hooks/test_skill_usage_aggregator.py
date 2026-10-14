@@ -207,8 +207,9 @@ class TestPortability(unittest.TestCase):
 
     def test_default_projects_dir_is_under_home(self):
         """사설 절대경로가 박혀 있으면 다른 PC 에서 0건을 돌려준다."""
-        self.assertIn(str(Path.home()), str(sua.DEFAULT_PROJECTS_DIR))
-        self.assertNotIn("/home/ubuntu", str(sua.DEFAULT_PROJECTS_DIR))
+        # 홈이 우연히 사설 경로와 같은 머신에서도 통과하도록 홈 기준으로 비교한다.
+        self.assertEqual(sua.DEFAULT_PROJECTS_DIR,
+                         Path.home() / ".claude" / "projects")
 
     def test_timezone_offset_is_configurable(self):
         """기본 KST(+9), 환경변수로 조정 가능."""
