@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from session_dashboard_parsers import (  # noqa: E402
     parse_current_session,
     parse_gate_a_plan,
+    parse_comprehension,
     parse_gate_documents,
     parse_session_index,
 )
@@ -73,6 +74,8 @@ def main():
         gate_a_plan = parse_gate_a_plan(current_content)
         # Gate A~D 블록 전문(고르지 않은 원문). 블록이 없으면 빈 목록 → 패널 생략.
         gate_docs = parse_gate_documents(current_content)
+        # 이해 브리핑 4항목·Gate B 질문 → 화면 맨 위 이해 패널.
+        comprehension = parse_comprehension(current_content)
         (
             sessions,
             last_updated,
@@ -97,6 +100,7 @@ def main():
             next_action,
             gate_a_plan,
             gate_docs,
+            comprehension,
         )
 
         # 파일 저장

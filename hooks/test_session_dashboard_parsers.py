@@ -413,3 +413,94 @@ class TestLosslessSummaryFields(unittest.TestCase):
     def test_no_risk_table_means_no_header(self):
         doc = "## Gate A\n\n### 리스크\n\n- 위험 하나\n"
         self.assertEqual(sdp.parse_gate_a_plan(doc)["risk_header"], [])
+
+    def test_written_unproven_count_is_shown(self):
+        """「ⓒ 2건」이라고 적었는데 0건으로 나오면 검토자가 놓친다."""
+        doc = _DOC.replace("(ⓒ 0건)", "(ⓒ 2건)")
+        self.assertEqual(sdp.parse_gate_a_plan(doc)["evidence"]["ⓒ"], 2)
+
+    def test_tag_legend_rows_are_not_claims(self):
+        """범례 표(`| ⓒ 추론 | … |`)는 주장이 아니다(엔진 이슈 #3 잔여)."""
+        legend = ("\n| 태그 | 기준 |\n|---|---|\n| ⓐ 실측 | 명령 |\n"
+                  "| ⓑ 파일 인용 | 줄 |\n| **ⓒ 추론** | 그 밖 |\n")
+        doc = _DOC.replace("### 점검 결과\n", "### 점검 결과\n" + legend)
+        self.assertEqual(sdp.parse_gate_a_plan(doc)["evidence"], {})
+
+
+_BRIEF_DOC = """# 현재 세션 상태
+
+## Gate A — 구현 계획
+
+### 이해 브리핑
+
+- **왜 바꾸나**: 화면에 <핵심>이 없다.
+- **어떻게 동작하나**: 지금 → 바뀐 뒤.
+  이어진 줄도 본문이다.
+- **가장 깨지기 쉬운 곳**: 옛 문서.
+- **되돌리는 법**: 커밋을 되돌린다.
+
+### 변경 파일
+
+1. `a.py` (수정)
+
+## Gate B — 이해도 게이트
+
+- **판정**: 일반 위험
+
+### 질문 1 (힌트 후 통과)
+
+첫 질문인가?
+
+- **읽을 곳**: 이해 브리핑 「가장 깨지기 쉬운 곳」
+- **평가**: 통과
+
+### 질문 2
+
+둘째 질문인가?
+
+- **읽을 곳**: 이해 브리핑 「되돌리는 법」
+- **평가**: (답변 후 기록)
+"""
+
+
+class TestParseComprehension(unittest.TestCase):
+    """이해 브리핑 4항목·Gate B 질문 (HARNESS-DASH-LEARN-1-b-2)."""
+
+    def setUp(self):
+        self.c = sdp.parse_comprehension(_BRIEF_DOC)
+
+    def test_four_labels_in_order(self):
+        self.assertEqual([lb for lb, _ in self.c["briefing"]],
+                         list(sdp.BRIEFING_LABELS))
+        self.assertEqual(self.c["missing"], [])
+
+    def test_continuation_line_joins_item(self):
+        self.assertEqual(dict(self.c["briefing"])["어떻게 동작하나"],
+                         "지금 → 바뀐 뒤. 이어진 줄도 본문이다.")
+
+    def test_pilot_labels_are_aliased(self):
+        """규칙화 전 시범 계획 2건이 쓴 라벨도 같은 칸에 들어간다."""
+        doc = (_BRIEF_DOC.replace("**왜 바꾸나**", "**왜 하는가**")
+               .replace("**어떻게 동작하나**", "**핵심 동작**"))
+        labels = [lb for lb, _ in sdp.parse_comprehension(doc)["briefing"]]
+        self.assertEqual(labels, list(sdp.BRIEFING_LABELS))
+
+    def test_missing_label_is_reported(self):
+        doc = _BRIEF_DOC.replace("- **되돌리는 법**: 커밋을 되돌린다.\n", "")
+        self.assertEqual(sdp.parse_comprehension(doc)["missing"], ["되돌리는 법"])
+
+    def test_no_briefing_section_means_both_empty(self):
+        """절이 없는 것과 항목이 빠진 것은 다르게 말해야 한다."""
+        c = sdp.parse_comprehension(_DOC)
+        self.assertEqual((c["briefing"], c["missing"]), ([], []))
+
+    def test_questions_with_where_and_evaluation(self):
+        q = self.c["questions"]
+        self.assertEqual([x["title"] for x in q], ["질문 1 (힌트 후 통과)", "질문 2"])
+        self.assertEqual(q[1]["text"], "둘째 질문인가?")
+        self.assertEqual(q[1]["where"], "이해 브리핑 「되돌리는 법」")
+        self.assertEqual([x["evaluated"] for x in q], [True, False])
+
+    def test_empty_input_does_not_crash(self):
+        self.assertEqual(sdp.parse_comprehension(""),
+                         {"briefing": [], "missing": [], "questions": []})

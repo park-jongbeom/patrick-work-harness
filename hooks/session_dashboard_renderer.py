@@ -20,6 +20,7 @@ from pathlib import Path
 # cwd 가 이 디렉터리가 아닐 수 있어 경로를 먼저 넣는다(sync 진입점과 동일 규약).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from session_dashboard_parsers import (  # noqa: E402
+    BRIEFING_LABELS,
     group_files,
     risk_severity,
     scope_gauges,
@@ -216,11 +217,92 @@ def _md_block_to_html(md):
     return "\n".join(out)
 
 
+#: 전문 패널에서 기본으로 접는 절차 기록 절(제목 부분일치).
+_PROCESS_SECTIONS = ("권장 모델", "범위 점검", "점검 결과", "대조 검증", "범위 밖")
+
+
+def render_comprehension(comp, plan_present=False):
+    """맨 위 이해 패널 — 지금 답할 질문 + 「이 계획 이해하기」 카드.
+
+    요약(흐름)과 전문(절차 기록 포함)만으로는 이해도 질문의 답을 찾기
+    어려웠다(HARNESS-DASH-LEARN-1-b-2). 그래서 계획의 이해 브리핑 4항목을
+    가장 먼저, 크게 보여 준다.
+    - 질문 상자에는 **평가가 없는 마지막 질문**의 본문과 읽을 곳만 싣는다.
+      평가는 답을 담고 있어 지난 질문 목록(접힘)에서만 보인다.
+    - 읽을 곳에 브리핑 라벨이 그대로 들어 있을 때만 카드로 가는 링크를 단다.
+    - 브리핑 절이 없으면 빈칸이 아니라 **없다고 말한다** — 빈 화면은
+      「설명할 게 없는 계획」으로 읽힌다. 계획 자체가 없으면 아무것도 안 그린다.
+    """
+    comp = comp or {}
+    briefing = comp.get("briefing") or []
+    missing = comp.get("missing") or []
+    questions = comp.get("questions") or []
+    if not (briefing or missing or questions or plan_present):
+        return ""
+
+    def link_where(where):
+        for n, label in enumerate(BRIEFING_LABELS):
+            if label in where and any(lb == label for lb, _ in briefing):
+                return (f'{_md_inline(where)} '
+                        f'<a class="comp-jump" href="#brief-{n}">→ 「{_esc(label)}」 카드로</a>')
+        return _md_inline(where)
+
+    html = '        <div class="comp-panel">\n'
+    pending = [q for q in questions if not q.get("evaluated")]
+    if pending:
+        q = pending[-1]
+        where = (f'<div class="comp-q-where">📍 읽을 곳: {link_where(q.get("where", ""))}</div>'
+                 if q.get("where") else "")
+        html += (
+            '            <div class="comp-question">\n'
+            f'                <div class="comp-q-label">❓ 지금 답할 질문 — {_esc(q.get("title", ""))}</div>\n'
+            f'                <div class="comp-q-text">{_md_inline(q.get("text", ""))}</div>\n'
+            f'                {where}\n'
+            '            </div>\n'
+        )
+
+    html += '            <h2>🧠 이 계획 이해하기</h2>\n'
+    if briefing or missing:
+        found = dict(briefing)
+        html += '            <div class="comp-grid">\n'
+        for n, label in enumerate(BRIEFING_LABELS):
+            text = found.get(label)
+            body = (_md_inline(text) if text else
+                    '<span class="comp-missing">계획에 이 항목이 없다.</span>')
+            html += (
+                f'                <div class="comp-item" id="brief-{n}">\n'
+                f'                    <div class="comp-item-label">{_esc(label)}</div>\n'
+                f'                    <div class="comp-item-body">{body}</div>\n'
+                '                </div>\n'
+            )
+        html += '            </div>\n'
+    else:
+        html += ('            <p class="comp-none">이 계획에는 이해 브리핑이 없다 — '
+                 '아래 「규모와 순서」와 전문에서 찾아야 한다.</p>\n')
+
+    done = [q for q in questions if q.get("evaluated")]
+    if done:
+        items = "".join(
+            f'<li><strong>{_esc(q.get("title", ""))}</strong> {_md_inline(q.get("text", ""))}</li>'
+            for q in done
+        )
+        html += (
+            '            <details class="comp-done">\n'
+            f'                <summary>지난 질문 {len(done)}개 (평가는 아래 Gate B 전문)</summary>\n'
+            f'                <ol>{items}</ol>\n'
+            '            </details>\n'
+        )
+    return html + '        </div>\n\n'
+
+
 def render_gate_documents(docs):
     """Gate 블록 전문 패널. 블록이 없으면 빈 문자열(섹션 생략).
 
-    - **나중 Gate 가 위**에 온다. 지금 진행 중인 것(예: Gate B 의 질문)을
-      먼저 읽게 하기 위함이다.
+    - 문서 순서(A→D)대로 그린다. 예전에는 나중 Gate 를 위에 뒀는데, C·D 가
+      진행되면 계획(A)이 맨 아래로 밀렸다. 지금 답할 질문은 맨 위 이해
+      패널이 따로 보여 준다(HARNESS-DASH-LEARN-1-b-2).
+    - 절차 기록 절(권장 모델·범위 점검 등)은 **접힌 채로** 둔다. 모두 펼치면
+      「왜·어떻게」가 절차 기록 사이에 묻힌다. 목차에는 그대로 있다.
     - 절 하나의 변환이 실패하면 **그 절만 원문 그대로** 보여주고 나머지는
       계속 그린다. 절을 빼면 읽는 사람이 「렌더 문제로 빠진 것」을 「계획에
       없는 것」으로 오해한다 — 빈 자리보다 다듬지 않은 원문이 낫다.
@@ -229,7 +311,7 @@ def render_gate_documents(docs):
     if not docs:
         return ""
     panels = ""
-    for doc in reversed(docs):
+    for doc in docs:
         gate = doc.get("gate", "")
         toc, body = "", ""
         for n, (title, md) in enumerate(doc.get("sections") or []):
@@ -244,8 +326,9 @@ def render_gate_documents(docs):
                     f'<pre class="doc-raw">{_esc(md)}</pre>'
                 )
             toc += f'<a class="doc-toc-item" href="#{anchor}">{_md_inline(label)}</a>\n'
+            is_open = "" if any(k in label for k in _PROCESS_SECTIONS) else " open"
             body += (
-                f'<details class="doc-section" id="{anchor}" open>\n'
+                f'<details class="doc-section" id="{anchor}"{is_open}>\n'
                 f"<summary>{_md_inline(label)}</summary>\n"
                 f'<div class="doc-body">\n{inner}\n</div>\n'
                 "</details>\n"
@@ -491,7 +574,7 @@ def render_gate_a_plan(plan):
 
     return (
         '        <div class="plan-review">\n'
-        '            <h2>🧭 Gate A 계획 — 사람 검토용</h2>\n'
+        '            <h2>📐 규모와 순서</h2>\n'
         '            <p class="plan-hint">정본은 <code>CURRENT_SESSION.md</code>다. '
         '이 화면은 읽고 판단하기 위한 요약이며, 고칠 것은 .md 에서 고친다.</p>\n'
         f'            <div class="plan-tiles">\n{tile_html}            </div>\n'
@@ -512,13 +595,15 @@ def generate_html(
     next_action="",
     gate_a_plan=None,
     gate_docs=None,
+    comprehension=None,
 ):
     """HTML 생성
 
     `gate_a_plan` 은 **선택 인자**다(DASHBOARD-PLAN-VIZ-1). 기존 호출부는
     9개 인자로 그대로 호출하며, 그 경우 계획 패널만 빠지고 나머지 화면은
     바이트 동일하다 — 시험이 고정한 호출 계약을 깨지 않기 위함.
-    `gate_docs`(계획 전문, DASHBOARD-FULL-PLAN)도 같은 규약의 선택 인자다.
+    `gate_docs`(계획 전문, DASHBOARD-FULL-PLAN)·`comprehension`(이해 브리핑·
+    질문, HARNESS-DASH-LEARN-1-b-2)도 같은 규약의 선택 인자다.
     """
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     css = _load_css()
@@ -619,7 +704,14 @@ def generate_html(
 """
 
     # Gate A 계획 패널 — 계획이 없거나 못 읽으면 빈 문자열(섹션 생략)
-    plan_html = render_gate_a_plan(gate_a_plan)
+    # 이해 패널이 맨 위다 — 「무엇을 왜 어떻게」가 「규모와 순서」보다 먼저다.
+    # 인자를 안 받으면(옛 호출부) 빈 문자열이라 기존 화면과 같다.
+    plan_html = ""
+    if comprehension is not None:
+        plan_html += render_comprehension(
+            comprehension, bool(gate_a_plan and gate_a_plan.get("present"))
+        )
+    plan_html += render_gate_a_plan(gate_a_plan)
     # 계획 전문 — 요약 바로 아래. 요약이 「한눈에」라면 이쪽이 「읽고 이해」다
     plan_html += render_gate_documents(gate_docs)
 

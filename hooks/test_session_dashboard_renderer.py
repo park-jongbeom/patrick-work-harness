@@ -336,10 +336,23 @@ class TestGateDocuments(unittest.TestCase):
         self.assertIn("<code>&lt;i&gt;</code>", html)
         self.assertIn("<strong>&lt;u&gt;굵게&lt;/u&gt;</strong>", html)
 
-    def test_later_gate_comes_first(self):
-        """진행 중인 Gate(질문)가 계획보다 위다."""
-        self.assertLess(self.html.index("Gate B — 이해도 게이트"),
-                        self.html.index("Gate A — 구현 계획"))
+    def test_gates_follow_document_order(self):
+        """A→D 문서 순서다. 나중 Gate 를 위에 두면 C·D 진행 뒤 계획이 맨
+        아래로 밀린다. 지금 답할 질문은 이해 패널이 맨 위에 따로 띄운다."""
+        self.assertLess(self.html.index("Gate A — 구현 계획"),
+                        self.html.index("Gate B — 이해도 게이트"))
+
+    def test_process_sections_start_folded(self):
+        """절차 기록 절은 접혀 있고 나머지는 펼쳐져 있다. 목차에는 둘 다 있다."""
+        docs = [{"gate": "A", "heading": "Gate A", "sections": [
+            ("이해 브리핑", "본문"), ("Gate별 권장 모델", "표"),
+            ("Gate A 범위 점검", "- [x] 파일"),
+        ]}]
+        html = sdr.render_gate_documents(docs)
+        self.assertIn('id="gate-a-s0" open>', html)
+        self.assertIn('id="gate-a-s1">', html)
+        self.assertIn('id="gate-a-s2">', html)
+        self.assertIn('href="#gate-a-s1"', html)
 
     def test_lead_section_and_toc(self):
         self.assertIn("머리말 한 줄.", self.html)
@@ -414,3 +427,83 @@ class TestRiskTableColumns(unittest.TestCase):
                     risk_header=["#", "리스크", "심각도", "대응"])
         html = sdr.render_gate_a_plan(plan)
         self.assertIn("<td>짧은 행</td><td></td><td></td>", html)
+
+
+class TestComprehensionPanel(unittest.TestCase):
+    """맨 위 이해 패널 (HARNESS-DASH-LEARN-1-b-2)."""
+
+    COMP = {
+        "briefing": [("왜 바꾸나", "화면에 <핵심>이 없다."),
+                     ("어떻게 동작하나", "지금 → 바뀐 뒤."),
+                     ("가장 깨지기 쉬운 곳", "옛 문서."),
+                     ("되돌리는 법", "커밋을 되돌린다.")],
+        "missing": [],
+        "questions": [
+            {"title": "질문 1 (통과)", "text": "첫 질문?", "where": "", "evaluated": True},
+            {"title": "질문 2", "text": "둘째 질문?",
+             "where": "이해 브리핑 「되돌리는 법」", "evaluated": False},
+        ],
+    }
+
+    def setUp(self):
+        self.html = sdr.render_comprehension(self.COMP, True)
+
+    def test_pending_question_comes_before_cards(self):
+        self.assertLess(self.html.index("지금 답할 질문 — 질문 2"),
+                        self.html.index("이 계획 이해하기"))
+
+    def test_where_links_to_existing_card(self):
+        self.assertIn('href="#brief-3"', self.html)
+        self.assertIn('id="brief-3"', self.html)
+
+    def test_where_without_label_has_no_link(self):
+        comp = dict(self.COMP, questions=[
+            {"title": "질문 1", "text": "q", "where": "전문의 리스크 표", "evaluated": False}])
+        self.assertNotIn("comp-jump", sdr.render_comprehension(comp, True))
+
+    def test_evaluated_question_is_not_in_the_box(self):
+        box = self.html[: self.html.index("이 계획 이해하기")]
+        self.assertNotIn("첫 질문?", box)
+        self.assertIn("지난 질문 1개", self.html)
+
+    def test_no_pending_question_means_no_box(self):
+        comp = dict(self.COMP, questions=self.COMP["questions"][:1])
+        self.assertNotIn("comp-question", sdr.render_comprehension(comp, True))
+
+    def test_missing_item_says_so(self):
+        comp = dict(self.COMP, briefing=self.COMP["briefing"][:3],
+                    missing=["되돌리는 법"])
+        self.assertIn("계획에 이 항목이 없다", sdr.render_comprehension(comp, True))
+
+    def test_plan_without_briefing_says_so(self):
+        empty = {"briefing": [], "missing": [], "questions": []}
+        self.assertIn("이해 브리핑이 없다", sdr.render_comprehension(empty, True))
+
+    def test_no_plan_no_briefing_renders_nothing(self):
+        empty = {"briefing": [], "missing": [], "questions": []}
+        self.assertEqual(sdr.render_comprehension(empty, False), "")
+
+    def test_body_is_escaped(self):
+        self.assertIn("&lt;핵심&gt;", self.html)
+        self.assertNotIn("<핵심>", self.html)
+
+    def test_panel_has_no_approval_button(self):
+        self.assertNotIn("<button", self.html)
+        self.assertNotIn("<form", self.html)
+
+    def test_page_order_and_default_identity(self):
+        """이해 패널 → 규모와 순서 순서이고, 인자를 안 주면 화면이 예전과 같다."""
+        import re as _re
+
+        def mask(h):
+            return _re.sub(r"마지막 업데이트: [\d\-: ]+KST", "T", h)
+
+        base = cs(session_id="DEMO-1", status="A")
+        sessions = {"active": [], "completed": []}
+        args = (base, sessions, "2026-10-14", "", "", "", "", "", "")
+        plan = {"present": True, "files": ["a.py"], "steps": [], "risks": [],
+                "scope_checks": [], "refs": "", "verify": "", "evidence": {}}
+        self.assertEqual(mask(sdr.generate_html(*args, plan, None)),
+                         mask(sdr.generate_html(*args, plan, None, None)))
+        page = sdr.generate_html(*args, plan, None, self.COMP)
+        self.assertLess(page.index("이 계획 이해하기"), page.index("규모와 순서"))

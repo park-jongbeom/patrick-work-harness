@@ -532,14 +532,113 @@ def parse_gate_a_plan(content):
     # ── 주장-근거 태그(ⓐ 실측 / ⓑ 파일인용 / ⓒ 추론) 개수 ──
     # ⓒ 가 남아 있으면 「아직 확인 안 한 주장」이 있다는 뜻이다 — 사람이
     # 가장 먼저 봐야 할 신호라 개수를 따로 센다.
+    # 태그 범례 표의 행(`| ⓒ 추론 | … |`)은 주장이 아니다 — 빼고 센다.
+    # 범례를 적은 계획에 「미검증 주장 1건」이 뜨던 것(엔진 이슈 #3 잔여).
+    counted = "\n".join(
+        ln for ln in block.splitlines() if not _EVIDENCE_LEGEND_RE.match(ln)
+    )
     for tag in ("ⓐ", "ⓑ", "ⓒ"):
-        # `ⓒ 0건` 처럼 **개수를 적은 표기**는 세지 않는다. 그것까지 세면
-        # 「미검증 주장 0건」이라고 쓴 계획에 경고 타일이 뜬다(실측).
-        n = len(re.findall(rf"{tag}(?!\s*\d+\s*건)", block))
+        # `ⓒ 0건` 처럼 **개수를 적은 표기**는 태그로 세지 않는다. 그것까지
+        # 세면 「미검증 주장 0건」이라고 쓴 계획에 경고 타일이 뜬다(실측).
+        n = len(re.findall(rf"{tag}(?!\s*\d+\s*건)", counted))
+        # 대신 적힌 수는 따로 읽어 **둘 중 큰 값**을 쓴다. 적힌 수를 버리면
+        # 「ⓒ 2건」이라고 쓴 계획이 0건으로 나온다(HARNESS-DASH-LEARN-1-a 후속).
+        # 과대 표시는 검토자가 확인하게 만들 뿐이지만, 과소 표시는 놓치게 한다.
+        written = [int(w) for w in re.findall(rf"{tag}\s*(\d+)\s*건", counted)]
+        n = max([n] + written)
         if n:
             plan["evidence"][tag] = n
 
     return plan
+
+
+_EVIDENCE_LEGEND_RE = re.compile(
+    r"^\s*\|\s*(?:\*\*)?[ⓐⓑⓒ]\s*(?:실측|파일\s*인용|추론)(?:\*\*)?\s*\|"
+)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 이해 브리핑 · Gate B 질문 (HARNESS-DASH-LEARN-1-b-2, 2026-10-14)
+#
+# gate-a 는 계획 맨 앞에 `### 이해 브리핑` 4항목을, gate-b 는 낸 질문을
+# `### 질문 N` + 읽을 곳 + 평가로 적게 한다. 대시보드는 이 둘을 **맨 위**에
+# 보여 준다 — 요약(흐름)과 전문(절차 기록 포함)만으로는 「왜·어떻게」를
+# 찾기 어려웠다. 못 찾으면 빈 값이고, 렌더러가 안내 문구로 바꾼다.
+# ─────────────────────────────────────────────────────────────────────
+
+#: 브리핑 정식 라벨(순서 = 화면 순서).
+BRIEFING_LABELS = ("왜 바꾸나", "어떻게 동작하나", "가장 깨지기 쉬운 곳", "되돌리는 법")
+
+#: 규칙화 전 시범 계획(2026-10-11, 2건)이 쓴 라벨 → 정식 라벨.
+_BRIEFING_ALIASES = {"왜 하는가": "왜 바꾸나", "핵심 동작": "어떻게 동작하나"}
+
+_BRIEF_ITEM_RE = re.compile(r"^[-*]\s+\*\*([^*\n]+?)\*\*\s*[:：]?\s*(.*)$")
+
+
+def _labeled_items(body):
+    """`- **라벨**: 본문` 목록 → [(라벨, 본문)]. 들여쓴 이어진 줄은 본문에 붙인다."""
+    items = []
+    for line in body.splitlines():
+        m = _BRIEF_ITEM_RE.match(line.strip()) if not line[:1].isspace() else None
+        if m:
+            items.append([m.group(1).strip(), m.group(2).strip()])
+        elif items and line.strip():
+            items[-1][1] = (items[-1][1] + " " + line.strip()).strip()
+    return [(k, v) for k, v in items]
+
+
+def parse_comprehension(content):
+    """이해 브리핑 4항목과 Gate B 질문을 읽는다.
+
+    반환: `{"briefing": [(정식 라벨, 본문)…],  # 정식 라벨 순서, 찾은 것만
+            "missing": [빠진 정식 라벨…],     # 브리핑 절이 없으면 빈 목록
+            "questions": [{"title", "text", "where", "evaluated"}…]}`
+
+    브리핑 **절 자체가 없으면** `briefing`·`missing` 모두 빈 목록이다 — 「절이
+    없음」과 「일부 항목 빠짐」을 렌더러가 다르게 말해야 하기 때문이다.
+    """
+    out = {"briefing": [], "missing": [], "questions": []}
+    if not content:
+        return out
+
+    _, a_block = _gate_block(content, "A")
+    for title, body in _sections(a_block):
+        if "이해 브리핑" not in title:
+            continue
+        found = {}
+        for label, text in _labeled_items(body):
+            label = _BRIEFING_ALIASES.get(label, label)
+            if label in BRIEFING_LABELS and label not in found:
+                found[label] = text
+        out["briefing"] = [(lb, found[lb]) for lb in BRIEFING_LABELS if lb in found]
+        out["missing"] = [lb for lb in BRIEFING_LABELS if lb not in found]
+        break
+
+    _, b_block = _gate_block(content, "B")
+    for title, body in _sections(b_block):
+        if not title.startswith("질문"):
+            continue
+        fields = dict(_labeled_items(body))
+        # 질문 본문 = 라벨 줄이 나오기 전까지의 글
+        text_lines = []
+        for line in body.splitlines():
+            if _BRIEF_ITEM_RE.match(line.strip()):
+                break
+            if line.strip():
+                text_lines.append(line.strip())
+        evaluation = ""
+        for key, val in fields.items():
+            if "평가" in key or "재질문" in key:
+                evaluation += val
+        # 자리표시(「(답변 후 기록)」)만 있으면 아직 평가 전이다
+        evaluated = bool(re.sub(r"^\(.*\)$", "", evaluation.strip()))
+        out["questions"].append({
+            "title": title,
+            "text": " ".join(text_lines),
+            "where": fields.get("읽을 곳", ""),
+            "evaluated": evaluated or "통과" in title,
+        })
+    return out
 
 
 def _clean_file_entry(text):

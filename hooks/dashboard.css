@@ -848,3 +848,120 @@
             color: #c92a2a;
             font-size: 12.5px;
         }
+
+        /* ── 이해 패널 (HARNESS-DASH-LEARN-1-b-2) — 화면 맨 위 ── */
+        .comp-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 8px solid #2f9e44;
+        }
+
+        .comp-panel h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #2f9e44;
+        }
+
+        /* 지금 답할 질문 — 패널 안에서 가장 먼저 눈에 걸리게 */
+        .comp-question {
+            background: #fff8e6;
+            border: 2px solid #e0a800;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-bottom: 22px;
+        }
+
+        .comp-q-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #8a6100;
+            margin-bottom: 6px;
+        }
+
+        .comp-q-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #222;
+        }
+
+        .comp-q-where {
+            margin-top: 10px;
+            font-size: 13.5px;
+            color: #555;
+        }
+
+        .comp-jump {
+            margin-left: 6px;
+            color: #1971c2;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .comp-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
+
+        .comp-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-top: 4px solid #2f9e44;
+            padding: 14px 16px;
+        }
+
+        /* 질문 상자의 링크로 건너왔을 때 어느 카드인지 보이게 */
+        .comp-item:target {
+            background: #ebfbee;
+            box-shadow: 0 0 0 3px #2f9e44;
+        }
+
+        .comp-item-label {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2b8a3e;
+            margin-bottom: 6px;
+        }
+
+        .comp-item-body {
+            font-size: 14.5px;
+            line-height: 1.7;
+            color: #333;
+        }
+
+        .comp-missing,
+        .comp-none {
+            color: #c92a2a;
+            font-size: 14px;
+        }
+
+        .comp-done {
+            margin-top: 16px;
+            font-size: 13.5px;
+            color: #555;
+        }
+
+        .comp-done summary {
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .comp-done ol {
+            margin: 8px 0 0 20px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .comp-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .comp-panel {
+                padding: 20px;
+            }
+        }
