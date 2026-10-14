@@ -29,11 +29,14 @@ def clear_counter(session_id):
 
 def run_hook(current_session_content, session_id="test-sess",
              index_content="", topics=None, write_current=True,
-             stop_hook_active=False, code_repos=None):
+             stop_hook_active=False, code_repos=None,
+             base_topics=None):
     """
     error-topics-guard.py 를 서브프로세스로 실행, (returncode, stderr) 반환.
 
     topics: { repo_name: { topic_file: content } } — error_topics/*.md 픽스처.
+    base_topics: { topic_file: content } — error_topics_path(.claude/error_topics)
+               픽스처. 주면 ERROR_TOPICS_PATH env 로 가리킨다.
     code_repos: 검사 대상 저장소 목록 (None → topics 키에서 자동 추론).
                ERROR_TOPICS_CODE_REPOS env 로 주입 (harness-answers.yml 대체).
     """
@@ -56,6 +59,14 @@ def run_hook(current_session_content, session_id="test-sess",
                     f.write(content)
 
         env = os.environ.copy()
+        env.pop("ERROR_TOPICS_PATH", None)
+        if base_topics is not None:
+            bdir = os.path.join(base_dir, ".claude", "error_topics")
+            os.makedirs(bdir, exist_ok=True)
+            for fname, content in base_topics.items():
+                with open(os.path.join(bdir, fname), "w", encoding="utf-8") as f:
+                    f.write(content)
+            env["ERROR_TOPICS_PATH"] = ".claude/error_topics"
         env["ERROR_TOPICS_GUARD_BASE"] = base_dir
         env["ERROR_TOPICS_GUARD_REPO_ROOT"] = repo_root
 
@@ -280,6 +291,46 @@ def test_stop_hook_active_allows():
     print("  PASS: stop_hook_active → 차단 조건 성립해도 즉시 허용")
 
 
+def test_custom_path_blocks_without_code_repos():
+    """error_topics_path 가 있으면 code_repos·저장소 행 없이도 검사한다."""
+    clear_counter("t-cust1")
+    code, err = run_hook(
+        current_md("FIX-B-CUST-1", repos="없음"),
+        session_id="t-cust1", base_topics={"a.md": "무관\n"},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert ".claude" in err and "error_topics" in err, err
+    clear_counter("t-cust1")
+    print("  PASS: error_topics_path 지정 → code_repos 없이 미적재 차단")
+
+
+def test_custom_path_logged_allows():
+    clear_counter("t-cust2")
+    code, _ = run_hook(
+        current_md("FIX-B-CUST-2", repos="없음"),
+        session_id="t-cust2", base_topics={"a.md": "## FIX-B-CUST-2 — 적재\n"},
+    )
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: error_topics_path 에 적재됨 → 허용")
+
+
+def test_unchecked_notice_once():
+    """검사 위치를 몰라 건너뛸 때 세션당 한 번 알린다(조용한 통과 금지)."""
+    sid = "t-notice"
+    clear_counter(sid)
+    notice = counter_file("FIX-B-NOTICE-1") + ".skipped"
+    try:
+        os.remove(notice)
+    except OSError:
+        pass
+    code, err = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid)
+    assert code == 0 and "검사하지 않았습니다" in err, (code, err)
+    code, err = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid)
+    assert code == 0 and err == "", (code, err)
+    os.remove(notice)
+    print("  PASS: 검사 위치 불명 → 한 번만 알리고 통과")
+
+
 if __name__ == "__main__":
     tests = [
         test_missing_current_allows,
@@ -294,6 +345,9 @@ if __name__ == "__main__":
         test_unlogged_selfdebug_blocks,
         test_loop_guard_releases_after_max,
         test_stop_hook_active_allows,
+        test_custom_path_blocks_without_code_repos,
+        test_custom_path_logged_allows,
+        test_unchecked_notice_once,
     ]
     print(f"error-topics-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)

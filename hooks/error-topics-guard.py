@@ -36,6 +36,10 @@ import re
 import sys
 import tempfile
 
+# Windows(cp949) 콘솔에서 차단 메시지가 깨지지 않게 stderr 를 UTF-8 로 고정.
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 try:
     import yaml
     _YAML_AVAILABLE = True
@@ -75,27 +79,47 @@ def _find_answers_yml():
     return None
 
 
+def _load_answers():
+    """harness-answers.yml 로드. 없거나 실패하면 {} (fail-open)."""
+    path = _find_answers_yml()
+    if not path:
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+        if _YAML_AVAILABLE:
+            return yaml.safe_load(text) or {}
+        data = _simple_parse_code_repos(text)
+        m = re.search(r"^error_topics_path\s*:\s*[\"']?([^\"'#\n]+?)[\"']?\s*(?:#.*)?$",
+                      text, re.MULTILINE)
+        if m:
+            data["error_topics_path"] = m.group(1).strip()
+        return data
+    except Exception:
+        return {}
+
+
 def _load_code_repos():
     """harness-answers.yml → code_repos 로드. 미설정/실패 시 빈 리스트(fail-open)."""
     # 테스트 우선 env 오버라이드 지원
     env_override = os.environ.get("ERROR_TOPICS_CODE_REPOS")
     if env_override:
         return [r.strip() for r in env_override.split(",") if r.strip()]
+    repos = _load_answers().get("code_repos") or []
+    return [str(r) for r in repos if r]
 
-    path = _find_answers_yml()
-    if not path:
-        return []
-    try:
-        if _YAML_AVAILABLE:
-            with open(path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        else:
-            with open(path, "r", encoding="utf-8") as f:
-                data = _simple_parse_code_repos(f.read())
-        repos = data.get("code_repos") or []
-        return [str(r) for r in repos if r]
-    except Exception:
-        return []
+
+def _load_topics_dir():
+    """harness-answers.yml → error_topics_path (BASE_DIR 기준 상대 또는 절대).
+
+    설정돼 있으면 code_repos·저장소 행 없이도 이 한 곳을 검사한다.
+    미설정이면 None.
+    """
+    env_override = os.environ.get("ERROR_TOPICS_PATH")
+    value = env_override or _load_answers().get("error_topics_path")
+    if not value:
+        return None
+    return os.path.join(BASE_DIR, str(value))
 
 
 def _simple_parse_code_repos(text):
@@ -197,13 +221,20 @@ def detect_code_repos(cur_text):
     return [r for r in code_repos if r in repos_field]
 
 
-def session_id_logged(session_id, repos):
+def topics_dirs(repos, custom_dir):
+    """검사할 error_topics 디렉토리 목록. error_topics_path 가 있으면 그것만."""
+    if custom_dir:
+        return [custom_dir]
+    return [os.path.join(REPO_ROOT, r, "docs", "rules", "error_topics")
+            for r in repos]
+
+
+def session_id_logged(session_id, dirs):
     """
-    세션 ID 가 주어진 코드 저장소들의 error_topics/*.md 어딘가에 등장하는지.
+    세션 ID 가 error_topics/*.md 어딘가에 등장하는지.
     하나라도 등장하면 True (적재됨).
     """
-    for repo in repos:
-        topics_dir = os.path.join(REPO_ROOT, repo, "docs", "rules", "error_topics")
+    for topics_dir in dirs:
         for path in glob.glob(os.path.join(topics_dir, "*.md")):
             text = read_text(path)
             if text and session_id in text:
@@ -289,14 +320,28 @@ def main():
         clear_counter(cpath)
         allow()
 
-    # ── 작업 코드 저장소 식별 (문서 전용 세션 → 검사 제외) ──
-    repos = detect_code_repos(cur_text)
-    if not repos:
+    # ── 검사 위치 식별: error_topics_path 가 우선, 없으면 code_repos 기준 ──
+    custom_dir = _load_topics_dir()
+    repos = [] if custom_dir else detect_code_repos(cur_text)
+    if not custom_dir and not repos:
+        # 조용한 통과는 「검사 중」이라는 착각을 만든다 — 세션당 한 번 알린다.
+        notice = counter_path(sid) + ".skipped"
+        if not os.path.exists(notice):
+            write_counter(notice, 1)
+            print(
+                f"[ERROR-TOPICS] 세션 '{sid}' 는 오류 흔적이 있으나 검사 위치를 "
+                f"알 수 없어 검사하지 않았습니다.\n"
+                f"  harness-answers.yml 에 error_topics_path(또는 code_repos)를 "
+                f"지정하면 적재 여부를 확인합니다.",
+                file=sys.stderr,
+            )
         clear_counter(cpath)
         allow()
 
+    dirs = topics_dirs(repos, custom_dir)
+
     # ── (3) 적재 검사 (이미 등장 → 허용) ──
-    if session_id_logged(sid, repos):
+    if session_id_logged(sid, dirs):
         clear_counter(cpath)
         allow()
 
@@ -307,15 +352,13 @@ def main():
     if attempts > MAX_BLOCKS:
         print(
             f"[ERROR-TOPICS] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
-            f"  {repos} error_topics 에 '{sid}' 오류 케이스를 수동 적재하세요.",
+            f"  {dirs} error_topics 에 '{sid}' 오류 케이스를 수동 적재하세요.",
             file=sys.stderr,
         )
         clear_counter(cpath)
         allow()
 
-    repo_hint = " · ".join(
-        f"{r}/docs/rules/error_topics/" for r in repos
-    )
+    repo_hint = " · ".join(dirs)
     block(
         f"[ERROR-TOPICS] 오류 케이스 미적재 감지 — error_topics 적재 필요 "
         f"({attempts}/{MAX_BLOCKS})\n"

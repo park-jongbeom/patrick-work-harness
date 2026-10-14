@@ -48,6 +48,8 @@ If `DOC_INDEX.md` exists at the target repo root:
    **Canonical location** (managed independently per repository) — the target repositories are
    listed in `.claude/harness-answers.yml` → `code_repos` (**SSOT**, shared with
    `error-topics-guard.py`). For each entry, the path is `{repo}/docs/rules/error_topics/`.
+   If `.claude/harness-answers.yml` → `error_topics_path` is set, record there instead (relative to the
+   project root); `error-topics-guard.py` checks that one directory and `code_repos` is not required.
 
    > **If `code_repos` is absent or empty** → output
    > **"`code_repos` 미설정 — 오류 기록 경로 없음. `harness-answers.yml`에 설정하세요"** and proceed to Step 4.
