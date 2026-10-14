@@ -86,6 +86,38 @@ class TestAggregate(AggregatorTestBase):
         self.assertIsInstance(r, dict)
 
 
+class TestTypedSlashCommand(AggregatorTestBase):
+    """직접 입력한 슬래시 명령은 user 메시지의 <command-name> 태그로만 남는다."""
+
+    @staticmethod
+    def typed(name, ts, uuid, as_list=False):
+        body = f"<command-message>{name}</command-message>\n" \
+               f"<command-name>/{name}</command-name>"
+        return {
+            "type": "user", "uuid": uuid, "sessionId": "S1",
+            "timestamp": ts.isoformat().replace("+00:00", "Z"),
+            "message": {"content": [{"type": "text", "text": body}]
+                        if as_list else body},
+        }
+
+    def invocations(self):
+        return [(s, ) for _, s, _, _ in
+                sua.iter_skill_invocations(self.root)]
+
+    def test_typed_command_is_counted(self):
+        now = datetime.now(timezone.utc)
+        self.write([self.typed("audit", now, "u1"),
+                    self.typed("doc-cleanup", now, "u2", as_list=True)])
+        self.assertEqual(sorted(self.invocations()),
+                         [("audit",), ("doc-cleanup",)])
+
+    def test_builtin_commands_are_ignored(self):
+        now = datetime.now(timezone.utc)
+        self.write([self.typed("clear", now, "u1"),
+                    self.typed("model", now, "u2")])
+        self.assertEqual(self.invocations(), [])
+
+
 class TestDashboardOutput(AggregatorTestBase):
 
     def test_writes_markdown_with_all_nine_skills(self):

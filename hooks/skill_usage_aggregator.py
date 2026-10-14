@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -69,6 +70,9 @@ def _parse_ts(ts_raw):
         return None
 
 
+_COMMAND_TAG_RE = re.compile(r"<command-name>\s*/?([\w:.-]+)\s*</command-name>")
+
+
 def _collect_invocation(entry: dict, invocations: dict) -> None:
     """단일 JSONL 엔트리에서 스킬 호출 마커를 추출해 invocations(id→...)에 병합.
 
@@ -111,6 +115,26 @@ def _collect_invocation(entry: dict, invocations: dict) -> None:
             if tool_id is None:  # id 부재 시 합성 키 (매우 드묾)
                 tool_id = entry.get("uuid") or f"cmd:{command_name}:{ts.isoformat()}"
             invocations.setdefault(tool_id, (command_name, ts, session_id))
+
+    # 소스 3: 사용자가 직접 입력한 슬래시 명령 — user 메시지 본문의
+    # `<command-name>/X</command-name>` 태그로만 남는다(위 두 표시는 생기지 않음).
+    # `/clear`·`/model` 같은 내장 명령은 배포 스킬 목록과 대조해 뺀다.
+    if entry.get("type") == "user" and not isinstance(
+            entry.get("toolUseResult"), dict):
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(
+                b.get("text", "") for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+                and isinstance(b.get("text"), str))
+        else:
+            text = ""
+        for m in _COMMAND_TAG_RE.finditer(text):
+            name = m.group(1)
+            if name in NINE_SKILLS:
+                key = f"tag:{entry.get('uuid') or ts.isoformat()}:{name}"
+                invocations.setdefault(key, (name, ts, session_id))
 
 
 def iter_skill_invocations(projects_dir: Path):
