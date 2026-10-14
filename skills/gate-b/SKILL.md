@@ -49,7 +49,7 @@ Classify the Gate A plan by risk level and determine the path:
   - **평가**: (filled after the answer)
   ```
 
-  「읽을 곳」 must name something **visible on the dashboard** — a briefing label or a `###` title. **Never line numbers**: the dashboard shows none and they drift (HARNESS-DASH-LEARN-1-a question 2 was answered from the wrong plan because a line/step pointer collided with another plan in the same file). Record only questions already asked — never the next one — and never write the answer before the user answers.
+  「읽을 곳」 must name something **visible on the dashboard** — a briefing label or a `###` title. **Never line numbers**: the dashboard shows none and they drift when the document is edited. If the session file holds more than one plan, say which one (「이번 세션 Gate A의 …」) — in HARNESS-DASH-LEARN-1-a question 2, the pointer 「실행 순서 5」 matched the section 「5. 실행 순서」 of another plan in the same file and the user answered from that plan. Record only questions already asked — never the next one — and never write the answer before the user answers.
 - **Gaming guard**: an answer must cite a concrete file/line/mechanism from the Gate A plan (reuses gate-d's claim↔evidence cross-check principle). A generic answer ("이해했어요") does not pass — ask once more.
 - **Trivial**: unchanged, pass-through.
 
