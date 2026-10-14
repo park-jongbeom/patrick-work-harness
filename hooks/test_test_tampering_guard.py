@@ -45,7 +45,10 @@ def run_hook(repo):
         # PYTHONIOENCODING: 자식 출력을 부모 디코드(utf-8)와 일치 — 미지정 시 cp949
         env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": repo,
              "PYTHONIOENCODING": "utf-8"},
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        # input="": 훅은 stdin 이 tty 가 아니면 끝까지 읽는다. 지정하지 않으면
+        # 부모의 열린 stdin(CI·에이전트 환경)을 물려받아 영원히 멈춘다.
+        input="", capture_output=True, text=True, encoding="utf-8",
+        errors="replace",
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -186,7 +189,8 @@ class TestTamperingGuard(unittest.TestCase):
                 cwd=non_repo,
                 env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": non_repo,
                      "PYTHONIOENCODING": "utf-8"},
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                input="", capture_output=True, text=True, encoding="utf-8",
+                errors="replace",
             )
             self.assertEqual(proc.returncode, 0, proc.stdout)
             self.assertEqual(proc.stderr, "", proc.stderr)
