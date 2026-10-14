@@ -137,9 +137,9 @@ Each Gate is performed via /gate-a ~ /gate-e Skill commands.
 | Gate | Skill | Deliverable | Stop point |
 |------|-------|-------------|------------|
 | A | /gate-a | Per-file detailed change plan | Await user approval |
-| B | /gate-b | Code implementation | Await user confirmation |
-| C | /gate-c | Verification (plan + execution) | Await user confirmation |
-| D | /gate-d | Code quality improvement (conditional) | Await user confirmation |
+| B | /gate-b | Comprehension check | Await user confirmation |
+| C | /gate-c | Code implementation | Await user confirmation |
+| D | /gate-d | Verification (plan + execution) | Await user confirmation |
 | E | /gate-e | WORKLOG · archive | — |
 
 ## Build · Test
