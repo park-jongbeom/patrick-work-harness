@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 🔴 **훅 출력 계약 통일 — 보이지 않던 경고 5곳을 공식 채널로.** **계기**: 딥 리서치 보고서 대조
+  검증(2026-10-15). 공식 hooks 문서상 exit 0 훅의 stderr 는 사용자·Claude 어디에도 가지 않고,
+  exit 1 은 「비차단 오류」라 사용자에게 stderr 첫 줄만 보인다.
+  ① gate-a-sync·gate-e-sync·master-plan-stale·error-topics 가드의 「연속 차단 한도 초과 → 강제
+  종료 허용」 경고(stderr + exit 0) → stdout `systemMessage` ② test-tampering 가드의 변조 경고
+  (exit 1) → exit 0 + `systemMessage`(사용자에게 전문) + `additionalContext`(Claude 가 되돌릴지
+  판단). CI 설정 변경 차단(exit 2 + stderr)은 그대로. stdout 에 JSON 외 글이 섞이지 않게 진행
+  표시 줄은 뺐다. **시험**: 출력 계약 시험 4건 신설(수정 전 4/4 실패) · 변조 시험 9곳의 기대값을
+  새 채널로(동작을 바꿨기 때문).
+
 ## [1.7.0] - 2026-10-15
 
 > **대시보드 하나로 계획을 이해하고 이해도 질문에 답할 수 있게 만든 판**이다.

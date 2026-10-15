@@ -36,6 +36,10 @@ import re
 import sys
 import tempfile
 
+# 한글 systemMessage 를 Windows cp949 stdout 에서도 내보내도록 고정
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # 정본 절대경로 — R-4-2-b: 3단 우선순위 (① MASTER_PLAN_GUARD_BASE[테스트] → ② CLAUDE_PROJECT_DIR → ③ 절대경로 폴백)
 _proj = os.environ.get("CLAUDE_PROJECT_DIR")
 BASE_DIR = (
@@ -48,6 +52,15 @@ MASTER_PLAN = os.path.join(BASE_DIR, "00_MASTER_PLAN.md")
 
 # 연속 차단 한도 (무한 루프 방지)
 MAX_BLOCKS = 3
+
+
+def notify(message):
+    """사용자에게 보이는 비차단 알림 — stdout systemMessage JSON(exit 0 훅의 stderr 는
+    사용자·Claude 어디에도 전달되지 않는다. 공식 hooks 문서 「exit code 0」)."""
+    try:
+        print(json.dumps({"systemMessage": message}, ensure_ascii=False))
+    except (TypeError, ValueError):
+        print(message, file=sys.stderr)
 
 
 def allow():
@@ -196,10 +209,9 @@ def main():
     write_counter(cpath, attempts)
 
     if attempts > MAX_BLOCKS:
-        print(
+        notify(
             f"[MASTER-PLAN-STALE] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
-            f"  00_MASTER_PLAN.md L7 status 를 수동으로 갱신하세요.",
-            file=sys.stderr,
+            f"  00_MASTER_PLAN.md L7 status 를 수동으로 갱신하세요."
         )
         clear_counter(cpath)
         allow()

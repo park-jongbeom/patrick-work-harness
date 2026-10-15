@@ -356,11 +356,10 @@ def main():
     write_counter(cpath, attempts)
 
     if attempts > MAX_BLOCKS:
-        print(
+        print(json.dumps({"systemMessage": (
             f"[ERROR-TOPICS] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
-            f"  {dirs} error_topics 에 '{sid}' 오류 케이스를 수동 적재하세요.",
-            file=sys.stderr,
-        )
+            f"  {dirs} error_topics 에 '{sid}' 오류 케이스를 수동 적재하세요."
+        )}, ensure_ascii=False))
         clear_counter(cpath)
         allow()
 

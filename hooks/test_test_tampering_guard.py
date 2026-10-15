@@ -53,6 +53,14 @@ def run_hook(repo):
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def _system_message(stdout):
+    """경고 JSON(stdout)의 systemMessage. JSON 이 아니면 빈 문자열 — 단언이 실패하게."""
+    try:
+        return json.loads(stdout).get("systemMessage", "")
+    except ValueError:
+        return ""
+
+
 class TestTamperingGuard(unittest.TestCase):
     def setUp(self):
         self.repo = tempfile.mkdtemp(prefix="ttg-")
@@ -81,16 +89,16 @@ class TestTamperingGuard(unittest.TestCase):
         self._write("tests/FooTest.java", BASE_FOO.replace(
             "  void a()", "  @Disabled\n  void a()"))
         rc, out, err = run_hook(self.repo)
-        self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern A", err)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Pattern A", _system_message(out))
 
     # ── Pattern B: assert 라인 감소 → 1 ──
     def test_pattern_b_assert_decrease(self):
         self._write("tests/FooTest.java",
                     "class FooTest {\n  void a() {  }\n  void b() {  }\n  void c() {  }\n}\n")
         rc, out, err = run_hook(self.repo)
-        self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern B", err)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Pattern B", _system_message(out))
 
     # ── Pattern C: mock+database 라인 제거 → 1 ──
     def test_pattern_c_mock_reduction(self):
@@ -99,8 +107,8 @@ class TestTamperingGuard(unittest.TestCase):
         _git(self.repo, "commit", "-q", "-m", "add db")
         os.remove(Path(self.repo) / "tests/DbTest.java")
         rc, out, err = run_hook(self.repo)
-        self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern C", err)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Pattern C", _system_message(out))
 
     # ── Pattern D: CI config 변경 → 2 (block) ──
     def test_pattern_d_ci_change_blocks(self):
@@ -123,8 +131,8 @@ class TestTamperingGuard(unittest.TestCase):
             "  void a()", "  @Disabled\n  void a()"))
         _git(self.repo, "add", "tests/FooTest.java")  # 워킹트리 clean, staged에만 존재
         rc, out, err = run_hook(self.repo)
-        self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern A", err)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Pattern A", _system_message(out))
 
     # ── 인자순서 회귀: tests/ 변경 시 diff 비어있지 않음 ──
     def test_arg_order_regression_nonempty_diff(self):
@@ -160,8 +168,8 @@ class TestTamperingGuard(unittest.TestCase):
             '{\n  "dependencies": {\n    "foo": "1.0.0",\n    "bar": "2.0.0"\n  }\n}\n')
         self._write("package.json", '{\n  "dependencies": {\n    "foo": "1.0.0"\n  }\n}\n')
         rc, out, err = run_hook(self.repo)
-        self.assertEqual(rc, 1, out)
-        self.assertIn("Pattern D", err)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Pattern D", _system_message(out))
 
     def test_dep_value_change_passes(self):
         """값만 변경(버전 업) → 통과(0). 선언이 사라지지 않았다."""
@@ -240,24 +248,29 @@ class TestA5Contracts(unittest.TestCase):
     def test_reason_goes_to_stderr_not_stdout(self):
         self._tamper()
         rc, out, err = self._run()
-        self.assertEqual(rc, 1, out)
-        self.assertIn("REWARD-HACKING PATTERNS DETECTED", err)
-        self.assertNotIn("REWARD-HACKING PATTERNS DETECTED", out)
+        # 경고는 exit 0 + stdout JSON 하나: systemMessage(사용자)·additionalContext(Claude)
+        self.assertEqual(rc, 0, out)
+        data = json.loads(out)
+        self.assertIn("REWARD-HACKING PATTERNS DETECTED", data["systemMessage"])
+        self.assertIn("REWARD-HACKING PATTERNS DETECTED",
+                      data["hookSpecificOutput"]["additionalContext"])
 
     # ── 계약 2: stop_hook_active 면 다시 막지 않는다 (무한 반복 방지) ──
     def test_stop_hook_active_suppresses_repeat(self):
         self._tamper()
-        rc_first, _, err_first = self._run()
-        self.assertEqual(rc_first, 1, err_first)      # 첫 회는 잡는다
-        rc_again, _, _ = self._run(json.dumps({"stop_hook_active": True}))
+        rc_first, _first_out, err_first = self._run()
+        self.assertEqual(rc_first, 0, err_first)      # 첫 회는 잡는다(경고 JSON)
+        self.assertIn("Pattern A", _system_message(_first_out))
+        rc_again, out_again, _ = self._run(json.dumps({"stop_hook_active": True}))
         self.assertEqual(rc_again, 0)                 # 재개 응답은 통과
+        self.assertEqual(out_again.strip(), "")    # 다시 경고하지 않는다
 
     # ── 계약 2-b: 깨진 stdin 이 와도 검사는 그대로 돈다 (fail-open 아님) ──
     def test_malformed_stdin_does_not_disable_guard(self):
         self._tamper()
-        rc, _, err = self._run("{not json at all")
-        self.assertEqual(rc, 1, err)
-        self.assertIn("Pattern A", err)
+        rc, out, err = self._run("{not json at all")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Pattern A", _system_message(out))
 
     # ── 계약 3: CLAUDE_PROJECT_DIR 은 부모가 아니라 그 경로 자체를 본다 ──
     def test_project_dir_is_not_parent(self):
@@ -273,8 +286,8 @@ class TestA5Contracts(unittest.TestCase):
             encoding="utf-8", errors="replace",
         )
         # 부모를 보면 이 저장소의 변조를 놓쳐 0 이 된다.
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("Pattern A", proc.stderr)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("Pattern A", _system_message(proc.stdout))
 
 
 if __name__ == "__main__":

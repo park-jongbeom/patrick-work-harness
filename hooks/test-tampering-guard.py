@@ -17,7 +17,8 @@ Usage: PreToolUse hook or manual invocation before Gate C re-run
 
 Returns:
   0 = all clear (continue)
-  1 = warning (reward-hacking pattern found, ask user to confirm)
+  0 + stdout JSON = warning (reward-hacking pattern found — systemMessage for the user,
+      additionalContext for Claude; exit 1 was invisible to both)
   2 = error (CI config changed, block)
 """
 
@@ -247,7 +248,8 @@ def main():
     if hook_input.get("stop_hook_active"):
         return 0
 
-    print("🔍 Gate B→C Transition: Checking for test-tampering patterns...\n")
+    # 진행 표시는 두지 않는다 — stdout 은 결과 JSON 한 개만 담아야 파싱되고, exit 0 의
+    # stderr 는 아무에게도 보이지 않는다(비저장소에서 stderr 무출력 계약도 유지).
 
     # Get diffs
     test_diff = get_git_diff_tests()
@@ -284,27 +286,37 @@ def main():
 
     # Output
     if not tamper_violations and not ci_violations:
-        print("✅ No test-tampering patterns detected. Safe to proceed with Gate C.\n")
         return 0
 
     # 🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): 사유를 **stderr** 로 낸다.
     #    exit 2 로 차단할 때 Claude 에게 전달되는 것은 stderr 이고, stdout 은
     #    사용자 로그로만 남는다. 이전에는 전부 stdout 이라 **차단은 되는데 왜
     #    막혔는지는 안 보이는** 상태였다 — 막힌 쪽이 고칠 수가 없다.
-    out = sys.stderr
-    print("⚠️  REWARD-HACKING PATTERNS DETECTED:\n", file=out)
-    for pattern, desc in tamper_violations + ci_violations:
-        print(f"  {pattern}: {desc}", file=out)
-    print("\n💡 Guidance:", file=out)
-    print("  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.", file=out)
-    print("  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.", file=out)
-    print("  - Pattern D (dependency): Adding a dependency is fine and not reported;", file=out)
-    print("    this fired because a declaration was removed or rewritten.\n", file=out)
+    lines = ["⚠️  REWARD-HACKING PATTERNS DETECTED:", ""]
+    lines += [f"  {pattern}: {desc}" for pattern, desc in tamper_violations + ci_violations]
+    lines += [
+        "",
+        "💡 Guidance:",
+        "  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.",
+        "  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.",
+        "  - Pattern D (dependency): Adding a dependency is fine and not reported;",
+        "    this fired because a declaration was removed or rewritten.",
+    ]
+    report = "\n".join(lines)
 
     # return-code contract (docstring): CI config change blocks, tampering warns.
     if ci_violations:
+        print(report, file=sys.stderr)  # exit 2 — Claude 가 차단 사유로 받는다
         return 2
-    return 1
+    # 경고는 exit 0 + JSON. 예전 exit 1 은 공식 문서상 「비차단 오류」라 사용자에겐
+    # stderr 첫 줄만, Claude 에겐 아무것도 가지 않았다(2026-10-15 대조 확인).
+    # systemMessage = 사용자에게 전문, additionalContext = Claude 가 되돌릴지 판단.
+    # 재개된 응답은 위 stop_hook_active 검사로 다시 잡지 않는다(반복 방지).
+    print(json.dumps({
+        "systemMessage": report,
+        "hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": report},
+    }, ensure_ascii=False))
+    return 0
 
 
 if __name__ == "__main__":
