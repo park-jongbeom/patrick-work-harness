@@ -33,8 +33,8 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 ### §1. PROC-MODEL-RUBRIC Philosophy and Sources
 
 > **Revision (PROC-MODEL-RUBRIC-1/2, 2026-05-06 · model-generation refresh HARNESS-MODEL-ROUTING-1, 2026-07-06)**: Single-score summation → tier mapping abolished. Model is decided by **3-axis independent measurement** (R / V / D).
-> Basis: Anthropic official positioning (Sonnet 5=coding mainstay·Opus 5.5=long horizon·science reasoning·Haiku 4.5=1/3 the cost of Sonnet coding)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern·deep-research findings on the current 4-model lineup ((internal research note, if your project maintains one)).
-> Sources: [Anthropic Opus 5.5](https://www.anthropic.com/news/claude-opus-4) · [Sonnet 5](https://www.anthropic.com/news/claude-sonnet-5) · [Haiku 4.5](https://www.anthropic.com/news/claude-haiku-4-5) · [METR Time Horizon by Domain](https://metr.org/blog/2025-07-14-how-does-time-horizon-vary-across-domains/)
+> Basis: Anthropic's official selection matrix, 2026-10-15 (Opus 5.5=complex agentic coding·large refactors · Sonnet 5.5=everyday coding and agentic tool use · Haiku 5.5=lowest latency and price, sub-agent tasks · Fable 5.1=highest capability, hours-long agent sessions)·METR multi-axis capability research·Anthropic's official recommended "Sonnet orchestrator + Haiku worker" pattern·deep-research findings on the current 4-model lineup ((internal research note, if your project maintains one)).
+> Sources: [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview) · [Choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) · [Pricing](https://platform.claude.com/docs/en/about-claude/pricing) · [METR Time Horizon by Domain](https://metr.org/blog/2025-07-14-how-does-time-horizon-vary-across-domains/)
 
 ### §2. Estimation Guide
 
@@ -46,7 +46,7 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 
 ### §3. R-13 Cost-Justification Guard (PROC-MODEL-RUBRIC-1/2)
 
-> **PROC enforcement**: When producing an Opus 5.5 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the **2× output-token cost vs Sonnet ($20 vs $10 per 1M, Opus 5.5 : Sonnet 5, verified 2026-09-24)** is not justified by R items, auto-downgrade to Sonnet.
+> **PROC enforcement**: When producing an Opus 5.5 recommendation, **listing the R items in one line is mandatory**. Producing Opus while R = 0 is a PROC violation. If the **2× output-token cost vs Sonnet ($20 vs $10 per 1M, Opus 5.5 : Sonnet 5.5, verified 2026-09-24)** is not justified by R items, auto-downgrade to Sonnet.
 
 **Opus recommendation output format**:
 
@@ -71,30 +71,31 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
    조치: 자동 Sonnet 다운그레이드. /model sonnet 후 재진입 권고.
 ```
 
-### §4. Effort·Thinking Decision Rule (PROC-MODEL-EFFORT-1)
+### §4. Effort Decision Rule (PROC-MODEL-EFFORT-1)
 
-> **Purpose**: Specify per-Gate the effort (token budget)·thinking (reasoning-chain exposure) settings independently of model selection.
-> **Basis**: Mollick et al. 2025 — recent models internalize CoT, reducing the effect of external thinking display; D≥1 deterministic work induces thinking=auto over-elaboration.
+> **Purpose**: Specify per-Gate the effort level independently of model selection.
+> **Basis** (2026-10-15): every current model uses adaptive thinking steered by effort, and Opus 5.5 / Fable 5.1 reject
+> `thinking: disabled` with a 400 error ([Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)) — so the old Thinking column (auto/off) no longer maps to a
+> setting and is removed. Anthropic: "Tuning effort is often a better lever than switching models" ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)).
 
-| Gate | Task character | Effort | Thinking |
-|------|----------------|--------|----------|
-| **A** (plan) | R≥2 new architecture decision | high | auto |
-| **A** (plan) | R=0 standard plan | medium | off |
-| **B** (comprehension) | gate fires (question drafting·answer judging) | medium | off |
-| **C** (implement) | D≥1 deterministic output (smallest diff·format) | medium | off |
-| **C** (implement) | R≥2 unresolved-decision delegation | high | auto |
-| **D** (verify) | API/DB/SEC coupling·self-debug | medium | off |
-| **D** (verify) | Simple regression re-confirm | low | off |
-| **E** (cleanup) | always | low (Haiku 4.5 → —) | off |
+| Gate | Task character | Effort |
+|------|----------------|--------|
+| **A** (plan) | R≥2 new architecture decision | high |
+| **A** (plan) | R=0 standard plan | medium |
+| **B** (comprehension) | gate fires (question drafting·answer judging) | medium |
+| **C** (implement) | D≥1 deterministic output (smallest diff·format) | medium |
+| **C** (implement) | R≥2 unresolved-decision delegation | high |
+| **D** (verify) | API/DB/SEC coupling·self-debug | medium |
+| **D** (verify) | Simple regression re-confirm | low |
+| **E** (cleanup) | always | low |
 
-> **Thinking=auto condition**: only when an R≥2 item actually needs to be resolved. If D≥1, prefer thinking=off (CoT over-elaboration conflicts with deterministic output).
-> **Dashboard notation**: `C: Sonnet 5 (medium/off)` — model·effort·thinking 3 items written together.
+> **When an R≥2 item must be resolved**: raise effort (`high`, then `xhigh`) rather than asking for visible reasoning.
+> **Dashboard notation**: `C: Sonnet 5.5 (medium)` — model and effort written together.
 >
-> 🔴 **Effort is a per-model capability, not just a per-Gate choice** (2026-09-24, verified against the
-> official Models overview). **Haiku 4.5 does not support the effort parameter**, so a row that selects
-> Haiku writes `—` for effort instead of `low`. Gate E defaults to Haiku, which is why that row is
-> annotated above. Official defaults as of 2026-09-24: Fable 5.1 `high` · Opus 5.5 `medium` ·
-> Sonnet 5 `high` · Haiku 4.5 unsupported. **Re-check by fetching the docs — do not assert from memory.**
+> 🔴 **Defaults are per model** (2026-10-15, verified against the official Models overview): Fable 5.1 `high` ·
+> Opus 5.5 `medium` · Sonnet 5.5 `high` · Haiku 5.5 `medium`. All four accept effort (the legacy Haiku 4.5 did not).
+> **Re-check by fetching the docs — do not assert from memory.** The previous table stayed two generations behind
+> twice (Opus 4.8·Fable 5, then Sonnet 5·Haiku 4.5).
 
 ### §5. Model Selection Criteria (reference summary, PROC-MODEL-RUBRIC-1 revision)
 
@@ -103,19 +104,19 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 | Model | Price (in/out per 1M) | Fit work | Default Gate mapping |
 |-------|----------------------|----------|----------------------|
 | Opus 5.5 | **$4 / $20** | Long-horizon agent · new architecture decision · science·math reasoning · high-resolution vision — **only when R items ≥ 2** | R≥6 only (A·B·D all) |
-| Sonnet 5 | **$2 / $10** | **Standard coding implementation·verification·refactor (default)** · strict instruction following · smallest-diff consistency · **2× cheaper than Opus (output tokens: $10 vs $20)** · near-parity with Opus on general reasoning/knowledge work, still ~6–17pt behind on deep-coding/olympiad-math benchmarks | A·B·C·D default |
-| Haiku 4.5 | $1 / $5 | Cleanup·labeling·repeated-pattern application·real-time response·orchestration worker (Anthropic official recommendation) | E always, B/C on downgrade |
+| Sonnet 5.5 | **$2 / $10** | **Standard coding implementation·verification·refactor (default)** · everyday coding and agentic tool use (official matrix) · strict instruction following · smallest-diff consistency · **2× cheaper than Opus 5.5 (output tokens: $10 vs $20)** | A·B·C·D default |
+| Haiku 5.5 | from $0.10 / $0.50 | Cleanup·labeling·repeated-pattern application·real-time response·sub-agent tasks (official matrix) | E always, B/C on downgrade |
 
 > Switch command: `/model opus` · `/model sonnet` · `/model haiku`
 > Fast mode: `/fast` (same model, faster output) — usable alongside Haiku work
-> **Anthropic official recommended pattern**: decompose complex work into "Sonnet orchestrator + Haiku worker parallel" — more cost-efficient than mapping a single Opus to a single task. ([Haiku 4.5 announcement](https://www.anthropic.com/news/claude-haiku-4-5))
+> **Multi-model patterns** (official): an executor that escalates hard decisions to an advisor, or an orchestrator that delegates bulk work to lower-cost workers ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) → Combine models). When the work is one dependent chain, "the orchestrator's model alone at lower effort came out ahead in every case measured" — "tune one model before you add a second" ([Optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence)).
 
 ### §Fable 5.1 (exception escalation only, HARNESS-MODEL-ROUTING-1, 2026-07-06)
 
 > **SSOT for Fable 5.1**: all other skill files (`CLAUDE.md`, `gate-a`, `audit`, `doc-cleanup`) reference this section rather than re-describing Fable 5.1 — edit here only.
 
 - **Positioning**: per Anthropic's official docs, Fable 5.1 is "Anthropic's most capable widely released model, built for the most demanding reasoning and long-horizon agentic work" (Mythos-class). Despite the name, it is **not** a storytelling/creative-writing specialist model — that framing appears only in third-party marketing blogs, not in Anthropic's own positioning.
-- **Absent from the official routing matrix**: Anthropic's "choosing a model" matrix lists only Opus 5.5 / Sonnet 5 / Haiku 4.5 as routing targets for coding/agentic/enterprise/cost-sensitive work. Fable 5.1 sits outside that matrix as a separate premium option.
+- **In the official selection matrix** (corrected 2026-10-15 — the earlier "absent from the matrix" was wrong): Fable 5.1 is the row for "the highest available capability" (hours-long agent sessions, multistep deep research). Anthropic's rule is to move to it only when Opus 5.5 at `xhigh`/`max` effort still falls short ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)).
 - **Price**: $10 / $50 per 1M (in/out) — **2.5× Opus 5.5 ($4/$20)**, verified against the official
   pricing table on 2026-09-24. *(The pre-2026-09-24 text said "2× ($5/$25)"; that was the Opus 4.8-era
   price left behind when the model names were updated. Re-check prices when you re-check model names.)*

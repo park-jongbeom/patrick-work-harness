@@ -97,8 +97,8 @@ doc-cleanup is a single-SKILL one-shot run, so there is no Gate branching. Decis
 | Decision priority | Condition | Recommended model |
 |-------------------|-----------|-------------------|
 | (1) | R ≥ 6 (2+ R-D items) | **Opus 5.5** |
-| (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard slimming) | **Haiku 4.5** (D forces Sonnet as default, but if R=0+V≤1 the simple fixed slimming allows Haiku downgrade) |
-| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5 (default)** |
+| (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard slimming) | **Haiku 5.5** (D forces Sonnet as default, but if R=0+V≤1 the simple fixed slimming allows Haiku downgrade) |
+| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5.5 (default)** |
 
 > **Revision meaning**: The old "total ≤3 = Haiku, 4~8 = Sonnet, 9+ = Opus" + "double-count" single mapping is abolished. R/V/D 3-axis independent measurement separates "complex classification reasoning (R)" from "over-threshold volume (V)" — Opus only when R fires.
 >

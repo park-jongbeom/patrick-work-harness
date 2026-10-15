@@ -15,6 +15,19 @@
   더는 뜨지 않게 돼 사용 습관을 바꾸는데, 실제 문제(대기 중 진입)는 이 훅이 막는다.
   **시험**: 7건(직접 입력·Skill 호출·플러그인 접두어·답변/스킵 후 통과·다른 스킬·fail-open).
 
+### Changed
+
+- 🔴 **Gate별 모델 표를 2026-10-15 공식 라인업으로.** **계기**: 딥 리서치 대조 — 표의 기본 Sonnet 5 와
+  Gate E 의 Haiku 4.5 가 공식 문서상 **레거시**였다(현행: Fable 5.1 · Opus 5.5 · Sonnet 5.5 · Haiku 5.5).
+  현행 모델은 모두 adaptive thinking 이고 Opus 5.5·Fable 5.1 은 `thinking: disabled` 를 400 오류로 거부해,
+  표의 `(medium/off)` 같은 thinking 열은 설정으로 옮길 수 없는 값이었다.
+  **조치**: gate-a·SKILL_DETAIL·audit·doc-cleanup 의 모델명 교체(Sonnet 5→5.5, Haiku 4.5→5.5), 표기를
+  `{모델} ({effort})` 로(thinking 열 삭제), 기본 effort 갱신(Haiku 5.5 도 effort 지원). **틀린 서술 정정**:
+  「Fable 5.1 은 공식 선택 매트릭스에 없다」 → 매트릭스에 있고 공식 승격 조건은 「Opus 5.5 xhigh/max 로도
+  부족할 때」 · 「Opus 5.5」 출처 링크가 claude-opus-4 공지를 가리키던 것 · thinking 열 근거(Mollick) →
+  공식 Thinking 문서 · 다중 모델 권고를 공식 「Optimizing for cost and intelligence」 인용으로. 라우팅 규칙
+  자체(어느 Gate 에 어느 등급)는 바꾸지 않았다 — 기본 모델을 Opus 로 옮길지는 실제 작업 평가 뒤 판단(보고서 M3).
+
 ### Fixed
 
 - 🔴 **훅 출력 계약 통일 — 보이지 않던 경고 5곳을 공식 채널로.** **계기**: 딥 리서치 보고서 대조

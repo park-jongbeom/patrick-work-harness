@@ -104,8 +104,8 @@ audit is a single-SKILL one-shot run, so there is no Gate branching. Decision ru
 | Decision priority | Condition | Recommended model |
 |-------------------|-----------|-------------------|
 | (1) | R ≥ 6 (2+ R-A items) | **Opus 5.5** |
-| (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard checks) | **Haiku 4.5** (D forces Sonnet as default, but if R=0+V≤1 the simple verdict allows Haiku downgrade) |
-| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5 (default)** |
+| (2) | R = 0 + V ≤ 1 + D ≥ 2 (most standard checks) | **Haiku 5.5** (D forces Sonnet as default, but if R=0+V≤1 the simple verdict allows Haiku downgrade) |
+| (3) | otherwise (R = 0~3 + V ≥ 2) | **Sonnet 5.5 (default)** |
 
 > **Revision meaning**: The old "total ≤4 = Haiku, 5~9 = Sonnet, 10+ = Opus" single mapping is abolished. R/V/D 3-axis independent measurement separates "direction-check multi-item reasoning (R)" from "repeated-call accumulation (V)" — Opus only when R fires (avoiding systematic Opus bias).
 >
