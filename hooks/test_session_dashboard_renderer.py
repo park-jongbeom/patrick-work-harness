@@ -546,6 +546,24 @@ class TestComprehensionPanel(unittest.TestCase):
         page = sdr.generate_html(*args, plan, None, self.COMP)
         self.assertLess(page.index("이 계획 이해하기"), page.index("규모와 순서"))
 
+    def test_panel_comes_before_status_cards(self):
+        """상태 카드 글이 길어도 이해 패널이 첫 화면에 남게 카드보다 앞에 둔다(2026-10-15)."""
+        base = cs(session_id="DEMO-1", status="A")
+        sessions = {"active": [], "completed": []}
+        page = sdr.generate_html(base, sessions, "", "", "", "", "", "", "",
+                                 None, None, self.COMP)
+        self.assertLess(page.index("이 계획 이해하기"), page.index('class="meta-info"'))
+
+    def test_status_cards_render_inline_markdown(self):
+        """카드의 **굵게**·`코드`·~~취소~~ 를 그대로 노출하지 않고, 꺾쇠는 이스케이프한다."""
+        base = cs(session_id="DEMO-1", status="A", gate_progress="A✅ → **B** <x>")
+        sessions = {"active": [], "completed": []}
+        page = sdr.generate_html(base, sessions, "", "", "", "", "",
+                                 "`G` 완료", "~~끝남~~ **다음**")
+        self.assertIn("<strong>B</strong> &lt;x&gt;", page)
+        self.assertIn("<code>G</code> 완료", page)
+        self.assertIn("<del>끝남</del> <strong>다음</strong>", page)
+
     def test_broken_panel_input_keeps_rest_of_page(self):
         """패널 입력이 깨져도 대시보드 나머지는 뜬다(패널만 빠진다)."""
         base = cs(session_id="DEMO-1", status="A")

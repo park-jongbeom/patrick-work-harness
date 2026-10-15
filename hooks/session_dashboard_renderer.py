@@ -107,6 +107,7 @@ def _md_inline(text):
     먹히지 않게 한 뒤, 우리가 만든 태그만 입힌다."""
     s = _esc(text)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    s = re.sub(r"~~(.+?)~~", r"<del>\1</del>", s)
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
 
 
@@ -746,18 +747,20 @@ def generate_html(
 """
 
     # Gate A 계획 패널 — 계획이 없거나 못 읽으면 빈 문자열(섹션 생략)
-    # 이해 패널이 맨 위다 — 「무엇을 왜 어떻게」가 「규모와 순서」보다 먼저다.
+    # 이해 패널이 맨 위다 — 「무엇을 왜 어떻게」가 상태 카드·「규모와 순서」보다 먼저다.
     # 인자를 안 받으면(옛 호출부) 빈 문자열이라 기존 화면과 같다.
     # 이 패널이 예외를 내도 대시보드 나머지는 그린다(패널만 빠진다).
-    plan_html = ""
+    # 이해 패널은 상태 카드보다 **앞**에 둔다 — 카드 글이 길면 패널이 첫 화면
+    # 밖으로 밀렸다(1280×900 에서 y=1180, 2026-10-15 실측).
+    comp_html = ""
     if comprehension is not None:
         try:
-            plan_html += render_comprehension(
+            comp_html = render_comprehension(
                 comprehension, bool(gate_a_plan and gate_a_plan.get("present"))
             )
         except Exception:
-            plan_html = ""
-    plan_html += render_gate_a_plan(gate_a_plan)
+            comp_html = ""
+    plan_html = render_gate_a_plan(gate_a_plan)
     # 계획 전문 — 요약 바로 아래. 요약이 「한눈에」라면 이쪽이 「읽고 이해」다
     plan_html += render_gate_documents(gate_docs)
 
@@ -781,7 +784,7 @@ def generate_html(
             <div class="purpose-label">🎯 지금 하는 작업</div>
             <div class="purpose-title">{purpose_text}</div>{purpose_note_html}
         </div>
-
+{comp_html}
         <header>
             <h1>🎓 {(project + ' — ') if project else ''}세션 대시보드</h1>
 
@@ -794,7 +797,7 @@ def generate_html(
 
                 <div class="meta-item">
                     <div class="meta-label">Gate 진행</div>
-                    <div class="meta-value">{current_session['gate_progress']}</div>
+                    <div class="meta-value">{_md_inline(current_session['gate_progress'])}</div>
                 </div>
 
                 <div class="meta-item">
@@ -809,11 +812,11 @@ def generate_html(
                 </div>
 {f'''                <div class="meta-item">
                     <div class="meta-label">Gate 상태</div>
-                    <div class="meta-value">{gate_status}</div>
+                    <div class="meta-value">{_md_inline(gate_status)}</div>
                 </div>
 ''' if gate_status else ''}{f'''                <div class="meta-item">
                     <div class="meta-label">다음 행동</div>
-                    <div class="meta-value">{next_action}</div>
+                    <div class="meta-value">{_md_inline(next_action)}</div>
                 </div>
 ''' if next_action else ''}            </div>
         </header>
