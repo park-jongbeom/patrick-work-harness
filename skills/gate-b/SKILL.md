@@ -20,6 +20,8 @@ Classify the Gate A plan by risk level and determine the path:
 | **Trivial** | formulaic CRUD·docs·smallest-diff repeated pattern·config-value change | **Pass-through** — 1~2 line confirmation, proceed to gate-c |
 
 > User override: if the user explicitly states 「스킵」 → pass-through; 「게이트 걸어줘」 → force trigger. Ambiguous responses keep the AI auto verdict.
+>
+> **A question is pending → an implementation phrase is neither an answer nor a skip.** If a question asked in Step 2 has no evaluation yet and the user replies 「구현」「진행」「Gate C 시작」 or the like, do **not** start gate-c and do **not** record it as skipped. Re-ask once in one line: the question stands, and proceeding without answering needs an explicit 「스킵」. Only 「스킵」 (or an answer) moves the gate; then record the 평가 as 「미답 — 사용자 스킵」. Why: the old final-output line told the user to reply 「구현」 to go on, so a pending question was skipped by that one word — the recurring 「Gate B 스킵」 pattern (2026-10-15 real use).
 
 ## Step 1. Ledger expiry·re-verification prerequisite lookup
 
@@ -92,8 +94,17 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate B procedure (comprehension gate + plan document(s) update), output the block below at the **very end** of the response.
+After completing the entire Gate B procedure (comprehension gate + plan document(s) update), output **one** of the blocks below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
+
+**While a question is pending** (asked, no evaluation yet) — do not point to gate-c:
+
+```
+---
+**다음 단계**: 위 질문에 답해 주세요. 답하지 않고 넘어가려면 「스킵」이라고 명시해 주세요 — 「구현」「진행」만으로는 넘어가지 않습니다.
+```
+
+**Gate passed, pass-through, or explicitly skipped**:
 
 ```
 ---

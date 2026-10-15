@@ -1,10 +1,12 @@
 ---
 name: gate-c
-description: "Code implementation after Gate B completion. Use on '구현', 'Gate C 시작', 'Gate C 진행', '계획대로 구현', etc."
+description: "Code implementation after Gate B completion. Use on '구현', 'Gate C 시작', 'Gate C 진행', etc. — not on '계획대로 구현' (that approves Gate A and starts gate-b)."
 effort: medium
 ---
 
 # Gate C Procedure (follow order strictly)
+
+0. **Gate B pending check** — if the Gate B block in `${CURRENT_SESSION_FILE}` has a question whose 평가 is still the placeholder (e.g. 「(답변 후 기록)」), do **not** implement. Return to that question per `gate-b/SKILL.md §Step 0` (a pending question moves only on an answer or an explicit 「스킵」).
 
 1. **Based on the Gate A detailed plan**, implement the code
    - Follow the file list·change direction·execution order approved at Gate A verbatim
@@ -52,7 +54,8 @@ If `API_SPEC.md` exists **and this session changed an endpoint contract**:
 
 ## Scope of 「구현해라」-like Instructions
 
-「구현해」「계획대로 구현」「다음 계획을 구현해라」 mean **Gate C only**.
+「구현해」「계획대로 구현」「다음 계획을 구현해라」 reach **Gate C at most** — they never authorize Gate D·E.
+At the Gate A stage, 「계획대로 구현」 is the Gate A approval and starts **gate-b first** (see Step 0 for a pending Gate B question).
 To allow C→E, the user must specify the scope in a sentence such as 「Gate C부터 E까지 한 번에」「C~E 일괄로 진행해」.
 
 ---
