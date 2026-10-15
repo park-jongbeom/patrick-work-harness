@@ -34,6 +34,44 @@ def _strip_history(text):
     return text[: m.start()] if m else text
 
 
+def split_table_cells(line):
+    """마크다운 표 한 줄 → 칸 목록(앞뒤 공백 제거).
+
+    `\\|` 와 백틱 안의 `|` 는 칸 구분이 아니다 — 그냥 `split("|")` 하면 SKILL.md
+    표를 다루는 계획처럼 칸 안에 파이프가 든 행에서 열이 밀린다(코드 리뷰 실측).
+    백틱이 짝이 안 맞으면 백틱을 무시하고 다시 나눈다.
+    """
+    s = line.strip()
+
+    def _split(code_aware):
+        cells, cur, in_code, k = [], [], False, 0
+        while k < len(s):
+            ch = s[k]
+            if ch == "\\" and k + 1 < len(s) and s[k + 1] == "|":
+                cur.append("|")
+                k += 2
+                continue
+            if code_aware and ch == "`":
+                in_code = not in_code
+            if ch == "|" and not in_code:
+                cells.append("".join(cur))
+                cur = []
+            else:
+                cur.append(ch)
+            k += 1
+        cells.append("".join(cur))
+        return cells, in_code
+
+    cells, unbalanced = _split(True)
+    if unbalanced:
+        cells, _ = _split(False)
+    if s.startswith("|"):
+        cells = cells[1:]
+    if s.endswith("|") and not s.endswith("\\|") and cells:
+        cells = cells[:-1]
+    return [c.strip() for c in cells]
+
+
 def parse_current_session(content):
     """CURRENT_SESSION.md에서 핵심 정보 추출"""
     data = {
@@ -277,6 +315,29 @@ def _gate_block(content, letter):
     return m.group(1).strip(), (rest[: nxt.start()] if nxt else rest)
 
 
+def _fence_spans(text):
+    """``` 코드 블록이 차지하는 (시작, 끝) 문자 범위들. 닫히지 않으면 끝까지."""
+    spans, start, pos = [], None, 0
+    for line in text.splitlines(keepends=True):
+        if line.strip().startswith("```"):
+            if start is None:
+                start = pos
+            else:
+                spans.append((start, pos + len(line)))
+                start = None
+        pos += len(line)
+    if start is not None:
+        spans.append((start, len(text)))
+    return spans
+
+
+def _outside_fences(matches, text):
+    """코드 블록 안에서 걸린 제목 매치를 뺀다 — 계획이 인용한 템플릿의 `### 질문 N`
+    이 절을 쪼개 블록을 반으로 자르던 것(코드 리뷰 실측)."""
+    spans = _fence_spans(text)
+    return [m for m in matches if not any(a <= m.start() < b for a, b in spans)]
+
+
 def parse_gate_documents(content):
     """Gate A~D 블록을 **마크다운 원문 그대로** 절 단위로 넘긴다.
 
@@ -297,7 +358,9 @@ def parse_gate_documents(content):
         heading, block = _gate_block(content, letter)
         if not block.strip():
             continue
-        marks = list(re.finditer(r"^###[ \t]+([^\n]+)$", block, re.MULTILINE))
+        marks = _outside_fences(
+            list(re.finditer(r"^###[ \t]+([^\n]+)$", block, re.MULTILINE)), block
+        )
         sections = []
         lead = block[: marks[0].start()] if marks else block
         if lead.strip():
@@ -337,8 +400,9 @@ def _sections(block):
     굵은 라벨형은 라벨 뒤에 이어지는 같은 줄 내용(`tail`)도 본문에 넣는다 —
     `**점검**: 적합성 ✅ …` 처럼 한 줄로 끝나는 절이 있기 때문.
     """
-    heads = [m for m in _SECTION_HEAD_RE.finditer(block) if m.group("h")]
-    marks = heads or [m for m in _SECTION_HEAD_RE.finditer(block) if m.group("b")]
+    found = _outside_fences(list(_SECTION_HEAD_RE.finditer(block)), block)
+    heads = [m for m in found if m.group("h")]
+    marks = heads or [m for m in found if m.group("b")]
     out = []
     for i, m in enumerate(marks):
         title = (m.group("h") or m.group("b") or "").strip()
@@ -367,7 +431,7 @@ def _table_rows(body):
         line = line.strip()
         if not line.startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_table_cells(line)
         if not cells or all(re.fullmatch(r":?-{2,}:?", c or "-") for c in cells):
             continue  # 구분선
         rows.append(cells)
@@ -384,7 +448,7 @@ def _table_header(body):
     for line in body.splitlines():
         line = line.strip()
         if line.startswith("|"):
-            return [_strip_md(c) for c in line.strip("|").split("|")]
+            return [_strip_md(c) for c in split_table_cells(line)]
     return []
 
 
@@ -535,7 +599,8 @@ def parse_gate_a_plan(content):
     # 태그 범례 표의 행(`| ⓒ 추론 | … |`)은 주장이 아니다 — 빼고 센다.
     # 범례를 적은 계획에 「미검증 주장 1건」이 뜨던 것(엔진 이슈 #3 잔여).
     counted = "\n".join(
-        ln for ln in block.splitlines() if not _EVIDENCE_LEGEND_RE.match(ln)
+        ln for ln in block.splitlines()
+        if not _EVIDENCE_LEGEND_RE.match(ln)
     )
     for tag in ("ⓐ", "ⓑ", "ⓒ"):
         # `ⓒ 0건` 처럼 **개수를 적은 표기**는 태그로 세지 않는다. 그것까지
@@ -544,7 +609,13 @@ def parse_gate_a_plan(content):
         # 대신 적힌 수는 따로 읽어 **둘 중 큰 값**을 쓴다. 적힌 수를 버리면
         # 「ⓒ 2건」이라고 쓴 계획이 0건으로 나온다(HARNESS-DASH-LEARN-1-a 후속).
         # 과대 표시는 검토자가 확인하게 만들 뿐이지만, 과소 표시는 놓치게 한다.
-        written = [int(w) for w in re.findall(rf"{tag}\s*(\d+)\s*건", counted)]
+        # 한 줄 안의 「ⓒ 1건 → … 최종 ⓒ 0건」 은 한 주장의 전후다 — 그 줄의
+        # **마지막** 수를 쓴다. 줄끼리는 그대로 큰 값(과소 표시 방지).
+        written = []
+        for ln in counted.splitlines():
+            nums = re.findall(rf"{tag}\s*(\d+)\s*건", ln)
+            if nums:
+                written.append(int(nums[-1]))
         n = max([n] + written)
         if n:
             plan["evidence"][tag] = n
@@ -572,18 +643,34 @@ BRIEFING_LABELS = ("왜 바꾸나", "어떻게 동작하나", "가장 깨지기 
 #: 규칙화 전 시범 계획(2026-10-11, 2건)이 쓴 라벨 → 정식 라벨.
 _BRIEFING_ALIASES = {"왜 하는가": "왜 바꾸나", "핵심 동작": "어떻게 동작하나"}
 
+#: 평가 자리표시 — gate-b 템플릿의 한·영 문구. 이것만 「평가 전」이다.
+_EVAL_PLACEHOLDER_RE = re.compile(
+    r"\(\s*(?:답변\s*후\s*기록|평가\s*전|filled after the answer)\s*\)", re.IGNORECASE
+)
+
 _BRIEF_ITEM_RE = re.compile(r"^[-*]\s+\*\*([^*\n]+?)\*\*\s*[:：]?\s*(.*)$")
 
 
 def _labeled_items(body):
-    """`- **라벨**: 본문` 목록 → [(라벨, 본문)]. 들여쓴 이어진 줄은 본문에 붙인다."""
-    items = []
+    """`- **라벨**: 본문` 목록 → [(라벨, 본문)]. **들여쓴** 이어진 줄만 본문에 붙인다.
+
+    `**왜 바꾸나:**` 처럼 콜론을 굵은 글씨 안에 넣은 표기도 같은 라벨이다.
+    들여쓰지 않은 다른 줄(뒤에 덧붙인 문단·일반 글머리)은 앞 항목에 붙이지
+    않는다 — 붙이면 메모 문단이 「되돌리는 법」 카드에 섞였다(코드 리뷰 실측).
+    """
+    items, attach = [], False
     for line in body.splitlines():
         m = _BRIEF_ITEM_RE.match(line.strip()) if not line[:1].isspace() else None
         if m:
-            items.append([m.group(1).strip(), m.group(2).strip()])
-        elif items and line.strip():
+            label = m.group(1).strip().rstrip(":：").strip()
+            items.append([label, m.group(2).strip()])
+            attach = True
+        elif not line.strip():
+            continue
+        elif items and attach and line[:1].isspace():
             items[-1][1] = (items[-1][1] + " " + line.strip()).strip()
+        else:
+            attach = False
     return [(k, v) for k, v in items]
 
 
@@ -638,8 +725,12 @@ def _parse_comprehension(content, out):
         for key, val in fields.items():
             if "평가" in key or "재질문" in key:
                 evaluation += val
-        # 자리표시(「(답변 후 기록)」)만 있으면 아직 평가 전이다
-        evaluated = bool(re.sub(r"^\(.*\)$", "", evaluation.strip()))
+        # 자리표시(「(답변 후 기록)」)만 있으면 아직 평가 전이다. 괄호로 감싼
+        # 실제 평가(「(통과 — 정확히 답함)」)까지 자리표시로 보면, 끝난 질문이
+        # 「지금 답할 질문」으로 다시 뜬다(코드 리뷰 실측).
+        evaluated = bool(evaluation.strip()) and not _EVAL_PLACEHOLDER_RE.fullmatch(
+            evaluation.strip()
+        )
         out["questions"].append({
             "title": title,
             "text": " ".join(text_lines),

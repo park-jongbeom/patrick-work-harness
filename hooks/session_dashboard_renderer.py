@@ -24,6 +24,7 @@ from session_dashboard_parsers import (  # noqa: E402
     group_files,
     risk_severity,
     scope_gauges,
+    split_table_cells,
 )
 
 _HOOKS_DIR = Path(__file__).resolve().parent
@@ -110,8 +111,15 @@ def _md_inline(text):
 
 
 def _md_list(items, i, indent):
-    """들여쓰기 깊이로 중첩 목록을 만든다. `items` = [(들여쓰기, 번호목록?, 글)]."""
-    tag = "ol" if items[i][1] else "ul"
+    """들여쓰기 깊이로 중첩 목록을 만든다.
+
+    `items` = [들여쓰기, 번호목록?, 글, 시작 번호, 항목 아래 블록 HTML].
+    같은 깊이에서 목록 종류(`-` ↔ `1.`)가 바뀌면 거기서 끊는다 — 호출부가 새
+    목록으로 이어 그린다. 번호 목록은 첫 번호를 `start` 로 살린다.
+    """
+    ordered = items[i][1]
+    tag = "ol" if ordered else "ul"
+    start = items[i][3] if ordered and items[i][3] not in (None, 1) else None
     parts = []
     while i < len(items) and items[i][0] >= indent:
         if items[i][0] > indent:
@@ -121,22 +129,22 @@ def _md_list(items, i, indent):
             else:
                 parts.append(sub)
             continue
+        if items[i][1] != ordered and parts:
+            break
         text = items[i][2]
         box = re.match(r"\[([ xX])\]\s*(.*)$", text)
         if box:
             mark = "☐" if box.group(1) == " " else "✅"
             text = f"{mark} {box.group(2)}"
-        parts.append(_md_inline(text))
+        parts.append(_md_inline(text) + items[i][4])
         i += 1
     body = "".join(f"<li>{p}</li>" for p in parts)
-    return f"<{tag}>{body}</{tag}>", i
+    open_tag = f'<ol start="{start}">' if start else f"<{tag}>"
+    return f"{open_tag}{body}</{tag}>", i
 
 
 def _md_table(lines):
-    rows = []
-    for line in lines:
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        rows.append(cells)
+    rows = [split_table_cells(line) for line in lines]
     has_head = len(rows) > 1 and all(
         _TABLE_SEP_RE.fullmatch(c or "-") for c in rows[1]
     )
@@ -186,19 +194,53 @@ def _md_block_to_html(md):
             flush()
             items = []
             while i < len(lines):
-                m = _LIST_RE.match(lines[i])
+                cur = lines[i]
+                cur_s = cur.strip()
+                m = _LIST_RE.match(cur)
                 if m:
-                    items.append(
-                        (len(m.group(1)), m.group(2)[0].isdigit(), m.group(3))
-                    )
-                elif lines[i].strip() and lines[i][:1] in " \t" and items:
-                    # 항목에 이어 쓴 들여쓴 줄 — 그 항목의 일부다
-                    ind, ordered, text = items[-1]
-                    items[-1] = (ind, ordered, text + " " + lines[i].strip())
+                    marker = m.group(2)
+                    num = int(marker[:-1]) if marker[0].isdigit() else None
+                    items.append([len(m.group(1)), num is not None, m.group(3), num, ""])
+                    i += 1
+                elif not cur_s:
+                    # 빈 줄 하나로 목록을 끊지 않는다 — 다음 내용이 항목이거나 들여쓴
+                    # 줄이면 같은 목록이다(끊으면 「1. 2. 3.」 이 「1. 1. 1.」 로 보였다).
+                    j = i
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+                    if j < len(lines) and (_LIST_RE.match(lines[j]) or lines[j][:1] in " \t"):
+                        i = j
+                        continue
+                    break
+                elif cur[:1] in " \t" and items:
+                    # 항목 아래 들여쓴 블록 — 코드·표는 블록 그대로, 나머지는 이어진 글
+                    if cur_s.startswith("```"):
+                        pad = len(cur) - len(cur.lstrip())
+                        j = i + 1
+                        while j < len(lines) and not lines[j].strip().startswith("```"):
+                            j += 1
+                        code = "\n".join(
+                            ln[pad:] if not ln[:pad].strip() else ln.strip()
+                            for ln in lines[i + 1: j]
+                        )
+                        items[-1][4] += "<pre>" + _esc(code) + "</pre>"
+                        i = j + 1
+                    elif cur_s.startswith("|"):
+                        j = i
+                        while j < len(lines) and lines[j].strip().startswith("|"):
+                            j += 1
+                        items[-1][4] += _md_table(lines[i:j])
+                        i = j
+                    else:
+                        items[-1][2] += " " + cur_s
+                        i += 1
                 else:
                     break
-                i += 1
-            out.append(_md_list(items, 0, items[0][0])[0])
+            # 들여쓰기가 첫 항목보다 얕은 항목이 있어도 하나도 버리지 않는다
+            pos = 0
+            while pos < len(items):
+                html_part, pos = _md_list(items, pos, items[pos][0])
+                out.append(html_part)
         elif stripped.startswith(">"):
             flush()
             quote = []

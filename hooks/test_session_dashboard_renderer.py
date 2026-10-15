@@ -131,6 +131,44 @@ class TestSessionLists(unittest.TestCase):
         self.assertTrue(html.startswith("<!DOCTYPE html>"))
 
 
+class TestMarkdownBlocksFromReview(unittest.TestCase):
+    """계획 전문 패널의 마크다운 변환 — 코드 리뷰(2026-10-15)가 재현한 결함."""
+
+    def test_shallower_items_are_not_dropped(self):
+        """첫 항목보다 얕게 들여쓴 항목이 있어도 하나도 버리지 않는다."""
+        out = sdr._md_block_to_html("  - first\n- second\n- third")
+        for word in ("first", "second", "third"):
+            self.assertIn(word, out)
+
+    def test_numbered_list_survives_blank_lines(self):
+        """빈 줄이 낀 번호 목록이 「1. 1. 1.」 로 다시 시작하지 않는다."""
+        out = sdr._md_block_to_html("1. a\n\n2. b\n\n3. c")
+        self.assertEqual(out.count("<ol"), 1)
+        self.assertEqual(out.count("<li>"), 3)
+
+    def test_numbered_list_keeps_start(self):
+        out = sdr._md_block_to_html("3. c\n4. d")
+        self.assertIn('<ol start="3">', out)
+
+    def test_code_block_under_item_stays_a_block(self):
+        """항목 아래 들여쓴 코드 블록은 한 줄로 뭉개지지 않고 <pre> 로 남는다."""
+        out = sdr._md_block_to_html("1. step\n   ```bash\n   run x\n   ```\n2. next")
+        self.assertIn("<pre>run x</pre>", out)
+        self.assertIn("<li>next</li>", out)
+
+    def test_table_cell_keeps_escaped_and_code_pipes(self):
+        """`\\|` 와 백틱 안 `|` 는 칸을 나누지 않는다."""
+        out = sdr._md_block_to_html("| a | b |\n|---|---|\n| x \\| y | `p|q` |")
+        self.assertIn("<td>x | y</td>", out)
+        self.assertIn("<td><code>p|q</code></td>", out)
+        self.assertEqual(out.count("<td>"), 2)
+
+    def test_list_type_change_starts_new_list(self):
+        out = sdr._md_block_to_html("- a\n1. b")
+        self.assertIn("<ul><li>a</li></ul>", out)
+        self.assertIn("<ol><li>b</li></ol>", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 

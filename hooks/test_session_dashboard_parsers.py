@@ -124,6 +124,43 @@ class TestParseSessionIndex(unittest.TestCase):
         self.assertEqual(len(r), 8)
 
 
+class TestParsersFromReview(unittest.TestCase):
+    """파서 — 코드 리뷰(2026-10-15)가 재현한 결함."""
+
+    def test_parenthesized_evaluation_is_evaluated(self):
+        """괄호로 감싼 실제 평가는 자리표시가 아니다 — 끝난 질문이 다시 뜨면 안 된다."""
+        doc = ("## Gate B — 이해도\n\n### 질문 1\n무엇?\n"
+               "- **읽을 곳**: 이해 브리핑 「왜 바꾸나」\n- **평가**: (통과 — 정확히 답함)\n")
+        self.assertTrue(sdp.parse_comprehension(doc)["questions"][0]["evaluated"])
+
+    def test_placeholder_evaluation_is_pending(self):
+        for ph in ("(답변 후 기록)", "(filled after the answer)"):
+            doc = f"## Gate B — 이해도\n\n### 질문 1\n무엇?\n- **평가**: {ph}\n"
+            self.assertFalse(sdp.parse_comprehension(doc)["questions"][0]["evaluated"], ph)
+
+    def test_colon_inside_bold_label(self):
+        self.assertEqual(sdp._labeled_items("- **왜 바꾸나:** 이유"), [("왜 바꾸나", "이유")])
+
+    def test_unindented_note_is_not_glued_to_last_item(self):
+        items = sdp._labeled_items("- **되돌리는 법**: 되돌림\n  이어짐\n\n메모 문단\n- 일반 글머리")
+        self.assertEqual(items, [("되돌리는 법", "되돌림 이어짐")])
+
+    def test_heading_inside_code_fence_is_not_a_section(self):
+        """계획이 인용한 템플릿의 `### 질문 N` 이 절을 쪼개지 않는다."""
+        doc = ("## Gate A — 계획\n\n### 이해 브리핑\n- **왜 바꾸나**: a\n\n"
+               "### 템플릿\n```\n### 질문 N\n본문\n```\n### 다음 절\nx\n")
+        titles = [t for t, _ in sdp.parse_gate_documents(doc)[0]["sections"]]
+        self.assertEqual(titles, ["이해 브리핑", "템플릿", "다음 절"])
+
+    def test_evidence_before_after_on_one_line_uses_final(self):
+        """「ⓒ 1건 → 승격, 최종 ⓒ 0건」 은 한 주장의 전후 — 최종값을 쓴다."""
+        doc = "## Gate A 계획\n\n### 주장-근거 대조\n\n- ⓒ 1건 → 실측 승격, 최종 ⓒ 0건\n"
+        self.assertNotIn("ⓒ", sdp.parse_gate_a_plan(doc)["evidence"])
+
+    def test_table_cells_split_respects_escape(self):
+        self.assertEqual(sdp.split_table_cells("| x \\| y | z |"), ["x | y", "z"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
