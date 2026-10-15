@@ -102,6 +102,34 @@ def test_pass_runtime_container_non_gradle():
     assert rc == 0
 
 
+def test_block_absent_container_with_valued_options():
+    for cmd in ("docker exec -w /app absent-api ls",
+                "docker exec --env=X=1 absent-api ls",
+                "docker exec --user root absent-api ls"):
+        rc, _ = run_hook(cmd, answers_yml=_ANSWERS_BLOCKED)
+        assert rc == 2, cmd
+
+
+def test_pass_name_mentioned_after_other_container():
+    """다른 컨테이너의 docker exec 뒤에 이름이 **언급만** 되면 통과 — 2026-10-15 오탐."""
+    for cmd in (
+        "docker exec web-app npm test\necho absent-api",
+        "docker exec web-app npm test && echo absent-api",
+        'echo "웹은 docker exec web-app npm test, 저장소는 absent-api"',
+        "docker exec web-app npm test\n" + "echo x\n" * 100 + "echo absent-api",
+        "docker exec absent-api-v2 ls",
+    ):
+        rc, err = run_hook(cmd, answers_yml=_ANSWERS_BLOCKED)
+        assert rc == 0, (cmd[:60], err)
+
+
+def test_pass_gradle_in_next_command():
+    """런타임 컨테이너의 exec 와 같은 줄의 **다른 명령**에 gradlew 가 있으면 통과."""
+    rc, _ = run_hook("docker exec runtime-only cat x && ./gradlew test",
+                     answers_yml=_ANSWERS_BLOCKED)
+    assert rc == 0
+
+
 # ── fail-open: harness-answers.yml 없으면 컨테이너 규칙 없음 ──
 
 def test_pass_no_answers_file_arbitrary_container():

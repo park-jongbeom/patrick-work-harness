@@ -104,6 +104,16 @@ def _simple_parse_blocked(text):
     return {"docker_blocked_containers": result}
 
 
+#: `docker exec` + 옵션들(`-w /app`·`-e K=V`·`--env=K=V`·TTY 플래그) + 컨테이너 자리.
+#  공백은 `[ \t]` 만 — 줄바꿈을 넘지 않는다. 옵션 값은 `-` 로 시작하지 않는
+#  토큰이고 `;`·`&`·`|` 에서 끊긴다(다음 명령으로 넘어가지 않는다).
+_EXEC_PREFIX = (
+    r"\bdocker[ \t]+exec\b"
+    r"(?:[ \t]+-{1,2}[A-Za-z][\w-]*(?:=[^\s;&|]*)?(?:[ \t]+(?!-)[^\s;&|]+)?)*"
+    r"[ \t]+"
+)
+
+
 def _build_container_patterns(containers):
     """blocked_containers 설정에서 regex 패턴 목록 생성."""
     patterns = []
@@ -115,15 +125,15 @@ def _build_container_patterns(containers):
             continue
         reason = entry.get("reason", f"컨테이너 '{name}' 설정 차단")
         gradle_only = entry.get("gradle", False)
-        escaped = re.escape(name)
+        # 컨테이너 = `docker exec` 뒤 **옵션이 아닌 첫 인자**다. 예전 패턴은
+        # `(?:\s+\S+)*?` 로 줄바꿈·`&&`·따옴표 안 글까지 넘어가, 다른 컨테이너의
+        # `docker exec` 뒤 어디든(100줄 뒤라도) 이 이름이 공백 뒤에 나오면 막았다
+        # (2026-10-15 실사용 오탐 — 기록용 문구·표 안의 저장소 이름).
+        target = _EXEC_PREFIX + re.escape(name) + r"(?![\w.-])"
         if gradle_only:
-            pat = re.compile(
-                r"\bdocker\s+exec\b[^\n]*\b" + escaped + r"\b[^\n]*\bgradlew?\b"
-            )
+            pat = re.compile(target + r"[^\n;&|]*\bgradlew?\b")
         else:
-            pat = re.compile(
-                r"\bdocker\s+exec\b(?:\s+\S+)*?\s+" + escaped + r"\b"
-            )
+            pat = re.compile(target)
         patterns.append((pat, reason))
     return patterns
 
