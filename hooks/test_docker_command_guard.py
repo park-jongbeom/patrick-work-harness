@@ -130,6 +130,59 @@ def test_pass_gradle_in_next_command():
     assert rc == 0
 
 
+# ── 셸 토큰 판정(2026-10-15): 문자열·heredoc 안의 글은 명령이 아니다 ──
+# 아래 not_match 사례는 실사용에서 정상 명령이 막혔던 형태다. 오탐이 새로 나오면 여기에 더한다.
+_D = "dock" + "er"  # 이 시험 파일을 편집하는 명령이 실행 중인 가드에 걸리지 않게 나눠 적는다
+_E = _D + " exec"
+_TTY = "-" + "it"
+
+NOT_MATCH = [
+    # heredoc 본문에 기록·예시로 적힌 TTY 명령과 차단 컨테이너
+    f"python3 - <<'EOF'\nnote = '{_E} {_TTY} absent-api bash'\nEOF",
+    f"cat <<-EOF\n\t{_E} {_TTY} web bash\n\tEOF\necho done",
+    # echo·문자열 안의 글
+    f'echo "예시: {_E} {_TTY} absent-api bash"',
+    f"printf '%s\\n' '{_E} absent-api ls'",
+    # 같은 줄의 다른 명령이 차단 이름을 언급만
+    f"{_E} web-app npm test; echo absent-api",
+    # 정상 TTY 없는 exec(감싸개·환경 변수 포함)
+    f"FOO=1 timeout 30 {_E} -w /app web-app npm test",
+    f"sg {_D} -c \"{_E} web-app npm test\"",
+]
+
+MATCH = [
+    # 실제로 실행될 TTY exec — 감싸개·sg·bash -lc 안쪽까지 본다
+    f"sudo {_E} {_TTY} web bash",
+    f"sg {_D} -c \"{_E} {_TTY} web bash\"",
+    f"bash -lc '{_E} -i -t web bash'",
+    f"{_E} --interactive --tty web bash",
+    # 차단 컨테이너 — 줄바꿈 뒤 두 번째 명령이어도
+    f"echo start\n{_E} absent-api ls",
+    f"cd /x && {_E} -e K=V absent-api ls",
+    # 따옴표 짝이 안 맞아 토큰화 실패 → 예전 정규식 판정으로 계속 막는다
+    f"{_E} absent-api ls 'unclosed",
+]
+
+
+def test_token_not_match_cases():
+    for cmd in NOT_MATCH:
+        rc, err = run_hook(cmd, answers_yml=_ANSWERS_BLOCKED)
+        assert rc == 0, (cmd[:70], err)
+
+
+def test_token_match_cases():
+    for cmd in MATCH:
+        rc, err = run_hook(cmd, answers_yml=_ANSWERS_BLOCKED)
+        assert rc == 2, (cmd[:70], err)
+
+
+def test_gradle_rule_only_inside_runtime_exec():
+    rc, _ = run_hook(f"{_E} runtime-only ./gradlew build", answers_yml=_ANSWERS_BLOCKED)
+    assert rc == 2
+    rc, _ = run_hook(f"{_E} runtime-only sh -c 'ls' && echo ./gradlew", answers_yml=_ANSWERS_BLOCKED)
+    assert rc == 0
+
+
 # ── fail-open: harness-answers.yml 없으면 컨테이너 규칙 없음 ──
 
 def test_pass_no_answers_file_arbitrary_container():

@@ -26,6 +26,7 @@ docker 오명령 결정적 차단 — Claude Code PreToolUse(Bash) Hook.
 import json
 import os
 import re
+import shlex
 import sys
 
 try:
@@ -153,12 +154,150 @@ def has_tty_flag(cmd):
     return bool(_TTY_I.search(cmd) and _TTY_T.search(cmd))
 
 
-def violation(cmd, container_patterns):
+TTY_REASON = "docker exec 에 -it/TTY 플래그 — Claude Code 는 TTY 없음."
+
+# ── 셸 토큰 기준 판정 (2026-10-15) ────────────────────────────────────────
+# 정규식은 명령 **글자**를 본다. 그래서 heredoc 본문·echo 문자열·기록용 문구 안의
+# `docker exec …` 까지 명령으로 오인했다(실사용 오탐 — 이 가드의 오탐을 재현하려던 명령까지
+# 막혔다). 공식 hooks 문서도 Bash 명령은 셸 구문으로 나눠 판정하라고 한다(`if` 필드가 하위
+# 명령을 나누고 `$()` 안까지 본다). 여기서는 표준 라이브러리 shlex 로 토큰화한 뒤 **실제로
+# 실행될 명령의 argv** 에서만 `docker exec` 를 찾는다. 따옴표가 짝이 안 맞아 토큰화가 실패하면
+# 예전 정규식 판정으로 돌아간다(막을 것을 놓치지 않게).
+
+_SEPARATORS = {";", "&&", "||", "|", "&", "|&", ";;", "\n", "(", ")"}
+_WRAPPERS = {"sudo", "command", "nohup", "nice", "time", "exec", "builtin"}
+_SHELLS = {"bash", "sh", "zsh", "dash", "sg", "su"}
+_VALUE_OPTS = {"-e", "--env", "--env-file", "-u", "--user", "-w", "--workdir", "--detach-keys"}
+_HEREDOC_RE = re.compile(r"(?<!<)<<(-?)[ \t]*(['\"]?)([A-Za-z_][\w]*)\2")
+_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _strip_heredocs(cmd):
+    """heredoc 본문 줄을 뺀다 — 본문은 명령이 아니라 데이터다."""
+    out, pending = [], []
+    for line in cmd.split("\n"):
+        if pending:
+            delim, dash = pending[0]
+            if (line.lstrip("\t") if dash else line) == delim:
+                pending.pop(0)
+            continue
+        out.append(line)
+        for m in _HEREDOC_RE.finditer(line):
+            pending.append((m.group(3), m.group(1) == "-"))
+    return "\n".join(out)
+
+
+def _tokens(cmd):
+    lx = shlex.shlex(cmd, posix=True, punctuation_chars=";&|()<>\n")
+    lx.whitespace = " \t\r"
+    lx.whitespace_split = True
+    lx.commenters = ""
+    return list(lx)
+
+
+def _simple_commands(tokens):
+    cur = []
+    for tok in tokens:
+        if tok in _SEPARATORS:
+            if cur:
+                yield cur
+            cur = []
+        else:
+            cur.append(tok)
+    if cur:
+        yield cur
+
+
+def _unwrap(argv):
+    """앞의 `VAR=값`·sudo·timeout·env 같은 감싸개를 벗긴다."""
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if _ASSIGN_RE.match(tok):
+            i += 1
+        elif tok in _WRAPPERS:
+            i += 1
+        elif tok == "env":
+            i += 1
+            while i < len(argv) and (_ASSIGN_RE.match(argv[i]) or argv[i].startswith("-")):
+                i += 1
+        elif tok == "timeout":
+            i += 1
+            while i < len(argv) and argv[i].startswith("-"):
+                i += 2 if argv[i] in ("-s", "--signal", "-k", "--kill-after") else 1
+            i += 1  # 시간 값
+        else:
+            break
+    return argv[i:]
+
+
+def _inner_command(argv):
+    """`bash -c '…'`·`sg grp -c "…"` 의 안쪽 명령 문자열. 없으면 None."""
+    if os.path.basename(argv[0]) not in _SHELLS:
+        return None
+    for j, tok in enumerate(argv[1:], start=1):
+        if tok.startswith("-") and not tok.startswith("--") and "c" in tok[1:]:
+            return argv[j + 1] if j + 1 < len(argv) else None
+    return None
+
+
+def _docker_execs(cmd, depth=0):
+    """실행될 `docker exec` 마다 (짧은 옵션 글자 집합, 컨테이너, 그 뒤 인자들)."""
+    for argv in _simple_commands(_tokens(_strip_heredocs(cmd))):
+        argv = _unwrap(argv)
+        if not argv:
+            continue
+        inner = _inner_command(argv)
+        if inner is not None and depth < 3:
+            yield from _docker_execs(inner, depth + 1)
+            continue
+        if os.path.basename(argv[0]) != "docker" or len(argv) < 2 or argv[1] != "exec":
+            continue
+        letters, k = set(), 2
+        while k < len(argv) and argv[k].startswith("-"):
+            opt = argv[k]
+            if opt in ("--tty",):
+                letters.add("t")
+            elif opt in ("--interactive",):
+                letters.add("i")
+            elif not opt.startswith("--") and opt not in _VALUE_OPTS:
+                letters.update(opt[1:])
+            k += 2 if (opt in _VALUE_OPTS and "=" not in opt) else 1
+        if k < len(argv):
+            yield letters, argv[k], argv[k + 1:]
+
+
+def _container_rules(containers):
+    rules = []
+    for entry in containers:
+        if isinstance(entry, dict) and str(entry.get("name", "")).strip():
+            name = entry["name"].strip()
+            rules.append((name, bool(entry.get("gradle", False)),
+                          entry.get("reason", f"컨테이너 '{name}' 설정 차단")))
+    return rules
+
+
+def violation(cmd, container_patterns, rules=None):
     """차단 사유 문자열 반환, 위반 없으면 None."""
     if "docker" not in cmd:
         return None
+    if rules is not None:
+        try:
+            execs = list(_docker_execs(cmd))
+        except ValueError:
+            execs = None  # 따옴표 짝 불일치 등 — 아래 정규식 판정으로
+        if execs is not None:
+            for letters, container, rest in execs:
+                if "i" in letters and "t" in letters:
+                    return TTY_REASON
+                for name, gradle_only, reason in rules:
+                    if container != name:
+                        continue
+                    if not gradle_only or any(re.search(r"(^|/)gradlew?$", t) for t in rest):
+                        return reason
+            return None
     if has_tty_flag(cmd):
-        return "docker exec 에 -it/TTY 플래그 — Claude Code 는 TTY 없음."
+        return TTY_REASON
     for pat, reason in container_patterns:
         if pat.search(cmd):
             return reason
@@ -178,8 +317,8 @@ def main():
     if not command:
         allow()
 
-    container_patterns = _build_container_patterns(_load_blocked_containers())
-    reason = violation(command, container_patterns)
+    containers = _load_blocked_containers()
+    reason = violation(command, _build_container_patterns(containers), _container_rules(containers))
     if reason is None:
         allow()
 
