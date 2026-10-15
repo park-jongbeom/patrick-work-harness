@@ -6,7 +6,7 @@ effort: medium
 
 # Gate C Procedure (follow order strictly)
 
-0. **Gate B pending check** — if the Gate B block in `${CURRENT_SESSION_FILE}` has a question whose 평가 is still the placeholder (e.g. 「(답변 후 기록)」), do **not** implement. Return to that question per `gate-b/SKILL.md §Step 0` (a pending question moves only on an answer or an explicit 「스킵」).
+0. **Gate B pending check** — if the Gate B block in `${CURRENT_SESSION_FILE}` has a question whose 평가 is still the placeholder (e.g. 「(답변 후 기록)」), do **not** implement. Return to that question per `gate-b/SKILL.md §Step 0` (a pending question moves only on an answer or an explicit 「스킵」). The `comprehension-pending-guard` hook enforces this when installed — it blocks `/gate-c`·`/gate-d`·`/gate-e` (typed or called through the Skill tool) while such a question exists.
 
 1. **Based on the Gate A detailed plan**, implement the code
    - Follow the file list·change direction·execution order approved at Gate A verbatim

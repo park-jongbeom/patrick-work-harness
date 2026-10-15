@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- 🔴 **이해도 질문이 대기 중이면 gate-c·d·e 진입을 훅으로 막는다**(`comprehension-pending-guard.py`).
+  **계기**: v1.7.0 은 「질문 대기 중 「구현」은 답도 스킵도 아니다」를 gate-b·gate-c **문장**으로만
+  정했다. 공식 skills 문서는 「매번 지켜야 할 규칙은 훅으로 옮겨라」고 한다. 사용자가 `/gate-c` 를
+  직접 입력하는 경로(UserPromptExpansion)와 모델이 Skill 도구로 부르는 경로(PreToolUse `Skill`)를
+  둘 다 막는다 — 직접 입력은 PreToolUse 를 거치지 않는다(공식 문서). 판정은 대시보드와 같은
+  파서로 `CURRENT_SESSION.md` Gate B 질문의 평가가 자리표시뿐인지 본다. 답하거나 「스킵」이 기록되면
+  풀리고, 파일 부재·파싱 실패는 통과(fail-open). 플러그인 hooks.json 과 install.sh 둘 다 등록.
+  **일부러 하지 않은 것**: gate-c/d/e 의 `disable-model-invocation` — 「구현」 같은 자연어로 gate-c 가
+  더는 뜨지 않게 돼 사용 습관을 바꾸는데, 실제 문제(대기 중 진입)는 이 훅이 막는다.
+  **시험**: 7건(직접 입력·Skill 호출·플러그인 접두어·답변/스킵 후 통과·다른 스킬·fail-open).
+
 ### Fixed
 
 - 🔴 **훅 출력 계약 통일 — 보이지 않던 경고 5곳을 공식 채널로.** **계기**: 딥 리서치 보고서 대조

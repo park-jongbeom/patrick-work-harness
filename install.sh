@@ -276,6 +276,17 @@ NEW_HOOKS = {
             "matcher": "Bash",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/commit-msg-guard.py"}]
         },
+        # 이해도 질문이 대기 중이면 gate-c·d·e 진입 차단 — 모델이 Skill 로 부르는 경로
+        {
+            "matcher": "Skill",
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-pending-guard.py"}]
+        },
+    ],
+    # 같은 차단의 다른 경로 — 사용자가 /gate-c 를 직접 입력하면 PreToolUse 를 거치지 않는다
+    "UserPromptExpansion": [
+        {
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-pending-guard.py"}]
+        },
     ],
     "PostToolUse": [
         {
