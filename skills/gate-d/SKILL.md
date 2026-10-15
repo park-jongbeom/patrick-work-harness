@@ -90,6 +90,8 @@ effort: high
    - Build success or not
    - **Code review·security check: PASS / N issues / N/A** (3-B result summary — if the `/code-review` escalation fired and the Skill was available, prefix with `[/code-review 위임]` and cite the finding count/severity it returned instead of the inline 7-item table; if escalation fired but the Skill was unavailable and the inline checklist ran instead, prefix with `[/code-review 미가용 — 인라인 대체]`)
 
+   > **Counts come from a generated facts block, not from memory** (2026-10-15 — final reports said "5 files" for 4 hooks + 4 tests and "all new tests fail on old code" for 17 of 19). Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/report_facts.py" --base <Gate C base commit>` (add `--junit <xml>` when the test runner writes JUnit, and `--fail-on-base "<test command>" --base-junit <xml>` to get the per-test "fails on old code" table) and paste the block into the result. Every number in this summary — changed files, pass/fail counts, "N of M new tests fail on the base" — is copied from that block. Write N/M instead of 「모두·전부·all」. If a number cannot be produced by a command, say so instead of estimating.
+   >
    > **claim↔evidence cross-check (technique-8 low-cost core)**: Back each PASS claim with at least one of file·line·test name as evidence (e.g. "회귀 PASS284 — `ScoringServiceTest` 외 ⋯", "정합 PASS — `diff -q` exit 0"). No listing of bare "PASS" without evidence — secure the verifiability of your own output without calling a separate evaluation model.
 
 5. **Conditional Refactor** — perform only when at least one of the following applies:

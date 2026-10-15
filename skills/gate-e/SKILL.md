@@ -19,6 +19,8 @@ effort: low
    ```
 
    > The "재사용 후보" block is the ECC pattern-extraction (L1) deliverable. Prefer "없음" over meaningless repetitive entries.
+   >
+   > **Counts in the WORKLOG (and CHANGELOG) are copied from the facts block** that Gate D pasted (`hooks/report_facts.py`), or from a fresh run of it — never re-counted from memory. Write N/M instead of 「모두·전부」.
 
 2. **Long-form archive** — **newly create (copy)** the session Gate A~E body to `${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_날짜_세션ID.md`.
 
