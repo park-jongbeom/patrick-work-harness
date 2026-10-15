@@ -87,12 +87,12 @@ Before session start (before any code change):
 | Gate | Decision rule (in priority order) |
 |------|-----------------------------------|
 | **A** (plan) | (1) R ≥ 6 → Opus 5.5 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 4.5 (3) otherwise → **Sonnet 5 (default)** |
-| **B** (implement) | (1) **default Sonnet 5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
-| **C** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 |
-| **D** (verify) | (1) **default Sonnet 5** (overengineering-avoidance advantage) (2) R ≥ 6 (architecture-redesign class) → Opus 5.5 |
+| **B** (comprehension) | (1) gate fires (`gate-b/SKILL.md §Step 0` — general risk or large blast radius) → **Sonnet 5** — drafting questions from the plan's briefing and judging answers against it (2) pass-through (trivial) → — (no model needed) |
+| **C** (implement) | (1) **default Sonnet 5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to C (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
+| **D** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5 (2) Simple regression re-confirm (already PASS) → Haiku 4.5 (3) D's conditional refactor of architecture-redesign class (R ≥ 6) → Opus 5.5 |
 | **E** (cleanup) | always Haiku 4.5 |
 
-> **Per-Gate independent application**: Even if Gate A is Opus, Gate B is default Sonnet (Anthropic official pattern). Each Gate is scored independently — no inheritance. *(Why the old inheritance rule was dropped → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.)*
+> **Per-Gate independent application**: Even if Gate A is Opus, Gate C (implement) is default Sonnet (Anthropic official pattern). Each Gate is scored independently — no inheritance. *(Why the old inheritance rule was dropped → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.)*
 >
 > **Fable 5.1 (exception escalation only)**: not a regular tier in the table above — Fable 5.1 is Anthropic's most capable widely-released model (Mythos-class) but is absent from the official model-selection matrix and priced at **2.5× Opus 5.5** ($10/$50 vs $4/$20, verified 2026-09-24). Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5.1로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5.1`.
 
@@ -230,16 +230,16 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **주장-근거 대조 점검** (HARNESS-CLAIM-EVIDENCE-1) — the "0-Claim" result above. If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line; otherwise list each unpromotable claim as `{주장} — 승격 불가: {사유}` (each must also appear in the risk table)
-   - **Gate D (verify) expectation and basis** (needed/not needed + 1-line reason)
-   - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (Gate B auto-inheritance abolished):
+   - **Gate D refactor expectation and basis** (Gate D's conditional refactor — needed/not needed + 1-line reason)
+   - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (no inheritance from Gate A):
 
      **Mapping rule (single canonical, PROC-MODEL-RUBRIC-1 revision)** — re-score the Step 0-A-a R/V/D classification per each Gate's task character:
 
      | Gate | Mapping procedure | Output model |
      |------|-------------------|--------------|
-     | **B** (implement) | **default Sonnet 5**. Opus promotion = only when a Gate A unresolved R decision is delegated to B (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
-     | **C** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5. Simple regression re-confirm (already PASS) → Haiku 4.5 | decision-rule result |
-     | **D** (verify) | produced only when "Gate D 예상 = 필요". default Sonnet 5 (overengineering-avoidance advantage). Architecture-redesign class R≥6 → Opus 5.5 | decision-rule result or — |
+     | **B** (comprehension) | from this plan's comprehension-gate verdict: fires → Sonnet 5 · pass-through → — | Sonnet 5 or — |
+     | **C** (implement) | **default Sonnet 5**. Opus promotion = only when a Gate A unresolved R decision is delegated to C (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
+     | **D** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5. Simple regression re-confirm (already PASS) → Haiku 4.5. If the plan expects D's conditional refactor of architecture-redesign class (R≥6) → Opus 5.5 | decision-rule result |
      | **E** (cleanup) | always Haiku 4.5 | Haiku 4.5 |
 
      > **Fable 5.1 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5.1 note above).
@@ -248,9 +248,9 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
 
      | Gate | 권장 모델 | Effort / Thinking | 분해 (R / V / D) | 비용 정당화 (Opus 한정, R-13) |
      |------|----------|--------------------|-----------------|----------------------|
-     | B | {Opus 5.5 / Sonnet 5 / Haiku 4.5} | {high·medium·low, Haiku 는 —} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
-     | C | {…} | {medium·low} / off | R={C 한정 — API/DB/SEC 결합 여부} / V=— / D={회귀 가드 多 여부} | … |
-     | D | {모델 또는 —} | {medium} / off | R={리팩터 깊이 — R≥6 여부} / V=— / D={overengineering 회피 명시 여부} | … |
+     | B | {Sonnet 5 / —} | {medium / —} / off | 이해도 게이트 발동 판정(발동·미발동) | — |
+     | C | {Opus 5.5 / Sonnet 5 / Haiku 4.5} | {high·medium·low, Haiku 는 —} / {auto·off} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
+     | D | {…} | {medium·low} / off | R={API/DB/SEC 결합 여부 · 리팩터 깊이 R≥6 여부} / V=— / D={회귀 가드 多 여부} | … |
      | E | Haiku 4.5 | — (effort 미지원) / off | — | — |
 
      > **모델 라인업 기준일: 2026-09-24** (출처: 공식 Models overview 조회).
@@ -367,5 +367,5 @@ Omitting it or replacing it with other content is a **PROC violation**.
 
 ```
 ---
-**다음 단계**: Gate A 검토 후 「Gate A 승인」또는 「계획대로 구현」으로 승인하면 `/gate-b` (Gate B 구현)가 시작됩니다.
+**다음 단계**: Gate A 검토 후 「Gate A 승인」또는 「계획대로 구현」으로 승인하면 `/gate-b` (Gate B 이해도 게이트)가 시작됩니다.
 ```

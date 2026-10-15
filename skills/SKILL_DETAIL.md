@@ -80,15 +80,15 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 |------|----------------|--------|----------|
 | **A** (plan) | R≥2 new architecture decision | high | auto |
 | **A** (plan) | R=0 standard plan | medium | off |
-| **B** (implement) | D≥1 deterministic output (smallest diff·format) | medium | off |
-| **B** (implement) | R≥2 unresolved-decision delegation | high | auto |
-| **C** (verify) | API/DB/SEC coupling·self-debug | medium | off |
-| **C** (verify) | Simple regression re-confirm | low | off |
-| **D** (verify) | default | medium | off |
+| **B** (comprehension) | gate fires (question drafting·answer judging) | medium | off |
+| **C** (implement) | D≥1 deterministic output (smallest diff·format) | medium | off |
+| **C** (implement) | R≥2 unresolved-decision delegation | high | auto |
+| **D** (verify) | API/DB/SEC coupling·self-debug | medium | off |
+| **D** (verify) | Simple regression re-confirm | low | off |
 | **E** (cleanup) | always | low (Haiku 4.5 → —) | off |
 
 > **Thinking=auto condition**: only when an R≥2 item actually needs to be resolved. If D≥1, prefer thinking=off (CoT over-elaboration conflicts with deterministic output).
-> **Dashboard notation**: `B: Sonnet 5 (medium/off)` — model·effort·thinking 3 items written together.
+> **Dashboard notation**: `C: Sonnet 5 (medium/off)` — model·effort·thinking 3 items written together.
 >
 > 🔴 **Effort is a per-model capability, not just a per-Gate choice** (2026-09-24, verified against the
 > official Models overview). **Haiku 4.5 does not support the effort parameter**, so a row that selects

@@ -40,7 +40,7 @@ If `DOC_INDEX.md` exists at the target repo root:
 3. **Error-case storage** (conditional) — perform the procedure below directly in this turn. (An inline copy of the same procedure as the `/error-log` Skill — that skill is not auto-loaded, so perform the below directly in this response. No separate load needed.)
 
    **Judgment**: Check the items below in the `${CURRENT_SESSION_FILE}` Gate B~D blocks:
-   - Gate B build·type·runtime failure / Gate C FIX-B / Gate D re-verification failure / Docker·environment·permission retry
+   - Gate C build·type·runtime failure / Gate D FIX-B·re-verification failure / Docker·environment·permission retry
    - There is "value for the next session to reuse" (excluding simple typo·one-off mistakes)
 
    → **If there is no target, output "오류 기록 대상 없음 — 생략" and proceed to Step 4.**
