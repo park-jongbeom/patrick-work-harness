@@ -281,6 +281,11 @@ NEW_HOOKS = {
             "matcher": "Skill",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-pending-guard.py"}]
         },
+        # Gate D(검증) 중 시험 파일 쓰기는 사용자 확인(ask) — 통과를 위한 시험 수정 방지
+        {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/test-write-guard.py"}]
+        },
     ],
     # 같은 차단의 다른 경로 — 사용자가 /gate-c 를 직접 입력하면 PreToolUse 를 거치지 않는다
     "UserPromptExpansion": [
@@ -333,11 +338,21 @@ def cmd_exists(hook_list, cmd):
                 return True
     return False
 
+# 🔴 설치된 훅 파일이 실제로 있는 것만 등록한다 (2026-10-15).
+#    PreToolUse 훅의 스크립트가 없으면 `python3 없는파일.py` 가 exit 2 로 끝나고, PreToolUse 에서
+#    exit 2 는 「차단」이다(공식 hooks 문서 — 파일 없음 예외는 Stop 등 일부 이벤트만). 등록만 되고
+#    파일이 없으면 모든 Edit·Write·Skill 호출이 막힐 수 있다(예: main 의 install.sh 로 이전 릴리스를 설치).
+def script_of(cmd):
+    return cmd.split()[-1].strip('"')
+
 changed = False
 for event, entries in NEW_HOOKS.items():
     existing = hooks.setdefault(event, [])
     for entry in entries:
         for h in entry["hooks"]:
+            if not os.path.isfile(script_of(h["command"])):
+                print(f"      건너뜀(파일 없음): {event} {os.path.basename(script_of(h['command']))}")
+                break
             if not cmd_exists(existing, h["command"]):
                 existing.append(entry)
                 changed = True
