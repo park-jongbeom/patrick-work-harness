@@ -39,6 +39,8 @@ import tempfile
 # Windows(cp949) 콘솔에서 차단 메시지가 깨지지 않게 stderr 를 UTF-8 로 고정.
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 try:
     import yaml
@@ -88,7 +90,9 @@ def _load_answers():
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
         if _YAML_AVAILABLE:
-            return yaml.safe_load(text) or {}
+            data = yaml.safe_load(text)
+            # 최상위가 목록·문자열이면 .get() 이 호출부에서 터진다 — fail-open 유지
+            return data if isinstance(data, dict) else {}
         data = _simple_parse_code_repos(text)
         m = re.search(r"^error_topics_path\s*:\s*[\"']?([^\"'#\n]+?)[\"']?\s*(?:#.*)?$",
                       text, re.MULTILINE)
@@ -328,13 +332,15 @@ def main():
         notice = counter_path(sid) + ".skipped"
         if not os.path.exists(notice):
             write_counter(notice, 1)
-            print(
+            # exit 0 훅의 stderr 는 사용자·Claude 어디에도 안 보인다 — stdout 의
+            # systemMessage JSON 으로 낸다(comprehension-ledger-stale-guard 와 같은 경로).
+            notice_text = (
                 f"[ERROR-TOPICS] 세션 '{sid}' 는 오류 흔적이 있으나 검사 위치를 "
                 f"알 수 없어 검사하지 않았습니다.\n"
                 f"  harness-answers.yml 에 error_topics_path(또는 code_repos)를 "
-                f"지정하면 적재 여부를 확인합니다.",
-                file=sys.stderr,
+                f"지정하면 적재 여부를 확인합니다."
             )
+            print(json.dumps({"systemMessage": notice_text}, ensure_ascii=False))
         clear_counter(cpath)
         allow()
 

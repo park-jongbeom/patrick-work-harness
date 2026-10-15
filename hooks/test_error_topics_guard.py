@@ -30,7 +30,7 @@ def clear_counter(session_id):
 def run_hook(current_session_content, session_id="test-sess",
              index_content="", topics=None, write_current=True,
              stop_hook_active=False, code_repos=None,
-             base_topics=None):
+             base_topics=None, answers_yml=None, with_stdout=False):
     """
     error-topics-guard.py 를 서브프로세스로 실행, (returncode, stderr) 반환.
 
@@ -39,6 +39,8 @@ def run_hook(current_session_content, session_id="test-sess",
                픽스처. 주면 ERROR_TOPICS_PATH env 로 가리킨다.
     code_repos: 검사 대상 저장소 목록 (None → topics 키에서 자동 추론).
                ERROR_TOPICS_CODE_REPOS env 로 주입 (harness-answers.yml 대체).
+    answers_yml: 주면 base_dir/.claude/harness-answers.yml 에 그대로 쓴다.
+    with_stdout: True 면 (returncode, stderr, stdout) 을 반환한다.
     """
     with tempfile.TemporaryDirectory() as base_dir, \
             tempfile.TemporaryDirectory() as repo_root:
@@ -57,6 +59,12 @@ def run_hook(current_session_content, session_id="test-sess",
             for fname, content in files.items():
                 with open(os.path.join(tdir, fname), "w", encoding="utf-8") as f:
                     f.write(content)
+
+        if answers_yml is not None:
+            os.makedirs(os.path.join(base_dir, ".claude"), exist_ok=True)
+            with open(os.path.join(base_dir, ".claude", "harness-answers.yml"), "w",
+                      encoding="utf-8") as f:
+                f.write(answers_yml)
 
         env = os.environ.copy()
         env.pop("ERROR_TOPICS_PATH", None)
@@ -85,6 +93,8 @@ def run_hook(current_session_content, session_id="test-sess",
             input=json.dumps(payload),
             capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
+        if with_stdout:
+            return proc.returncode, proc.stderr.strip(), proc.stdout.strip()
         return proc.returncode, proc.stderr.strip()
 
 
@@ -323,12 +333,36 @@ def test_unchecked_notice_once():
         os.remove(notice)
     except OSError:
         pass
-    code, err = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid)
-    assert code == 0 and "검사하지 않았습니다" in err, (code, err)
-    code, err = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid)
-    assert code == 0 and err == "", (code, err)
+    # exit 0 훅의 stderr 는 아무에게도 안 보이므로 stdout systemMessage 로 알려야 한다
+    code, err, out = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid,
+                              with_stdout=True)
+    assert code == 0, (code, err)
+    assert "검사하지 않았습니다" in json.loads(out)["systemMessage"], out
+    code, err, out = run_hook(current_md("FIX-B-NOTICE-1", repos="없음"), session_id=sid,
+                              with_stdout=True)
+    assert code == 0 and out == "", (code, out)
     os.remove(notice)
-    print("  PASS: 검사 위치 불명 → 한 번만 알리고 통과")
+    print("  PASS: 검사 위치 불명 → systemMessage 로 한 번만 알리고 통과")
+
+
+def test_non_mapping_answers_yml_fails_open():
+    """harness-answers.yml 최상위가 목록이어도 가드가 죽지 않는다(fail-open)."""
+    sid = "t-listyml"
+    clear_counter(sid)
+    notice = counter_file("FIX-B-LISTYML-1") + ".skipped"
+    try:
+        os.remove(notice)
+    except OSError:
+        pass
+    code, err = run_hook(current_md("FIX-B-LISTYML-1", repos="없음"), session_id=sid,
+                         answers_yml="- a\n- b\n")
+    assert code == 0, (code, err)
+    assert "Traceback" not in err, err
+    try:
+        os.remove(notice)
+    except OSError:
+        pass
+    print("  PASS: 목록 형태 harness-answers.yml → 예외 없이 통과")
 
 
 if __name__ == "__main__":
@@ -348,6 +382,7 @@ if __name__ == "__main__":
         test_custom_path_blocks_without_code_repos,
         test_custom_path_logged_allows,
         test_unchecked_notice_once,
+        test_non_mapping_answers_yml_fails_open,
     ]
     print(f"error-topics-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)
