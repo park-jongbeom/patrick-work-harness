@@ -463,7 +463,7 @@ File names are fixed (`FEATURE_SPEC.md`, etc.). Replace `<session_id>` placehold
 ## Architecture Decision Records (ADR)
 
 <!-- 각 Gate에서 ADR 추가 -->
-<!-- 형식: ### [YYYY-MM-DD] <결정 제목> / Context / Decision / Consequences -->
+<!-- 형식: ### [YYYY-MM-DD] <결정 제목> / Context / Decision / Evidence / Consequences / Prediction·Check by / Outcome -->
 ```
 
 #### 9-d. DOC_INDEX.md update
@@ -544,7 +544,10 @@ Same pattern as Step 9: if the Layer 2 file already exists with user content (no
 <!-- Gate <X>에서 채워짐 -->
 - **Context**: <why this decision was needed>
 - **Decision**: <what was chosen>
+- **Evidence**: <the observation that decided it — session, command, numbers>
 - **Consequences**: <trade-offs, constraints, follow-ups>
+- **Prediction / check by**: <what should change and how you will measure it> / <date or "after N sessions"> (optional)
+- **Outcome**: <filled in after the check date — held / did not hold / unchecked + evidence> (optional)
 ```
 
 #### 10-c. When NOT to fill

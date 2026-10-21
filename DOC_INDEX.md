@@ -12,4 +12,4 @@
 | API_SPEC.md | 2 | Gate C | Skeleton |
 | TEST_PLAN.md | 2 | Gate C–D | Skeleton |
 | ERROR_HANDLING.md | 2 | Gate D | Skeleton |
-| DECISION_LOG.md | 2 | All gates (ADR) | Skeleton |
+| DECISION_LOG.md | 2 | 엔진 변경 결정·근거·예측 | Partial |

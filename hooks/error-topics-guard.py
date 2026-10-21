@@ -22,7 +22,8 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
         세션 ID 가 "FIX-B" prefix OR
         CURRENT_SESSION/SESSION_INDEX 본문에 "self-debug N회"(N≥1) OR
         "FIX-B N건"(N≥1)
-  (3) 세션 ID 가 작업 코드 저장소 error_topics/*.md 어디에도 미등장
+  (3) 작업 코드 저장소 error_topics/*.md 에 세션 ID 를 제목에 단 항목이 없거나,
+      있어도 필수 칸(적용 조건·근거)이 비어 있음 (HARNESS-LESSON-1)
 
 방어 원칙 (fail-open): 파일 부재·파싱 실패·예외·코드 저장소 부재는
   무조건 exit 0 (오탐 차단 금지).
@@ -67,6 +68,11 @@ SESSION_INDEX = os.path.join(BASE_DIR, "SESSION_INDEX.md")
 
 # 연속 차단 한도 (무한 루프 방지)
 MAX_BLOCKS = 3
+
+# 항목이 「적재됨」으로 인정받으려면 채워져 있어야 하는 칸 (gate-e Step 3 형식).
+# 세션 ID 문자열만 보던 때는 제목 한 줄짜리 항목도 통과했다 — 근거 없는 교훈은
+# 다음 Gate A 조회에서 쓸 수 없으므로 칸을 본다 (HARNESS-LESSON-1, 2026-10-21).
+REQUIRED_FIELDS = ("적용 조건", "근거")
 
 
 def _find_answers_yml():
@@ -233,17 +239,60 @@ def topics_dirs(repos, custom_dir):
             for r in repos]
 
 
-def session_id_logged(session_id, dirs):
+def entry_sections(session_id, dirs):
+    """제목 줄에 세션 ID 가 있는 항목 섹션들 — (경로, 섹션 본문) 목록.
+
+    섹션은 그 제목부터 같은 수준 이상의 다음 제목 직전까지다.
     """
-    세션 ID 가 error_topics/*.md 어딘가에 등장하는지.
-    하나라도 등장하면 True (적재됨).
-    """
+    sections = []
     for topics_dir in dirs:
-        for path in glob.glob(os.path.join(topics_dir, "*.md")):
+        for path in sorted(glob.glob(os.path.join(topics_dir, "*.md"))):
             text = read_text(path)
-            if text and session_id in text:
-                return True
-    return False
+            if not text or session_id not in text:
+                continue
+            lines = text.splitlines()
+            for i, line in enumerate(lines):
+                m = re.match(r"^(#{1,6})\s+(.*)$", line)
+                if not m or session_id not in m.group(2):
+                    continue
+                level = len(m.group(1))
+                end = len(lines)
+                for j in range(i + 1, len(lines)):
+                    m2 = re.match(r"^(#{1,6})\s", lines[j])
+                    if m2 and len(m2.group(1)) <= level:
+                        end = j
+                        break
+                sections.append((path, "\n".join(lines[i:end])))
+    return sections
+
+
+def missing_fields(section_text):
+    """REQUIRED_FIELDS 중 값이 비어 있거나 없는 칸."""
+    missing = []
+    for field in REQUIRED_FIELDS:
+        m = re.search(r"\*\*%s\*\*\s*[:：]\s*(\S.*)?$" % re.escape(field),
+                      section_text, re.MULTILINE)
+        if not m or not (m.group(1) or "").strip():
+            missing.append(field)
+    return missing
+
+
+def logged_status(session_id, dirs):
+    """('ok', None) | ('incomplete', 누락 칸 목록) | ('absent', None).
+
+    제목에 세션 ID 가 있고 필수 칸이 모두 찬 항목이 하나라도 있으면 ok.
+    """
+    sections = entry_sections(session_id, dirs)
+    if not sections:
+        return "absent", None
+    best = None
+    for _, body in sections:
+        miss = missing_fields(body)
+        if not miss:
+            return "ok", None
+        if best is None or len(miss) < len(best):
+            best = miss
+    return "incomplete", best
 
 
 def counter_path(session_id):
@@ -346,8 +395,9 @@ def main():
 
     dirs = topics_dirs(repos, custom_dir)
 
-    # ── (3) 적재 검사 (이미 등장 → 허용) ──
-    if session_id_logged(sid, dirs):
+    # ── (3) 적재 검사 (제목에 세션 ID + 필수 칸이 찬 항목 → 허용) ──
+    status, missing = logged_status(sid, dirs)
+    if status == "ok":
         clear_counter(cpath)
         allow()
 
@@ -364,15 +414,26 @@ def main():
         allow()
 
     repo_hint = " · ".join(dirs)
+    if status == "incomplete":
+        fields = " · ".join(f"**{f}**" for f in missing)
+        block(
+            f"[ERROR-TOPICS] 오류 케이스 항목의 필수 칸이 비어 있음 "
+            f"({attempts}/{MAX_BLOCKS})\n"
+            f"  세션 '{sid}' 항목은 있으나 {fields} 칸이 없거나 비어 있습니다.\n"
+            f"  조치: 그 항목에 gate-e Step 3 형식대로 채우세요 — 적용 조건은 다음\n"
+            f"    Gate A 가 이 교훈을 꺼낼 상황(「~할 때」), 근거는 세션 ID·명령·출력 발췌.\n"
+            f"    대상: {repo_hint}\n"
+            f"  ※ MAX {MAX_BLOCKS}회 후 자동 해제됩니다."
+        )
     block(
         f"[ERROR-TOPICS] 오류 케이스 미적재 감지 — error_topics 적재 필요 "
         f"({attempts}/{MAX_BLOCKS})\n"
         f"  세션 '{sid}' 는 오류 흔적(self-debug/FIX-B)이 있으나\n"
-        f"  작업 저장소 error_topics/*.md 어디에도 등장하지 않습니다.\n"
+        f"  작업 저장소 error_topics/*.md 에 이 세션 ID 를 제목에 단 항목이 없습니다.\n"
         f"  조치: 아래 경로의 적절한 주제 파일(testing.md·gate_process.md 등)에\n"
-        f"    '## [YYYY-MM-DD] {sid} — 한줄 요약' 섹션을 append 하세요.\n"
+        f"    '## [YYYY-MM-DD] {sid} — 한줄 요약' 섹션을 gate-e Step 3 형식\n"
+        f"    (적용 조건·근거 칸 포함)으로 이 응답 턴에서 append 하세요.\n"
         f"    대상: {repo_hint}\n"
-        f"  ※ /error-log Skill 로 적재하거나 이 응답 턴에서 직접 작성 가능합니다.\n"
         f"  ※ 재활용 가치 없는 1회성 실수면 적재 후에도 무관 — MAX {MAX_BLOCKS}회 후 자동 해제됩니다."
     )
 

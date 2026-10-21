@@ -39,7 +39,7 @@ If `DOC_INDEX.md` exists at the target repo root:
 - This is the final DOC_INDEX.md touch for this session — subsequent sessions start fresh from the current status.
 - If `DOC_INDEX.md` does not exist: skip silently.
 
-3. **Error-case storage** (conditional) — perform the procedure below directly in this turn. (An inline copy of the same procedure as the `/error-log` Skill — that skill is not auto-loaded, so perform the below directly in this response. No separate load needed.)
+3. **Error-case storage** (conditional) — perform the procedure below directly in this turn.
 
    **Judgment**: Check the items below in the `${CURRENT_SESSION_FILE}` Gate B~D blocks:
    - Gate C build·type·runtime failure / Gate D FIX-B·re-verification failure / Docker·environment·permission retry
@@ -64,7 +64,7 @@ If `DOC_INDEX.md` exists at the target repo root:
    - Docs-only repositories (no application code) are not `code_repos` entries → record in the
      `error_topics/gate_process.md` of the code repository that that session worked on.
 
-   **Topic file mapping** (common to the three repositories):
+   **Topic file mapping** (common to every code repository):
    | File | Tag | Target error |
    |------|-----|--------------|
    | `gate_process.md` | `PROC` | Gate approval·procedure·「구현」 interpretation·after-the-fact retroactive |
@@ -79,11 +79,27 @@ If `DOC_INDEX.md` exists at the target repo root:
    ```
    ## [YYYY-MM-DD] 세션ID — 한줄 요약
    - **발생 Gate**: B / C / D
+   - **적용 조건**: 다음 Gate A 가 이 교훈을 꺼내야 할 상황 1줄 (「~할 때」 — 파일·명령·기술 이름을 넣는다)
    - **증상**: (로그·메시지 핵심 1~3줄)
    - **근본 원인**: 무엇이 왜 틀렸는가
    - **해결**: 파일·라인 포함 변경점
    - **재발 방지 규칙**: 다음 세션이 지켜야 할 1줄 규칙
+   - **근거**: 세션ID · 실행한 명령과 그 출력 발췌 (또는 커밋 해시) — 1회 관찰이면 「1회 관찰」이라고 쓴다
+   - **채택한 변경**: 훅 / 시험 / 스킬 문구 / 없음(교훈만)
+   - **검증**: 모델 · 날짜 (예: `claude-opus-5-5 · 2026-10-21`)
+   - **상태**: 유효 (뒤에 대체되면 이 줄만 「대체됨 → [날짜] 세션ID」로 바꾼다)
+   - **범위**: 프로젝트 (하네스 자체의 결함으로 보이면 「엔진 후보: 이유 1줄」)
    ```
+
+   `error-topics-guard.py` accepts the entry only when **적용 조건** and **근거** are filled — a title line alone no longer counts.
+   The Gate A lesson lookup (`gate-a/lessons_lookup.py`) matches the next task against **적용 조건** and shows **재발 방지 규칙**, so write both for the next reader, not as a diary.
+
+   **Recording rules** (from recursive harness-improvement research — a lesson without execution evidence pollutes every later lookup):
+   - **No entry is a valid answer.** One-off typos and cases with no reusable cause stay 「오류 기록 대상 없음 — 생략」.
+   - **One cause, one entry.** If the same cause already has an entry, append a dated `- **재발**: [YYYY-MM-DD] 세션ID — 무엇이 달랐나` line to it instead of a new entry. Two or more 재발 lines on one entry → propose a hook or test in the next Gate A (a rule that keeps recurring as prose belongs in a device).
+   - **Do not credit a lesson for a session that went well.** A success is not evidence that a lesson worked; only a run where the lesson changed what happened is.
+   - **Append only.** Never rewrite or "tidy" a topic file as a whole — edit only the 상태 line of an older entry.
+   - **범위 defaults to 프로젝트.** Mark 「엔진 후보」 only with a one-line reason; promotion into the harness engine is reviewed in batches at `/audit` or release time, never per entry.
 
    > No creating a new document per session — always append to an existing topic file.
 
@@ -92,7 +108,7 @@ If `DOC_INDEX.md` exists at the target repo root:
    - Next-session decision → record in the `${SESSION_INDEX_FILE}` YAML `next_action` field
    - `${SESSION_INDEX_FILE}` YAML `sessions_since_audit += 1`
    - ※ **The session-status ✅E flip is performed in bulk at Step 5, not this step** — preventing Step 4/5 duplication (GATE-E-ENFORCE-1)
-   - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`${CURRENT_SESSION_FILE}` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment·HARNESS_EVOLUTION_LOG PLAN-SYNC-21). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.
+   - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`${CURRENT_SESSION_FILE}` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.
 
 4-B. **§5 handoff retrieval** (conditional) — If there is an item pulled into this session's scope from §5 at Gate A 0-A, confirm the processing trace and delete that line: `plan_tier: "2"` (or field absent) → `<master_plan_file> §5`; `plan_tier: "1"` → `<single_plan_file>`'s handoff-notes section.
 

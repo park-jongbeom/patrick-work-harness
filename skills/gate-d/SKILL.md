@@ -8,7 +8,7 @@ effort: high
 
 ## Permanent DEP Ledger (mandatory lookup at Gate D start)
 
-**At Gate D start** → first consult `CLAUDE_DETAIL.md §Permanent DEP Ledger`:
+**At Gate D start** → first consult `CLAUDE_DETAIL.md §Permanent DEP Ledger` (a project file — skip this section if your project has none):
 - If the current failure matches a ledger entry → no new investigation needed, classify as DEP immediately
 - If a dependent session has reached ✅E completion → **mandatory re-verification**, then update the entry
 
@@ -28,7 +28,7 @@ effort: high
 2. **Run the tests·build with the Docker command**
    - Markdown-only repositories (ai-consulting-plans, plans) need no Docker — verify with Bash commands such as `grep`/`ls`
 
-   > **💡 Giant test-log delegation (HARNESS-DELEGATE-1)**: When the output log is giant, as with `gradlew`/`pytest`/`npm test`, delegate the execution to an `Explore`/`Agent` subagent (Bash) and **retrieve only the PASS/FAIL + failure-summary conclusion** to save main-context tokens (only when "intermediate output ≫ conclusion" — inline is better for small ones). The main performs self-debug (2-B)·FIX-B/DEP classification based on the delegated conclusion. Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines`.
+   > **💡 Giant test-log delegation (HARNESS-DELEGATE-1)**: When the output log is giant, as with `gradlew`/`pytest`/`npm test`, delegate the execution to an `Explore`/`Agent` subagent (Bash) and **retrieve only the PASS/FAIL + failure-summary conclusion** to save main-context tokens (only when "intermediate output ≫ conclusion" — inline is better for small ones). The main performs self-debug (2-B)·FIX-B/DEP classification based on the delegated conclusion. Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines` (a project file — skip if your project has none).
 
 **2-B. Verification loop (R-2, external-signal based)** — On finding a test·build failure, before immediately classifying FIX-B/DEP, perform a repeating verification loop that is **closed only by external execution signals** (basis: (internal research note, if your project maintains one) — Huang/DeepMind ICLR2024: pure self-correction without external signals lowers accuracy):
 
@@ -38,7 +38,7 @@ effort: high
 - **If not obvious** (network·environment·design defect), enter Step 3 classification immediately without entering the loop.
 - **★ reward-hacking guard (R-2-G)**: During the loop, **test files·test commands·CI config are read-only** (no modification) — disabling verification via `@Disabled`·`assert true`·tampering with expected values to force a pass is a PROC violation. After the loop ends, check the `tests/` diff, and **if there is a test change, treat the gate as failed** (a legitimate test reinforcement is a Gate C-stage deliverable, not this loop's deliverable — separate it as FIX-B). See CLAUDE.md 「검증 루프 중 통과 목적의 테스트 수정 금지」.
 - **Spec–test conflict path**: if the only way to pass is to change a test because the spec and the test actually disagree, do **not** edit it — stop the loop and report 「명세·시험 충돌」 with the failing test, the spec line it contradicts, and the change you would make; the user decides. Repeated feedback rounds raise test-cheating rates (ImpossibleBench, arXiv:2510.20270), so this is also the exit when the upper bound is reached. The `test-write-guard` hook enforces the read-only rule when installed: during Gate D any Edit/Write to a test path asks the user first.
-- **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output.
+- **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output. Write the repeat count as `self-debug N회` (`self-debug 0회` when no loop ran) in the Gate D block of ${CURRENT_SESSION_FILE} — `error-topics-guard.py` reads this exact marker at Gate E to decide whether an error case must be recorded.
 - **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git restore .` (or `git stash`) to revert to the last clean state ③ verify the repo compiles/runs clean ④ report to the user: which files were reverted + why the fix could not proceed → request a new Gate A re-plan.
 
 > Detail → `plans/agents_instructions/gate-c-instruction.md` (3-iteration protocol · reward-hacking 4 patterns)
@@ -58,7 +58,7 @@ effort: high
 - The R/V/D decomposition recorded in `${CURRENT_SESSION_FILE}`'s Dashboard (per gate-a's "Dashboard Required Fields" — the R value from Gate A's own Step 0-A-a scoring, **not** Gate D's re-scored row) has R-axis total **≥ 6** (the same threshold Gate A uses for Opus promotion — new architecture/algorithm/security-policy decisions), **or**
 - changed files **> 7** (same count already computed for the R-12 scope guard in Gate A)
 
-**If triggered** → check whether the `/code-review` Skill is available in this environment (it is a Claude Code client capability, **not something this harness bundles or guarantees** — a project installing this harness may not have it). **If available**, invoke it (effort: `medium` when one condition holds, `high` when both hold) against the Gate C diff instead of the inline checklist below, then fold its findings into this Step's output (finding count·severity replace the 7-item table). **If unavailable**, fall back to the inline 7-item checklist below — same fallback-on-unavailability principle as gate-e's `/error-log` reference (gate-e/SKILL.md Step 3). **If not triggered at all** → run the inline 7-item checklist below as-is (this is the default path for most sessions — small/standard changes don't need multi-agent review overhead).
+**If triggered** → check whether the `/code-review` Skill is available in this environment (it is a Claude Code client capability, **not something this harness bundles or guarantees** — a project installing this harness may not have it). **If available**, invoke it (effort: `medium` when one condition holds, `high` when both hold) against the Gate C diff instead of the inline checklist below, then fold its findings into this Step's output (finding count·severity replace the 7-item table). **If unavailable**, fall back to the inline 7-item checklist below — never skip the review because a skill is missing. **If not triggered at all** → run the inline 7-item checklist below as-is (this is the default path for most sessions — small/standard changes don't need multi-agent review overhead).
 
 > **Rationale**: `/code-review`'s multi-angle finder + independent verifier pattern catches more (cross-file breakage, reuse/simplification gaps, altitude issues) than a single-pass 7-item self-check, but costs materially more tokens/time and depends on a client capability outside this harness's control. Reserve it for sessions where the blast radius justifies the cost — the same R/V/D-based escalation principle Gate A already applies to model selection (R-13) and scope guarding (R-12) — and always keep the inline checklist as the guaranteed fallback.
 
@@ -88,6 +88,7 @@ effort: high
    - Per-failure error content + FIX-B/DEP classification and basis
    - FIX-B: one-line fix direction + reserved session
    - DEP: dependency-target session/code + when verifiable
+   - Classification count line, verbatim format `FIX-B N건 · DEP N건` (write 0 for none), also copied into the Gate D block of ${CURRENT_SESSION_FILE} — the same guard reads `FIX-B N건`
    - Build success or not
    - **Code review·security check: PASS / N issues / N/A** (3-B result summary — if the `/code-review` escalation fired and the Skill was available, prefix with `[/code-review 위임]` and cite the finding count/severity it returned instead of the inline 7-item table; if escalation fired but the Skill was unavailable and the inline checklist ran instead, prefix with `[/code-review 미가용 — 인라인 대체]`)
 
@@ -123,7 +124,7 @@ Fill the following if the respective files exist at the target repo root:
 - Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
 
 **DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
-- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Consequences (per `/init` Step 10-b format)
+- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Evidence / Consequences, plus Prediction / check by when the decision is expected to change behavior (per `/init` Step 10-b format). If an earlier entry's check date has passed, fill its Outcome line in the same pass
 - If no non-obvious decision → leave marker in place
 - Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
 
@@ -139,8 +140,8 @@ If none of the above files exist: skip silently.
 
 ## Docker Execution Commands (mandatory in Gate D record)
 
-> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (each canonical for react-web-ga·college-crawler·ga-api-platform). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
-> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (`docker exec ga-api-platform`·`-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
+> For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (one canonical row per code repository). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
+> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (a repository name used as the container name, `-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
 
 ## FIX-B Handling Example
 
@@ -155,8 +156,8 @@ If none of the above files exist: skip silently.
 
 ```
 [DEP] ProfileSteps.e2e.test.tsx — runMatching API mock 실패
-  에러: runMatching is not a function (ga-api-platform 엔드포인트 미구현)
-  의존 대상: ga-api-platform 세션 2-D-3 완료 후 검증 가능
+  에러: runMatching is not a function (API 저장소 엔드포인트 미구현)
+  의존 대상: API 저장소 세션 2-D-3 완료 후 검증 가능
   검증 예약: 2-D-3 ✅E 이후
 ```
 
@@ -175,7 +176,7 @@ During Gate D execution, if the situation below applies, you may make a **single
 
 **Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above (git restore to last clean state) ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
 
-Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation**
+Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation** (a project file — skip if your project has none)
 
 ---
 

@@ -228,18 +228,89 @@ def test_megaline_current_trace_blocks():
     print("  PASS: 메가라인 현재 head 흔적 + 미적재 → 차단(exit 2)")
 
 
+def full_entry(sid, title="spotless 위반"):
+    """gate-e Step 3 형식의 완성된 항목 (필수 칸 적용 조건·근거 포함)."""
+    return (
+        f"## [2026-05-22] {sid} — {title}\n"
+        f"- **발생 Gate**: D\n"
+        f"- **적용 조건**: 포맷터가 CI 에서만 도는 저장소를 고칠 때\n"
+        f"- **증상**: spotlessCheck 실패\n"
+        f"- **재발 방지 규칙**: 커밋 전 spotlessApply\n"
+        f"- **근거**: {sid} · `./gradlew spotlessCheck` exit 1\n"
+    )
+
+
 def test_logged_allows():
-    """오류 흔적 有 + error_topics 적재됨 → 허용."""
+    """오류 흔적 有 + error_topics 에 필수 칸이 찬 항목 → 허용."""
     clear_counter("t-logged")
     code, _ = run_hook(
         current_md("FIX-B-SPOTLESS-9"),
         session_id="t-logged",
-        topics={"my-api": {
-            "testing.md": "## [2026-05-22] FIX-B-SPOTLESS-9 — spotless 위반\n",
-        }},
+        topics={"my-api": {"testing.md": full_entry("FIX-B-SPOTLESS-9")}},
     )
     assert code == 0, f"expected 0, got {code}"
     print("  PASS: 오류 흔적 有 + 적재됨 → 허용")
+
+
+def test_title_only_entry_blocks():
+    """제목 한 줄짜리 항목은 적재로 인정하지 않는다 — 필수 칸 누락으로 차단 (HARNESS-LESSON-1)."""
+    clear_counter("t-titleonly")
+    code, err = run_hook(
+        current_md("FIX-B-TITLE-1"),
+        session_id="t-titleonly",
+        topics={"my-api": {"testing.md": "## [2026-05-22] FIX-B-TITLE-1 — 제목만\n"}},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert "적용 조건" in err and "근거" in err, err
+    clear_counter("t-titleonly")
+    print("  PASS: 제목만 있는 항목 → 필수 칸 누락 차단(exit 2)")
+
+
+def test_entry_missing_evidence_blocks():
+    """적용 조건은 있으나 근거 칸이 비면 차단하고, 누락 칸만 알린다."""
+    clear_counter("t-noevid")
+    body = full_entry("FIX-B-EVID-1").replace("- **근거**: FIX-B-EVID-1 · `./gradlew spotlessCheck` exit 1\n",
+                                              "- **근거**: \n")
+    code, err = run_hook(
+        current_md("FIX-B-EVID-1"),
+        session_id="t-noevid",
+        topics={"my-api": {"testing.md": body}},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert "**근거**" in err and "**적용 조건**" not in err, err
+    clear_counter("t-noevid")
+    print("  PASS: 근거 칸이 빈 항목 → 근거만 누락으로 차단(exit 2)")
+
+
+def test_sid_only_in_body_blocks():
+    """세션 ID 가 다른 항목 본문에만 나오면 이 세션의 항목이 아니다 → 미적재 차단."""
+    clear_counter("t-bodyonly")
+    code, err = run_hook(
+        current_md("FIX-B-BODY-1"),
+        session_id="t-bodyonly",
+        topics={"my-api": {"testing.md": full_entry("OTHER-SESS-1").replace(
+            "spotlessCheck 실패", "spotlessCheck 실패 (FIX-B-BODY-1 에서도 봄)")}},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert "제목에 단 항목이 없습니다" in err, err
+    clear_counter("t-bodyonly")
+    print("  PASS: 본문에만 등장한 세션 ID → 미적재 차단(exit 2)")
+
+
+def test_complete_entry_among_incomplete_allows():
+    """같은 세션 항목이 여럿이면 하나라도 완성돼 있으면 허용."""
+    clear_counter("t-mixed")
+    code, _ = run_hook(
+        current_md("FIX-B-MIX-1"),
+        session_id="t-mixed",
+        topics={"my-api": {
+            "testing.md": "## [2026-05-22] FIX-B-MIX-1 — 첫 시도\n- **증상**: x\n",
+            "runtime_env.md": full_entry("FIX-B-MIX-1", "권한"),
+        }},
+    )
+    assert code == 0, f"expected 0, got {code}"
+    clear_counter("t-mixed")
+    print("  PASS: 완성 항목 1건 이상 → 허용")
 
 
 def test_unlogged_fixb_prefix_blocks():
@@ -318,7 +389,7 @@ def test_custom_path_logged_allows():
     clear_counter("t-cust2")
     code, _ = run_hook(
         current_md("FIX-B-CUST-2", repos="없음"),
-        session_id="t-cust2", base_topics={"a.md": "## FIX-B-CUST-2 — 적재\n"},
+        session_id="t-cust2", base_topics={"a.md": full_entry("FIX-B-CUST-2", "적재")},
     )
     assert code == 0, f"expected 0, got {code}"
     print("  PASS: error_topics_path 에 적재됨 → 허용")
@@ -375,6 +446,10 @@ if __name__ == "__main__":
         test_megaline_history_trace_allows,
         test_megaline_current_trace_blocks,
         test_logged_allows,
+        test_title_only_entry_blocks,
+        test_entry_missing_evidence_blocks,
+        test_sid_only_in_body_blocks,
+        test_complete_entry_among_incomplete_allows,
         test_unlogged_fixb_prefix_blocks,
         test_unlogged_selfdebug_blocks,
         test_loop_guard_releases_after_max,
