@@ -85,6 +85,8 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
 | `learning_path` | Directory holding the comprehension ledger (`comprehension_ledger.md`). Relative paths resolve against `CLAUDE_PROJECT_DIR`; absolute paths are used as-is. Omit the field to keep the legacy default | `plans/learning` |
 | `process_evolution_path` | Directory holding the skill-usage aggregator (`skill_usage_aggregator.py`), written by the `skill-usage-auto` hook. Same resolution rule as `learning_path`. Omit the field to keep the legacy default | `plans/process_evolution` |
+| `error_topics_path` | Directory where Gate E records error cases and lessons (gate-e Step 3). The Gate A lesson lookup reads it and `error-topics-guard.py` checks it, so leaving the lesson store unset silently turns both off. Relative to `CLAUDE_PROJECT_DIR`. Use this for a single-repo project | `docs/rules/error_topics` |
+| `code_repos` | Multi-repo workspace only (this repo holds plans, the code lives in sibling repos): list of sibling repo directory names; each records into `<parent>/<repo>/docs/rules/error_topics/`. Ignored when `error_topics_path` is set | omit |
 | `plan_tier` | `"2"` (separate index + sub-platform detail-plan doc) or `"1"` (single plan doc with `## Phase N` sections) | proposed by Step 1-c, confirm/override with user |
 | `master_plan_file` | Index filename (meaningful only when `plan_tier: "2"`) | `${MASTER_PLAN_FILE}` |
 | `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
@@ -109,6 +111,9 @@ archive_path: "<answers.archive_path>"
 worklog_path: "<answers.worklog_path>"
 learning_path: "<answers.learning_path>"
 process_evolution_path: "<answers.process_evolution_path>"
+error_topics_path: "<answers.error_topics_path>"   # omit this line when code_repos is used
+# code_repos:                                       # multi-repo workspace only
+#   - "<sibling repo directory>"
 plan_tier: "<answers.plan_tier>"
 master_plan_file: "<answers.master_plan_file>"
 detail_plan_file: "<answers.detail_plan_file>"
@@ -163,6 +168,32 @@ See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 **Zone rules**:
 - `<!-- HARNESS:START -->` … `<!-- HARNESS:END -->`: engine-owned. `/harness-update` overwrites this zone wholesale (Axis A).
 - `<!-- PROJECT-OWNED below -->`: project-owned. `/harness-update` never touches below this marker.
+
+### Step 4-b — Create the lesson store
+
+Gate E writes error cases here and the Gate A lesson lookup reads them back; without the folder both stay silent.
+
+- `error_topics_path` set → create `<error_topics_path>/README.md` if absent.
+- `code_repos` set instead → for each repo, show the user the `<parent>/<repo>/docs/rules/error_topics/README.md` paths and create them only after they confirm (these are other repositories).
+
+`README.md` content — the topic index gate-e Step 3 points to:
+
+```markdown
+# 오류·교훈 주제 색인
+
+Gate E Step 3 이 아래 주제 파일 끝에 항목을 덧붙인다. 형식은 gate-e Step 3(적용 조건·근거 칸 필수).
+Gate A 는 시작할 때 `lessons_lookup.py` 로 이 폴더에서 맞는 교훈을 최대 2건 꺼낸다.
+
+| 파일 | 태그 | 대상 오류 |
+|------|------|-----------|
+| `gate_process.md` | `PROC` | Gate 승인·절차·「구현」 해석·사후 소급 |
+| `runtime_env.md` | `ENV` | Docker/컨테이너/패키지 관리자/권한/경로 |
+| `git_commit.md` | `PROC` | 커밋 메시지·git 조작 |
+| `testing.md` | `TYPE` `VERIFY` `LOGIC` | 타입·빌드·시험 실패·CI 검증 |
+| `security_schema.md` | `SEC` `API` | 보안·토큰·API 계약·DB 스키마 |
+```
+
+Verify the file exists after writing (`[ -f <error_topics_path>/README.md ]`); retry once if absent.
 
 ### Step 5 — Write session document stubs (if `session_docs: true`)
 
@@ -581,6 +612,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C11: `--docs=full` run → FEATURE_SPEC.md · API_SPEC.md · TEST_PLAN.md · ERROR_HANDLING.md · DECISION_LOG.md all present at repo root
 - [ ] C12: Each Layer 2 file contains Gate markers (`<!-- Gate` appears ≥ 1 per file) and no filled content
 - [ ] C13: DOC_INDEX.md Layer 2 rows show `Skeleton` status (not `Pending`) after Step 9
+- [ ] C19: `harness-answers.yml` sets `error_topics_path` (or `code_repos`), and the lesson store `README.md` exists (Step 4-b)
 - [ ] C14: FEATURE_SPEC.md has content filled in the Gate A section (not just a marker)
 - [ ] C15: API_SPEC.md has content filled in the Gate C section
 - [ ] C16: TEST_PLAN.md has content filled in Gate C and D sections

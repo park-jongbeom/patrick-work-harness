@@ -23,6 +23,13 @@
 - **확인 시점**: Gate A 20회 뒤
 - **결과**:
 
+### [2026-10-21] /init 과 /harness-update 가 교훈 저장 위치를 정한다
+- **결정**: 채택 → `skills/init/SKILL.md` Step 2·3·4-b, `skills/harness-update/SKILL.md` 축 F
+- **근거**: `/init` 은 `code_repos`·`error_topics_path` 를 묻지 않았다(점검 목록 한 줄에만 등장). 둘 다 없으면 Gate E 기록·Gate A 조회·error-topics 가드가 모두 아무것도 하지 않는다. 교훈 저장소 12곳 중 9곳은 7월 초 이후 새 항목이 없었다.
+- **예측**: 이 판 이후 `/init`·`/harness-update` 를 거친 프로젝트는 모두 교훈 저장소가 설정되고 `README.md` 가 있다(점검 항목 C19·C7).
+- **확인 시점**: 다음 `/harness-update` 실행 때
+- **결과**:
+
 ### [2026-10-21] 「교훈 조회」 절을 Stop 훅으로 강제하지 않는다
 - **결정**: 보류 → `hooks/gate-a-sync-guard.py` 필수 칸 추가
 - **근거**: 훅은 분명한 문구가 반복해서 무시된다는 증거가 있을 때만 둔다. 지금의 0/4 는 조회 지시가 아예 없던 때의 값이라 새 문구가 무시된다는 증거가 아니다.

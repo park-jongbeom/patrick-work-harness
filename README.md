@@ -71,7 +71,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
-| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 4-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
+| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 6-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks |
 
 ---
@@ -237,7 +237,7 @@ Reviews 10 items including priority alignment · Gate process · document sync, 
 /harness-update
 ```
 
-Compares the current `_engine_version` with the latest, shows the CHANGELOG, and batch-updates all 4 axes after user approval.
+Compares the current `_engine_version` with the latest, shows the CHANGELOG, and batch-updates all 6 axes (HARNESS zone, hooks, dashboard, stubs, Layer 2 docs, lesson store) after user approval.
 
 ```
 /harness-update --check   ← checklist only, no file changes

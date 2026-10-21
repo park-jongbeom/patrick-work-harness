@@ -90,7 +90,7 @@ If `CHANGELOG.md` is absent or the section is empty, output "변경 내역 없�
 
 ## Step 3 — Checklist: what needs applying
 
-Inspect the current repo state across 4 axes. Mark each ✅ (ok) or ❌ (needs update):
+Inspect the current repo state across 6 axes (A–F). Mark each ✅ (ok) or ❌ (needs update):
 
 | # | Axis | Check | Needs update condition |
 |---|------|-------|------------------------|
@@ -98,6 +98,7 @@ Inspect the current repo state across 4 axes. Mark each ✅ (ok) or ❌ (needs u
 | B | **Stop hook 3종** | `.claude/settings.json` Stop array contains all 3: `session-dashboard-sync.py`, `gate-e-sync-guard.py`, `error-topics-guard.py`. `error-topics-guard.py` is optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path` (the hook has nothing to check) — then only the other 2 are required | Any required hook is absent |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
+| F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
 
 Output the checklist table with ✅/❌ per row, then:
@@ -217,6 +218,10 @@ next_action: "새 작업 시 /gate-a로 시작."
 
 After writing, verify both files exist (`ls` check). If either is absent after write, retry once.
 
+### Axis F — Lesson store
+
+Ask the user where Gate E should record lessons (default `error_topics_path: "docs/rules/error_topics"`; a multi-repo workspace may list `code_repos` instead), write the field into `harness-answers.yml`, then create the folder `README.md` with the `/init` Step 4-b template. For `code_repos`, create files inside sibling repositories only after the user confirms those paths. Existing entries are never rewritten.
+
 ---
 
 ## Step 6 — Update `_engine_version`
@@ -234,6 +239,7 @@ All other fields remain unchanged.
 - [ ] C4: `session-dashboard.html` exists at repo root
 - [ ] C5: Already-up-to-date repo exits cleanly at Step 1 with "✅ 이미 최신 버전"
 - [ ] C6: `--check` mode produces no file writes (read-only confirmed by grep)
+- [ ] C7: `harness-answers.yml` sets `error_topics_path` or `code_repos`, and the lesson store `README.md` exists
 
 ---
 
