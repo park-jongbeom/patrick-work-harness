@@ -98,8 +98,8 @@ Inspect the current repo state across 6 axes (A–F). Mark each ✅ (ok) or ❌ 
 | B | **Stop hook 3종** | `.claude/settings.json` Stop array contains all 3: `session-dashboard-sync.py`, `gate-e-sync-guard.py`, `error-topics-guard.py`. `error-topics-guard.py` is optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path` (the hook has nothing to check) — then only the other 2 are required | Any required hook is absent |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
-| F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
+| F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
 
 Output the checklist table with ✅/❌ per row, then:
 - If all ✅: "모든 항목 최신 상태 — 갱신 불필요합니다."

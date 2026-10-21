@@ -612,7 +612,6 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C11: `--docs=full` run → FEATURE_SPEC.md · API_SPEC.md · TEST_PLAN.md · ERROR_HANDLING.md · DECISION_LOG.md all present at repo root
 - [ ] C12: Each Layer 2 file contains Gate markers (`<!-- Gate` appears ≥ 1 per file) and no filled content
 - [ ] C13: DOC_INDEX.md Layer 2 rows show `Skeleton` status (not `Pending`) after Step 9
-- [ ] C19: `harness-answers.yml` sets `error_topics_path` (or `code_repos`), and the lesson store `README.md` exists (Step 4-b)
 - [ ] C14: FEATURE_SPEC.md has content filled in the Gate A section (not just a marker)
 - [ ] C15: API_SPEC.md has content filled in the Gate C section
 - [ ] C16: TEST_PLAN.md has content filled in Gate C and D sections
@@ -622,6 +621,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C20: CLAUDE.md `Project Overview` is populated from the discovered context docs (or keeps the `[Fill in: …]` placeholder when none found)
 - [ ] C21: no context docs found → `context_summary = none`, all consumers fall back to the placeholder gracefully (no crash / no silent doc skip)
 - [ ] C22: `harness-answers.yml` → `plan_tier` is present and is exactly `"1"` or `"2"`; the corresponding filename field (`single_plan_file` for `"1"`, `master_plan_file`/`detail_plan_file` for `"2"`) is non-empty; the tier-appropriate plan-doc stub exists at the repo root (Step 5)
+- [ ] C23: `harness-answers.yml` sets `error_topics_path` (or `code_repos`), and the lesson store `README.md` exists (Step 4-b)
 
 ## Notes
 
