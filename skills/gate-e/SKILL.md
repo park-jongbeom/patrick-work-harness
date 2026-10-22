@@ -125,6 +125,15 @@ If `DOC_INDEX.md` exists at the target repo root:
    - The 「⚠️ 영구 기록」「✅ 결정사항 영구 기록」 subsections are not retrieved at Gate E (absolute preservation).
    - The retrieval is performed together in this response turn.
 
+4-b. **Session ledger line** (every session, either lane) — run
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session_ledger.py" append --base <base commit of Gate D's facts block> --model <your model ID> [--finding "…"]...`
+   and paste its one-line output into this response.
+   - `--finding`: one per thing the user pointed out or corrected in this session — a wrong number, a missed file, an error a
+     「대조 검증」 turned up — one line each. None → leave it out (records 0). Never drop a correction to look better: this is the
+     measure the harness is improved from.
+   - The script reads everything else itself (lane, Gate 진행, markers, diff counts, engine version). If it exits non-zero
+     (no `archive_path`), continue Gate E and say so; it never blocks the session.
+
 5. **Plan-doc ✅E status flip** (same response turn) — update all applicable plan document(s) below to ✅E (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`). **The status flip is this step's single responsibility** (no duplication with Step 4):
 
    **(a) Plan document(s)** — `plan_tier: "2"` (or field absent) → `<detail_plan_file>` §7, that session's row status → `✅E (날짜, 핵심지표)`; `plan_tier: "1"` → `<single_plan_file>`'s matching `## Phase N` session entry → `✅E (날짜, 핵심지표)`.

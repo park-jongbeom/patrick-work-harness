@@ -53,13 +53,13 @@ def read(path):
         return ""
 
 
-def ledger_path(repo):
+def ledger_path(repo, name=LEDGER_NAME):
     text = read(os.path.join(repo, ".claude", "harness-answers.yml"))
     m = re.search(r"^archive_path:\s*(.+)$", text, re.M)
     value = m.group(1).split(" #", 1)[0].strip().strip("'\"") if m else ""
     if not value or value.startswith("<"):
         return None
-    return os.path.join(value if os.path.isabs(value) else os.path.join(repo, value), LEDGER_NAME)
+    return os.path.join(value if os.path.isabs(value) else os.path.join(repo, value), name)
 
 
 def read_ledger(path):
