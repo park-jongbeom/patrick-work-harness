@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-10-22
+
 ### Fixed
 
 - 🔴 **시험 쓰기 가드가 지켜야 할 Gate D 루프에서 꺼져 있던 문제**(`hooks/test-write-guard.py`). 가드는 헤더 상태가
