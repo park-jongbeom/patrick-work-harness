@@ -111,40 +111,43 @@ def parse_current_session(content):
     if match:
         data["status"] = match.group(1).strip()
 
+    # 표 칸은 다음 `|` 까지만 읽는다 — 닫는 `|` 를 값에 붙이면 대시보드에 「E☐ |」로 보인다(2026-10-22).
+    # 뒤 파이프가 없는 `라벨 | 값` 한 줄은 예전처럼 줄 끝까지 읽는다.
+
     # Gate 진행
-    match = re.search(r"Gate 진행\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"Gate 진행\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         data["gate_progress"] = match.group(1).strip()
 
     # 저장소
-    match = re.search(r"저장소\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"저장소\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         repos_str = match.group(1).strip()
         data["repos"] = [r.strip() for r in repos_str.split(",")]
 
     # 변경 파일
-    match = re.search(r"변경 파일\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"변경 파일\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         data["files_changed"] = match.group(1).strip()
 
     # 착수일
-    match = re.search(r"착수일\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"착수일\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         data["start_date"] = match.group(1).strip()
 
     # 완료일
-    match = re.search(r"완료일\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"완료일\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         data["end_date"] = match.group(1).strip()
 
     # 테스트 결과
-    match = re.search(r"R/V/D 분해\s*\|\s*(.*?)(?:\n|$)", content)
+    match = re.search(r"R/V/D 분해\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content)
     if match:
         data["test_result"] = match.group(1).strip()
 
     # 권장 모델 (두 필드명 모두 허용 — 과거 세션 호환)
     match = re.search(
-        r"(?:Gate별 권장 모델|권장 모델)\s*\|\s*(.*?)(?:\n|$)", content
+        r"(?:Gate별 권장 모델|권장 모델)\s*\|\s*([^|\n]*?)\s*(?:\||\n|$)", content
     )
     if match:
         data["model_rec"] = match.group(1).strip()

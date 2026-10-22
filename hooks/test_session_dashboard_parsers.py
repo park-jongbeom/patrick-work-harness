@@ -10,7 +10,7 @@
 대시보드에 `HARNESS-CROSSCHECK-FIX-1-` 까지만 나오고 있었다.
 
 계약은 전부 **실행해서 확인한 것**이다(추측하지 않는다):
-  - `parse_current_session` → dict, 표 값은 닫는 `|` 까지 포함
+  - `parse_current_session` → dict, 표 값은 칸 안의 글만(닫는 `|` 제외 — 2026-10-22 정정)
   - `parse_session_index`   → **8-tuple** (호출부가 언패킹한다)
   - `_strip_history`        → **리터럴** `\\n> (이전 ` 을 구분자로 이후를 절단
     (`priority_note` 는 단일행 YAML 이라 개행이 리터럴 `\\n` 으로 저장된다)
@@ -60,10 +60,25 @@ class TestParseCurrentSession(unittest.TestCase):
             "| 착수일 | 2026-09-24 |\n"
         )
         d = sdp.parse_current_session(content)
-        # 실측 계약: 닫는 `|` 까지 포함해 반환한다
-        self.assertIn("A-OK", d["gate_progress"])
-        self.assertIn("7개", d["files_changed"])
-        self.assertIn("2026-09-24", d["start_date"])
+        # 닫는 `|` 는 값이 아니다 — 예전에는 붙여 돌려줘 대시보드에 「A✅ … E☐ |」로 보였다(2026-10-22 고침)
+        self.assertEqual(d["gate_progress"], "A-OK to B-OK")
+        self.assertEqual(d["files_changed"], "7개")
+        self.assertEqual(d["start_date"], "2026-09-24")
+
+    def test_every_table_field_drops_the_closing_pipe(self):
+        content = (
+            "| 저장소 | api, web |\n"
+            "| 완료일 | 2026-10-22 |\n"
+            "| R/V/D 분해 | R=0 / V=1 / D=1 |\n"
+        )
+        d = sdp.parse_current_session(content)
+        self.assertEqual(d["repos"], ["api", "web"])
+        self.assertEqual(d["end_date"], "2026-10-22")
+        self.assertEqual(d["test_result"], "R=0 / V=1 / D=1")
+
+    def test_label_without_table_pipes_still_reads(self):
+        """표가 아닌 `라벨 | 값` 한 줄도 예전처럼 읽는다(뒤 파이프가 없으면 줄 끝까지)."""
+        self.assertEqual(sdp.parse_current_session("착수일 | 2026-09-24\n")["start_date"], "2026-09-24")
 
     def test_missing_fields_do_not_crash(self):
         """빈 입력에서 죽지 않는다 — 파서가 죽으면 대시보드가 통째로 안 뜬다."""
