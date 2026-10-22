@@ -16,6 +16,9 @@
 #
 #   # 로컬 스크립트 직접 실행
 #   ./install.sh --target /path/to/your-project
+#
+#   # 내려받지 않고 로컬 원본(이 저장소 체크아웃)에서 설치 — 오프라인·시험용
+#   ./install.sh --source /path/to/patrick-work-harness --target /path/to/your-project
 
 set -euo pipefail
 
@@ -28,6 +31,7 @@ TARGET_DIR="$(pwd)"
 INSTALL_HOOKS=true
 INSTALL_SKILLS=true
 DRY_RUN=false
+SOURCE_DIR=""
 
 # ── 인수 파싱 ───────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -37,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --no-hooks)  INSTALL_HOOKS=false; shift ;;
     --no-skills) INSTALL_SKILLS=false; shift ;;
     --dry-run)   DRY_RUN=true; shift ;;
+    --source)    SOURCE_DIR="$2"; shift 2 ;;
     -h|--help)
       sed -n '/^# Usage/,/^[^#]/p' "$0" | grep '^#' | sed 's/^# \?//'
       exit 0 ;;
@@ -49,7 +54,14 @@ if [[ "$DRY_RUN" == true ]]; then
 fi
 
 # ── 버전 결정 ────────────────────────────────────────────
-if [[ "$VERSION" == "latest" ]]; then
+if [[ -n "$SOURCE_DIR" ]]; then
+  # 로컬 원본: 내려받지 않는다. 버전은 원본의 plugin.json 에서 읽는다.
+  if [[ ! -f "${SOURCE_DIR}/plugin.json" || ! -d "${SOURCE_DIR}/skills" ]]; then
+    echo "[ERROR] 로컬 원본이 아니다(plugin.json·skills/ 없음): ${SOURCE_DIR}"
+    exit 1
+  fi
+  VERSION="v$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' "${SOURCE_DIR}/plugin.json")"
+elif [[ "$VERSION" == "latest" ]]; then
   echo "[1/5] 최신 릴리즈 버전 조회 중..."
   # 🔴 `set -euo pipefail` 아래에서 `curl -f` 를 **대입문에 직접 쓰면 안 된다**
   #    (2026-09-25 실측). 403 이면 curl 이 rc=22 로 끝나고, 대입 실패가 곧
@@ -112,7 +124,11 @@ if [[ ! -d "$TARGET_DIR" ]]; then
 fi
 echo "[2/5] 설치 대상: ${TARGET_DIR}"
 
-# ── tarball 다운로드 + SHA256 검증 ───────────────────────
+# ── tarball 다운로드 + SHA256 검증 (로컬 원본이면 건너뜀) ───
+if [[ -n "$SOURCE_DIR" ]]; then
+  SRC="$(realpath "$SOURCE_DIR")"
+  echo "[3/5] 로컬 원본 사용: ${SRC}"
+else
 TARBALL_URL="${BASE_URL}/archive/refs/tags/${VERSION}.tar.gz"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -142,14 +158,18 @@ tar -xzf "$TARBALL" -C "$TMP_DIR"
 # tarball 압축 해제 후 생성되는 폴더명 (예: patrick-work-harness-1.0.0)
 EXTRACTED=$(ls "$TMP_DIR" | grep -v 'harness\.tar\.gz')
 SRC="${TMP_DIR}/${EXTRACTED}"
+fi
 
 # ── 스킬 설치 ────────────────────────────────────────────
 CLAUDE_DIR="${TARGET_DIR}/.claude"
+# 훅 설치 폴더 — 스킬 안의 스크립트 경로를 이 폴더로 바꿔 쓰므로 스킬 설치 전에 정한다.
+GLOBAL_HOOKS_DIR="${HOME}/.claude/hooks/patrick-work-harness"
 
 if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
   if [[ "$DRY_RUN" == true ]]; then
     SKILL_COUNT=$(ls "${SRC}/skills/" | wc -l | tr -d ' ')
     echo "[4/5] [DRY-RUN] 스킬 ${SKILL_COUNT}종 설치 예정 → ${CLAUDE_DIR}/skills/ (미적용)"
+    echo "      [DRY-RUN] 스킬 안 \${CLAUDE_PLUGIN_ROOT}/hooks/ 경로를 ${GLOBAL_HOOKS_DIR}/ 로 바꿀 예정 (미적용)"
   else
     echo "[4/5] 스킬 설치 중..."
     mkdir -p "${CLAUDE_DIR}/skills"
@@ -170,6 +190,40 @@ if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
       "${SRC}/skills/" "${CLAUDE_DIR}/skills/"
     SKILL_COUNT=$(ls -1 "${SRC}/skills/" | wc -l | tr -d ' ')
     echo "      하네스 스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
+
+    # 🔴 스킬 안의 `${CLAUDE_PLUGIN_ROOT}/hooks/…` 를 훅 설치 폴더로 바꿔 쓴다 (2026-10-22, A1).
+    #    플러그인 스킬에서는 Claude Code 가 이 변수를 실제 경로로 바꾸지만, 프로젝트에 복사한 스킬에서는
+    #    **빈 문자열**이다(2.1.307 실측: `ROOT=[]`). 그대로 두면 Gate E 검토 카드·세션 원장, Gate D 사실
+    #    블록 명령이 `python3 "/hooks/…"` 로 실패한다. 이 배포본에 든 스킬 파일만 바꾸고 사용자 스킬은
+    #    건드리지 않는다. sed -i 는 macOS·GNU 가 달라 python3 으로 바꾼다.
+    REWRITTEN=$(python3 - "${SRC}/skills" "${CLAUDE_DIR}/skills" "$GLOBAL_HOOKS_DIR" <<'PYEOF'
+import os, sys
+src, dst, hooks = sys.argv[1:4]
+changed = 0
+for base, _, files in os.walk(src):
+    for name in files:
+        if not name.endswith(".md"):
+            continue
+        target = os.path.join(dst, os.path.relpath(os.path.join(base, name), src))
+        try:
+            with open(target, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+        new = (text.replace("${CLAUDE_PLUGIN_ROOT}/hooks/", hooks + "/")
+                   .replace("${CLAUDE_PLUGIN_ROOT}/plugin.json", hooks + "/plugin.json"))
+        if new != text:
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(new)
+            changed += 1
+print(changed)
+PYEOF
+)
+    echo "      스킬 ${REWRITTEN}개 파일의 하네스 스크립트 경로 → ${GLOBAL_HOOKS_DIR}/"
+    if [[ "$INSTALL_HOOKS" != true ]]; then
+      echo "      ⚠️  --no-hooks: 스크립트를 설치하지 않으므로 Gate D 사실 블록·Gate E 검토 카드·세션 원장 명령은"
+      echo "         ${GLOBAL_HOOKS_DIR}/ 에 스크립트가 있을 때만 동작한다."
+    fi
 
     # 이 배포본에 없는데 대상에 남아 있는 스킬을 보고한다(지우지는 않는다).
     #
@@ -192,7 +246,6 @@ fi
 GLOBAL_SETTINGS="${HOME}/.claude/settings.json"
 
 if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
-  GLOBAL_HOOKS_DIR="${HOME}/.claude/hooks/patrick-work-harness"
   if [[ "$DRY_RUN" == true ]]; then
     HOOK_COUNT=$(ls "${SRC}/hooks/" | grep '\.py$' | grep -v '^test_' | wc -l | tr -d ' ')
     echo "[5/5] [DRY-RUN] 훅 ${HOOK_COUNT}종 설치 예정 → ${GLOBAL_HOOKS_DIR}/ (미적용)"
@@ -223,6 +276,8 @@ if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
       --exclude="test_*.py" \
       --exclude=".harness-owned" \
       "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
+    # 스킬이 버전을 읽는 매니페스트(`/harness-update` 의 엔진 버전). rsync --delete 뒤에 두어야 남는다.
+    [[ -f "${SRC}/plugin.json" ]] && cp "${SRC}/plugin.json" "${GLOBAL_HOOKS_DIR}/plugin.json"
     # 🔴 표식에 설치 버전을 기록한다 (HARNESS-INSTALL-PROVENANCE-2, 2026-09-24).
     #    이전에는 문구 한 줄뿐이라 **설치된 것이 어느 판인지 알 방법이 없었다**.
     #    `/harness-update` 는 harness-answers.yml 의 `_engine_version` 만 보고 판정하는데,

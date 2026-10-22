@@ -29,6 +29,8 @@
  16. 「자율 레인 승인」을 말하는 스킬이 있으면 gate-c 에 그 절차 절(`## Autonomous lane (자율 레인)`)이 있다 (S8c).
  17. `hooks/hooks.json` 에 배선된 훅은 README 훅 표(영문·한글)에 모두 있고, 종류 칸의 이벤트가 실제 배선과 같다 (S8c —
      표에 훅 3개가 빠져 있었고 dashboard-sync 를 Stop 이라 적었다. S5a 는 스킬 문구만 고쳐 README 를 놓쳤다).
+ 18. 스킬이 `${CLAUDE_PLUGIN_ROOT}/hooks/<파일>`·`${CLAUDE_PLUGIN_ROOT}/plugin.json` 으로 부르는 파일이 실제로 있다 (A1, 2026-10-22 —
+     install.sh 가 이 경로를 훅 설치 폴더로 바꿔 쓰므로, 이름이 바뀌면 플러그인·install.sh 설치가 함께 깨진다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -239,6 +241,15 @@ class EngineLint(unittest.TestCase):
                 if claimed != events:
                     bad.append(f"{heading}: {name} 종류 칸 {sorted(claimed)} ≠ 배선 {sorted(events)}")
         self.assertEqual(bad, [], "README 훅 표가 hooks.json 배선과 다름:\n" + "\n".join(bad))
+
+    def test_plugin_root_references_exist(self):
+        missing = []
+        for skill_md in (ROOT / "skills").rglob("*.md"):
+            for i, line in enumerate(lines_of(skill_md), 1):
+                for rel in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/((?:hooks/)?[\w.-]+\.(?:py|json))", line):
+                    if not (ROOT / rel).is_file():
+                        missing.append(f"{skill_md.relative_to(ROOT)}:{i}: {rel}")
+        self.assertEqual(missing, [], "스킬이 부르는 하네스 파일이 없음:\n" + "\n".join(missing))
 
 
 if __name__ == "__main__":
