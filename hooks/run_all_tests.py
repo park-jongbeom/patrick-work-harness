@@ -27,6 +27,12 @@
 ＊한 파일이 두 양식을 섞어 쓰면(TestCase + 모듈 레벨 함수) 중복 집계되지 않게
   양식을 **파일 단위로** 판정한다 — `class .*TestCase` 유무가 기준이다.
 
+## 건너뜀은 숨기지 않는다 (2026-10-22)
+
+`unittest` 의 건너뜀(skip)은 실패가 아니지만 그만큼 확인하지 않았다는 뜻이다. 깨끗한 컨테이너에서 rsync 가 없어
+설치 시험 6건이 건너뛰어졌는데 끝줄은 「전건 통과」였다. 건너뛴 것이 있으면 끝줄에 수를, 그 위에 이유를 적는다.
+건너뜀이 없으면 끝줄은 예전과 같다.
+
 사용:
     python run_all_tests.py           # 전량 실행 + 개수 검증
     python run_all_tests.py --list    # 파일별 양식·시험 수만 출력
@@ -44,6 +50,8 @@ HOOKS_DIR = Path(__file__).resolve().parent
 # 스크립트형 러너의 마지막 줄: "15/15 passed" 또는 "결과: 16 passed, 0 failed / 16 total"
 _SCRIPT_COUNT_RE = re.compile(r"(\d+)\s*/\s*(\d+)\s+passed|(\d+)\s+passed,\s*(\d+)\s+failed\s*/\s*(\d+)\s+total")
 _UNITTEST_RAN_RE = re.compile(r"^Ran (\d+) tests?", re.MULTILINE)
+_UNITTEST_SKIPPED_RE = re.compile(r"skipped=(\d+)")
+_SKIP_REASON_RE = re.compile(r"\.\.\. skipped '(.*)'$", re.MULTILINE)
 
 
 def count_static_tests(path: Path) -> int:
@@ -73,9 +81,9 @@ def is_unittest_style(path: Path) -> bool:
 
 
 def run_unittest_file(path: Path) -> tuple[int, bool, str]:
-    """(실행 수, 통과 여부, 출력) — `Ran N tests` 를 파싱한다."""
+    """(실행 수, 통과 여부, 출력) — `Ran N tests` 를 파싱한다. -v 는 건너뜀 이유를 읽으려고 쓴다."""
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", path.stem],
+        [sys.executable, "-m", "unittest", "-v", path.stem],
         cwd=HOOKS_DIR, capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=600,
     )
@@ -117,6 +125,8 @@ def main() -> int:
     total_static = total_ran = 0
     failures: list[str] = []
     mismatches: list[str] = []
+    total_skipped = 0
+    skip_reasons: dict[str, int] = {}
 
     print(f"{'파일':<44} {'양식':<10} {'정적':>5} {'실행':>5}  결과")
     print("─" * 82)
@@ -138,6 +148,15 @@ def main() -> int:
         total_ran += ran
 
         marks = []
+        m_skip = _UNITTEST_SKIPPED_RE.search(out) if unittest_style else None
+        skipped = int(m_skip.group(1)) if m_skip else 0
+        if skipped:
+            total_skipped += skipped
+            marks.append(f"건너뜀 {skipped}")
+            for reason in _SKIP_REASON_RE.findall(out):
+                # 이유에 명령 출력이 통째로 실려 오는 경우가 있다 — 첫 줄만, 같은 이유는 묶는다
+                key = f"{path.name}: {reason.split(chr(92) + 'n')[0].splitlines()[0][:100]}"
+                skip_reasons[key] = skip_reasons.get(key, 0) + 1
         if not ok:
             marks.append("실패")
             failures.append(f"{path.name}\n{out}")
@@ -166,6 +185,12 @@ def main() -> int:
             print(f"\n{f}")
 
     if not mismatches and not failures:
+        if total_skipped:
+            print("\n⚠️ 건너뛴 시험 — 이만큼은 이 환경에서 확인하지 못했다:")
+            for reason, n in sorted(skip_reasons.items()):
+                print(f"  · {reason} ({n}건)")
+            print(f"\n✅ {total_ran}건 중 {total_ran - total_skipped}건 통과 · 건너뜀 {total_skipped}건 · 수집 누락 0")
+            return 0
         print(f"\n✅ {total_ran}건 전건 통과 · 수집 누락 0")
         return 0
     return 1
