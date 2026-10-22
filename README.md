@@ -156,6 +156,9 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 ./install.sh --source /path/to/patrick-work-harness --target /path/to/your/project
 ```
 
+`install.sh` needs `bash`, `python3` and `curl` (for a release download); it uses `rsync` when present and falls back to
+`python3` otherwise (Git Bash on Windows, minimal containers).
+
 `install.sh` rewrites the `${CLAUDE_PLUGIN_ROOT}/hooks/` paths inside the copied skills to the installed hooks folder
 (`~/.claude/hooks/patrick-work-harness/`). Claude Code fills that variable in only for plugin skills; in a skill copied into
 a project it is empty, and the Gate D facts block, Gate E review card and session ledger commands would fail.
@@ -451,6 +454,9 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 # 릴리스를 내려받지 않고 로컬 체크아웃에서 설치(오프라인·시험용)
 ./install.sh --source /path/to/patrick-work-harness --target /path/to/your/project
 ```
+
+`install.sh` 는 `bash`·`python3`·`curl`(릴리스 내려받기)이 필요하다. `rsync` 가 있으면 쓰고, 없으면(Windows Git Bash, 최소 컨테이너)
+`python3` 으로 같은 규칙대로 복사한다.
 
 `install.sh` 는 복사한 스킬 안의 `${CLAUDE_PLUGIN_ROOT}/hooks/` 경로를 훅 설치 폴더(`~/.claude/hooks/patrick-work-harness/`)로 바꿔 쓴다.
 Claude Code 는 이 변수를 플러그인 스킬에서만 채우고, 프로젝트에 복사한 스킬에서는 빈 문자열이라 Gate D 사실 블록·Gate E 검토 카드·

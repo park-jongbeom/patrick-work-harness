@@ -107,19 +107,18 @@ class InstallDirsTestBase(unittest.TestCase):
             body, encoding="utf-8")
 
     def run_install(self, *extra: str) -> str:
-        """설치 실행 — 네트워크·rsync 의존 구간은 최대한 끈다.
+        """설치 실행 — 네트워크·rsync 의존 구간을 끈다.
 
-        `--version` 을 명시해 **릴리스 조회 API 를 건너뛴다**. 이걸 안 주면
-        매 시험이 `api.github.com` 을 때려 **레이트 리밋(403)** 에 걸리고,
-        그러면 코드가 멀쩡해도 시험이 무더기로 실패한다(실측 2026-09-25 —
-        변이 시험을 반복하다 복원 후에도 8건이 실패해 한참을 헤맸다).
+        `--source` 로 이 저장소 체크아웃에서 설치한다(2026-10-22). 예전에는 `--version` 으로 릴리스
+        tarball 을 내려받았는데, `--no-skills --no-hooks` 라 받은 것을 쓰지도 않으면서 네트워크가
+        없으면 11건이 통째로 건너뛰어졌다(깨끗한 컨테이너에는 curl 이 없다). 버전은 원본의
+        `plugin.json` 에서 읽으므로 `PINNED_VERSION` 과 같다.
 
-        tarball 다운로드는 남으므로, 그마저 막히면 **실패가 아니라
-        skip** 한다. 네트워크 사정으로 초록불이 빨개지면 아무도 안 본다.
+        그래도 네트워크 오류 문구가 보이면 **실패가 아니라 skip** 한다.
         """
         proc = subprocess.run(
             [BASH, _sh(INSTALL_SH), "--target", _sh(self.target),
-             "--version", PINNED_VERSION,
+             "--source", _sh(_ROOT),
              "--no-skills", "--no-hooks", *extra],
             capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=300,

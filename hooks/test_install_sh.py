@@ -5,7 +5,8 @@ install.sh 가 프로젝트에 복사한 스킬에서는 **빈 문자열**이다
 Gate E 검토 카드·세션 원장, Gate D 사실 블록 명령이 `python3 "/hooks/…"` 로 실패한다. install.sh 는 스킬을 복사할 때
 그 경로를 훅 설치 폴더로 바꿔 써야 한다.
 
-install.sh 는 rsync 를 쓴다. rsync 가 없는 환경에서는 이유를 밝히고 건너뛴다.
+install.sh 는 rsync 가 있으면 rsync 로, 없으면 python3 으로 복사한다. rsync 경로의 시험은 rsync 가 없으면 이유를 밝히고
+건너뛰고, python3 경로는 `TestInstallWithoutRsync` 가 어디서나 본다.
 """
 
 import hashlib
@@ -35,7 +36,7 @@ def tree_digest(path):
     return h.hexdigest()
 
 
-@unittest.skipUnless(HAS_RSYNC, "rsync 가 없다 — install.sh 가 rsync 를 쓰므로 끝에서 끝까지 설치를 돌릴 수 없다")
+@unittest.skipUnless(HAS_RSYNC, "rsync 가 없다 — rsync 경로의 설치는 이 환경에서 확인하지 못한다(python3 경로는 따로 돈다)")
 class TestInstallFromLocalSource(unittest.TestCase):
 
     def setUp(self):
@@ -111,6 +112,51 @@ class TestInstallFromLocalSource(unittest.TestCase):
         for c in commands:
             script = c.split()[-1].strip('"')
             self.assertTrue(os.path.isfile(script), f"등록된 훅 파일이 없음: {script}")
+
+
+class TestInstallWithoutRsync(unittest.TestCase):
+    """rsync 가 없는 곳(Git Bash, 최소 컨테이너)에서도 설치한다 — python3 으로 같은 규칙(제외·삭제)을 따른다.
+
+    `HARNESS_INSTALL_NO_RSYNC=1` 로 rsync 가 있어도 대체 경로를 강제한다. 이 시험은 어디서나 돈다(건너뛰지 않는다).
+    """
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.proj = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home, True)
+        self.addCleanup(shutil.rmtree, self.proj, True)
+        self.hooks_dir = os.path.join(self.home, ".claude", "hooks", "patrick-work-harness")
+
+    def install(self):
+        env = {**os.environ, "HOME": self.home, "HARNESS_INSTALL_NO_RSYNC": "1"}
+        proc = subprocess.run(["bash", INSTALL, "--source", ROOT, "--target", self.proj], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", env=env, stdin=subprocess.DEVNULL, timeout=120)
+        return proc.returncode, proc.stdout + proc.stderr
+
+    def test_fallback_copy_installs_skills_and_hooks(self):
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("rsync 없이", out)
+        gate_e = open(os.path.join(self.proj, ".claude", "skills", "gate-e", "SKILL.md"), encoding="utf-8").read()
+        self.assertIn(self.hooks_dir + "/lane_card.py", gate_e)
+        names = set(os.listdir(self.hooks_dir))
+        self.assertIn("lane_card.py", names)
+        self.assertIn("plugin.json", names)
+        self.assertFalse([n for n in names if n.startswith("test_")], "시험 파일은 설치하지 않는다")
+        self.assertNotIn("__pycache__", names)
+        with open(os.path.join(self.home, ".claude", "settings.json"), encoding="utf-8") as f:
+            self.assertIn("lane-scope-guard.py", f.read())
+
+    def test_fallback_reinstall_removes_stale_hooks_but_keeps_the_owner_mark(self):
+        self.install()
+        stale = os.path.join(self.hooks_dir, "old-retired-guard.py")
+        with open(stale, "w") as f:
+            f.write("# 옛 훅\n")
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        self.assertFalse(os.path.exists(stale), "배포본에 없는 옛 훅은 지운다(rsync --delete 와 같은 규칙)")
+        self.assertTrue(os.path.exists(os.path.join(self.hooks_dir, ".harness-owned")))
+        self.assertTrue(os.path.exists(os.path.join(self.hooks_dir, "plugin.json")))
 
 
 class TestUnknownSourceFails(unittest.TestCase):

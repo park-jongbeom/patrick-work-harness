@@ -160,6 +160,53 @@ EXTRACTED=$(ls "$TMP_DIR" | grep -v 'harness\.tar\.gz')
 SRC="${TMP_DIR}/${EXTRACTED}"
 fi
 
+# ── 폴더 복사 (rsync 가 없으면 python3) ─────────────────
+# 🔴 rsync 가 없는 환경(Windows Git Bash, 최소 컨테이너)에서는 설치 자체가 멈췄다 (2026-10-22).
+#    같은 규칙 — 제외 패턴, `--delete`(제외된 이름은 대상에서 지우지 않음) — 을 python3 으로 따른다.
+#    HARNESS_INSTALL_NO_RSYNC=1 이면 rsync 가 있어도 대체 경로를 쓴다(시험용).
+#    사용: copy_tree <원본> <대상> <delete:0|1> <제외 패턴>...   (패턴이 / 로 끝나면 폴더 이름)
+copy_tree() {
+  local src="$1" dst="$2" delete="$3"; shift 3
+  if command -v rsync >/dev/null 2>&1 && [[ -z "${HARNESS_INSTALL_NO_RSYNC:-}" ]]; then
+    local args=(-a)
+    [[ "$delete" == 1 ]] && args+=(--delete)
+    for pat in "$@"; do args+=("--exclude=$pat"); done
+    rsync "${args[@]}" "${src}/" "${dst}/"
+  else
+    python3 - "$src" "$dst" "$delete" "$@" <<'PYEOF'
+import fnmatch, os, shutil, sys
+src, dst, delete, pats = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4:]
+def excluded(name, is_dir):
+    return any(fnmatch.fnmatch(name, p.rstrip("/")) for p in pats if p.endswith("/") == is_dir)
+kept = set()
+for base, dirs, files in os.walk(src):
+    dirs[:] = [d for d in dirs if not excluded(d, True)]
+    rel = os.path.relpath(base, src)
+    os.makedirs(os.path.join(dst, rel), exist_ok=True)
+    kept.add(os.path.normpath(rel))
+    for name in files:
+        if excluded(name, False):
+            continue
+        shutil.copy2(os.path.join(base, name), os.path.join(dst, rel, name))
+        kept.add(os.path.normpath(os.path.join(rel, name)))
+if delete:
+    for base, dirs, files in os.walk(dst, topdown=False):
+        rel = os.path.relpath(base, dst)
+        for name in files:
+            r = os.path.normpath(os.path.join(rel, name))
+            if r not in kept and not excluded(name, False):
+                os.remove(os.path.join(base, name))
+        for name in dirs:
+            r = os.path.normpath(os.path.join(rel, name))
+            if r not in kept and not excluded(name, True):
+                shutil.rmtree(os.path.join(base, name), ignore_errors=True)
+PYEOF
+  fi
+}
+if ! command -v rsync >/dev/null 2>&1 || [[ -n "${HARNESS_INSTALL_NO_RSYNC:-}" ]]; then
+  echo "      rsync 없이 python3 으로 복사한다"
+fi
+
 # ── 스킬 설치 ────────────────────────────────────────────
 CLAUDE_DIR="${TARGET_DIR}/.claude"
 # 훅 설치 폴더 — 스킬 안의 스크립트 경로를 이 폴더로 바꿔 쓰므로 스킬 설치 전에 정한다.
@@ -184,10 +231,7 @@ if [[ "$INSTALL_SKILLS" == true && -d "${SRC}/skills" ]]; then
     #    ＊`sort` 에만 붙이면 안 된다 — 비교 기준을 실제로 쓰는 쪽은 `comm` 이라
     #      `comm` 자신에게도 같은 로케일을 줘야 한다(실측 2026-09-24).
     BEFORE_LIST=$(ls -1 "${CLAUDE_DIR}/skills/" 2>/dev/null | LC_ALL=C sort)
-    rsync -a \
-      --exclude="__pycache__/" \
-      --exclude="*.pyc" \
-      "${SRC}/skills/" "${CLAUDE_DIR}/skills/"
+    copy_tree "${SRC}/skills" "${CLAUDE_DIR}/skills" 0 "__pycache__/" "*.pyc"
     SKILL_COUNT=$(ls -1 "${SRC}/skills/" | wc -l | tr -d ' ')
     echo "      하네스 스킬 ${SKILL_COUNT}종 설치 완료 → ${CLAUDE_DIR}/skills/"
 
@@ -270,12 +314,8 @@ if [[ "$INSTALL_HOOKS" == true && -d "${SRC}/hooks" ]]; then
       DELETE_OPT="--delete"
     fi
     mkdir -p "$GLOBAL_HOOKS_DIR"
-    rsync -a ${DELETE_OPT} \
-      --exclude="__pycache__/" \
-      --exclude="*.pyc" \
-      --exclude="test_*.py" \
-      --exclude=".harness-owned" \
-      "${SRC}/hooks/" "$GLOBAL_HOOKS_DIR/"
+    copy_tree "${SRC}/hooks" "$GLOBAL_HOOKS_DIR" "$([[ -n "$DELETE_OPT" ]] && echo 1 || echo 0)" \
+      "__pycache__/" "*.pyc" "test_*.py" ".harness-owned"
     # 스킬이 버전을 읽는 매니페스트(`/harness-update` 의 엔진 버전). rsync --delete 뒤에 두어야 남는다.
     [[ -f "${SRC}/plugin.json" ]] && cp "${SRC}/plugin.json" "${GLOBAL_HOOKS_DIR}/plugin.json"
     # 🔴 표식에 설치 버전을 기록한다 (HARNESS-INSTALL-PROVENANCE-2, 2026-09-24).
