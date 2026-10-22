@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-22
+
 ### Changed
 
 - **빠른 경로 「C~E 일괄」「D~E 일괄」을 정의했다**(`skills/gate-c/SKILL.md` §Batch runs, 정본 한 곳). 이 문구는 스킬 설명의 호출 신호로만
