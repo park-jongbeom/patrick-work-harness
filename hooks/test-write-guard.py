@@ -23,7 +23,6 @@ Gate D(검증) 중 시험 파일 쓰기는 사용자에게 묻는다 — Claude 
 
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -52,49 +51,7 @@ def in_gate_d(path=CURRENT_SESSION):
         return False
 
 
-GATE_SKILL = re.compile(r"(?:^|:)gate-([a-e])$")
-GATE_COMMAND = re.compile(r"<command-name>/(?:[\w-]+:)?gate-([a-e])</command-name>")
-
-
-def last_gate(transcript_path):
-    """대화 기록에서 마지막으로 부른 Gate 글자('a'~'e'). 못 찾거나 못 읽으면 None.
-
-    Skill 도구 호출(`input.skill`, 플러그인 접두어 허용)과 `/gate-x` 직접 입력을 모두 본다.
-    하위 에이전트(isSidechain) 줄은 본 대화의 진행이 아니므로 뺀다. 「gate-」가 없는 줄은
-    해석하지 않아 큰 기록에서도 빠르다.
-    """
-    if not transcript_path:
-        return None
-    found = None
-    try:
-        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
-            for line in f:
-                if "gate-" not in line:
-                    continue
-                try:
-                    event = json.loads(line)
-                except Exception:
-                    continue
-                if not isinstance(event, dict) or event.get("isSidechain"):
-                    continue
-                content = (event.get("message") or {}).get("content")
-                if event.get("type") == "assistant" and isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "tool_use" \
-                                and block.get("name") == "Skill":
-                            m = GATE_SKILL.search(str((block.get("input") or {}).get("skill", "")))
-                            if m:
-                                found = m.group(1)
-                elif event.get("type") == "user":
-                    texts = [content] if isinstance(content, str) else [
-                        b.get("text", "") for b in (content or [])
-                        if isinstance(b, dict) and b.get("type") == "text"]
-                    for text in texts:
-                        for m in GATE_COMMAND.finditer(text or ""):
-                            found = m.group(1)
-    except Exception:
-        return None
-    return found
+from gate_transcript import last_gate  # 대화 기록의 마지막 Gate (공용 도우미, S3a)
 
 
 def is_test_path(path, base=BASE_DIR):

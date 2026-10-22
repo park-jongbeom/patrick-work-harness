@@ -15,6 +15,13 @@
 뿐인 것이 있으면 막는다. 답하거나 「스킵」을 명시해 평가가 적히면 풀린다.
 파서는 대시보드와 같은 `session_dashboard_parsers.parse_comprehension` 을 쓴다.
 
+「지금 계획의 질문인가」(S3a, 2026-10-22): 파서는 문서의 첫 Gate B 블록만 본다. 그 질문이 이전
+계획의 것이면 새 계획이 Gate B 없이 gate-c 로 갈 때 잘못 막힌다. 그래서 대화 기록(훅 입력
+`transcript_path`)에서 마지막 gate-a 뒤에 gate-b 가 없으면 문서의 미답 질문은 이전 계획의 것으로
+보고 막지 않는다 — 대신 한 줄로 알린다. 대화 기록에 Gate 호출이 하나도 없거나(새 대화에서 이어
+하는 경우) 읽을 수 없으면 예전처럼 막는다. 대화 기록 지연(최신 줄 누락)은 gate-b 를 못 보는 쪽으로만
+작용하는데, gate-b 는 질문을 쓰고 사용자 답을 기다린 턴 뒤라 실제로는 기록돼 있다.
+
 방어 원칙: 파일 부재·파싱 실패·예외는 모두 허용(fail-open). 이 훅이 고장 나서 작업을
 멈추게 하면 안 된다.
 """
@@ -58,6 +65,17 @@ def pending_questions(path=CURRENT_SESSION):
         return []
 
 
+def question_is_from_earlier_plan(transcript_path):
+    """마지막 gate-a 뒤에 gate-b 가 없으면 True. 판정할 기록이 없으면 False(막는 쪽)."""
+    from gate_transcript import gate_sequence
+
+    seq = gate_sequence(transcript_path)
+    if not seq or "a" not in seq:
+        return False
+    last_a = len(seq) - 1 - seq[::-1].index("a")
+    return "b" not in seq[last_a + 1:]
+
+
 def reason_text(skill, pending):
     return (
         f"이해도 질문이 답을 기다리고 있어 /{skill} 단계를 시작하지 않습니다 — "
@@ -83,6 +101,17 @@ def main():
 
     pending = pending_questions()
     if not pending:
+        return 0
+
+    try:
+        stale = question_is_from_earlier_plan(payload.get("transcript_path"))
+    except Exception:
+        stale = False
+    if stale:
+        print(json.dumps({"systemMessage": (
+            f"[이해도] 문서에 이전 계획의 미답 질문이 남아 있습니다({', '.join(pending)}). "
+            f"이번 계획은 Gate B 없이 /{skill} 로 진행하므로 막지 않습니다 — 필요하면 /gate-b 로 새 질문을 받으세요."
+        )}, ensure_ascii=False))
         return 0
 
     reason = reason_text(skill, pending)
