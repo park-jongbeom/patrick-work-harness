@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
 test-tampering-guard.py
-Gate B→C transition: Detect test file modifications that signal reward-hacking.
+Stop hook (runs at the end of every response): detect test/CI changes that signal reward-hacking.
+
+Two scopes (S2, 2026-10-22 — the guard used to see only uncommitted changes under `tests/`):
+  ① uncommitted (working tree + staged): every test file by the report_facts test-path rule,
+     not just `tests/`. Tampering warns, an exec CI file change blocks — as before.
+  ② this session's commits: base = the last commit before the transcript's first timestamp.
+     Changes committed since then are checked with the same patterns but only WARN, and the
+     same findings are reported once per session (they stay in history; repeating them every
+     response would only teach the user to ignore the message). Skipped without a transcript.
 
 Patterns detected:
   A: @Disabled annotation introduced
@@ -12,8 +20,7 @@ Patterns detected:
        dependency files (package.json, build.gradle.kts, pytest.ini)
          → warn only when a declaration is removed, not on pure additions
 
-Usage: PreToolUse hook or manual invocation before Gate C re-run
-  $ python3 test-tampering-guard.py --check-diff
+Usage: wired on Stop (hooks.json). Manual run: `python3 test-tampering-guard.py </dev/null`
 
 Returns:
   0 = all clear (continue)
@@ -22,11 +29,23 @@ Returns:
   2 = error (CI config changed, block)
 """
 
+import hashlib
 import json
 import os
 import sys
 import subprocess
 import re
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:  # 시험 경로 판정은 report_facts·test-write-guard 와 같은 규칙을 쓴다
+    from report_facts import category as _category
+except Exception:  # 단독 배포 대비 — 같은 정규식
+    _TEST_RE = re.compile(
+        r"(^|/)(tests?|__tests__)/|(^|/)src/test/|(^|/)test_[^/]+$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
+
+    def _category(path):
+        return "tests" if _TEST_RE.search(path) else "code"
 
 # Windows cp949 콘솔 UnicodeEncodeError 방지 (Python 3.7+)
 # stdout 기본 errors 는 strict 라 비ASCII 출력 시 exit 1 로 죽는다
@@ -101,13 +120,103 @@ def _run_git_diff(extra_args):
     return result.stdout
 
 
+def _test_paths(name_only_args):
+    """`git diff --name-only <args>` 결과 중 시험 파일만."""
+    out = _run_git_diff(["--name-only"] + name_only_args)
+    return sorted({p.strip() for p in out.splitlines()
+                   if p.strip() and _category(p.strip()) == "tests"})
+
+
 def get_git_diff_tests():
-    """Get git diff for tests/ — working tree + staged (Gate C stages edits)."""
+    """Uncommitted test diff — working tree + staged (Gate C stages edits).
+
+    Test files are found by the shared test-path rule, not only under `tests/`
+    (S2: hooks/test_*.py, *.test.ts, src/test/... used to pass unseen).
+    """
     # pathspec must follow `--` (the prior `["git","diff","tests/","--unified=0"]`
     # put the pathspec before the option → git rc=128, empty stdout, A/B/C dead).
-    working = _run_git_diff(["--unified=0", "--", "tests/"])
-    staged = _run_git_diff(["--cached", "--unified=0", "--", "tests/"])
+    working_paths = _test_paths([])
+    staged_paths = _test_paths(["--cached"])
+    working = _run_git_diff(["--unified=0", "--"] + working_paths) if working_paths else ""
+    staged = _run_git_diff(["--cached", "--unified=0", "--"] + staged_paths) if staged_paths else ""
     return working + "\n" + staged
+
+
+def session_base(transcript_path):
+    """The last commit before this session started, or None.
+
+    Session start = the first timestamp in the transcript. Rewritten commits (rebase/amend)
+    get new committer dates and so count as this session's — that only widens the check.
+    """
+    if not transcript_path or not _IS_GIT_REPO:
+        return None
+    start = None
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
+            for i, line in enumerate(f):
+                if i > 50:
+                    break
+                m = re.search(r'"timestamp"\s*:\s*"([^"]+)"', line)
+                if m:
+                    start = m.group(1)
+                    break
+    except OSError:
+        return None
+    if not start:
+        return None
+    try:
+        result = subprocess.run(["git", "rev-list", "-1", f"--before={start}", "HEAD"],
+                                cwd=_REPO_ROOT, capture_output=True, text=True, timeout=10)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    sha = result.stdout.strip()
+    return sha if result.returncode == 0 and sha else None
+
+
+def session_commit_findings(base):
+    """Patterns A–D over `base..HEAD` (this session's commits). Warnings only."""
+    findings = []
+    paths = _test_paths([base, "HEAD"])
+    diff = _run_git_diff(["--unified=0", base, "HEAD", "--"] + paths) if paths else ""
+    if detect_pattern_a(diff):
+        findings.append(("Pattern A", "@Disabled annotation introduced"))
+    has_b, count = detect_pattern_b(diff)
+    if has_b:
+        findings.append(("Pattern B", f"Assertion lines decreased by {count}"))
+    if detect_pattern_c(diff):
+        findings.append(("Pattern C", "Mock scope reduction detected (real→in-memory)"))
+    for pattern in CI_EXEC_PATTERNS:
+        if _run_git_diff([base, "HEAD", "--", pattern]).strip():
+            findings.append(("Pattern D", f"CI config changed: {pattern}"))
+    for pattern in DEP_DECL_PATTERNS:
+        d = _run_git_diff([base, "HEAD", "--", pattern])
+        if d.strip() and not is_add_only(d):
+            findings.append(("Pattern D", f"Dependency declaration removed/rewritten: {pattern}"))
+    return [(p, f"[이번 세션 커밋 {base[:7]}..HEAD] {d}") for p, d in findings]
+
+
+def _state_path(session_id):
+    safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
+    base_dir = os.environ.get("TEST_TAMPERING_GUARD_STATE_DIR") or tempfile.gettempdir()
+    return os.path.join(base_dir, f".test-tampering-guard-{safe}.seen")
+
+
+def first_time_this_session(session_id, findings):
+    """True when these session-commit findings were not reported yet in this session."""
+    digest = hashlib.sha1(json.dumps(sorted(findings), ensure_ascii=False).encode()).hexdigest()
+    path = _state_path(session_id)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if f.read().strip() == digest:
+                return False
+    except OSError:
+        pass
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(digest)
+    except OSError:
+        pass
+    return True
 
 
 # Pattern D splits into two groups (HARNESS-CROSSCHECK-FIX-1-a-3, 2026-09-23).
@@ -284,6 +393,13 @@ def main():
             tamper_violations.append(
                 ("Pattern D", f"Dependency declaration removed/rewritten: {filename}"))
 
+    # ② this session's commits — warn once per session, never block
+    base = session_base(hook_input.get("transcript_path"))
+    if base:
+        committed = session_commit_findings(base)
+        if committed and first_time_this_session(hook_input.get("session_id", ""), committed):
+            tamper_violations += committed
+
     # Output
     if not tamper_violations and not ci_violations:
         return 0
@@ -297,7 +413,8 @@ def main():
     lines += [
         "",
         "💡 Guidance:",
-        "  - Pattern A/B/C in tests/: Likely reward-hacking. Revert and re-implement.",
+        "  - Pattern A/B/C in test files: Likely reward-hacking. Revert and re-implement.",
+        "  - [이번 세션 커밋]: already committed in this session — shown once; review the commit.",
         "  - Pattern D (CI config): May be legitimate if Gate A approved. Confirm intent.",
         "  - Pattern D (dependency): Adding a dependency is fine and not reported;",
         "    this fired because a declaration was removed or rewritten.",

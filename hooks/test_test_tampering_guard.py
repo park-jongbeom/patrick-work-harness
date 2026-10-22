@@ -290,5 +290,101 @@ class TestA5Contracts(unittest.TestCase):
         self.assertIn("Pattern A", _system_message(proc.stdout))
 
 
+# ── 세션 범위 (S2, 2026-10-22) ────────────────────────────────────────────────
+# 예전 가드는 `tests/` 의 커밋 안 된 변경만 봤다. 시험을 고치고 커밋해 버린 변조와
+# `tests/` 밖 시험(hooks/test_*.py, *.test.ts)은 조용히 지나갔다.
+BEFORE = "2026-01-01T00:00:00+00:00"   # 세션 시작 전 커밋
+SESSION_START = "2026-03-01T00:00:00.000Z"
+DURING = "2026-06-01T00:00:00+00:00"   # 세션 중 커밋
+NO_ASSERT_FOO = "class FooTest {\n  void a() {  }\n  void b() {  }\n  void c() {  }\n}\n"
+
+
+class TestSessionScope(unittest.TestCase):
+    def setUp(self):
+        self.repo = tempfile.mkdtemp(prefix="ttg-s-")
+        self.state = tempfile.mkdtemp(prefix="ttg-state-")
+        _git(self.repo, "init", "-q")
+        _git(self.repo, "config", "user.email", "t@t.t")
+        _git(self.repo, "config", "user.name", "t")
+        for rel, body in (("tests/FooTest.java", BASE_FOO),
+                          ("hooks/test_x.py", "def test_x():\n    assert 1 == 1\n    assert 2 == 2\n"),
+                          ("web/a.test.ts", "it('a', () => {\n  expect(1).toBe(1);\n  assert.ok(true);\n});\n"),
+                          ("docker-compose.yml", "services:\n  app:\n    image: a\n")):
+            (Path(self.repo) / rel).parent.mkdir(parents=True, exist_ok=True)
+            (Path(self.repo) / rel).write_text(body)
+        self._commit("base", BEFORE)
+        self.transcript = os.path.join(self.state, "transcript.jsonl")
+        with open(self.transcript, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "user", "timestamp": SESSION_START,
+                                "message": {"role": "user", "content": "start"}}) + "\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.repo, ignore_errors=True)
+        shutil.rmtree(self.state, ignore_errors=True)
+
+    def _commit(self, msg, when):
+        _git(self.repo, "add", "-A")
+        subprocess.run(["git", "commit", "-q", "-m", msg], cwd=self.repo, check=True, capture_output=True,
+                       env={**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when})
+
+    def _run(self, session_id="S-1", transcript=True):
+        payload = {"session_id": session_id}
+        if transcript:
+            payload["transcript_path"] = self.transcript
+        proc = subprocess.run(
+            [sys.executable, SCRIPT], cwd=self.repo,
+            env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": self.repo,
+                 "TEST_TAMPERING_GUARD_STATE_DIR": self.state, "PYTHONIOENCODING": "utf-8"},
+            input=json.dumps(payload), capture_output=True, text=True, encoding="utf-8", errors="replace")
+        return proc.returncode, proc.stdout, proc.stderr
+
+    def test_committed_tampering_in_session_warns(self):
+        (Path(self.repo) / "tests/FooTest.java").write_text(NO_ASSERT_FOO)
+        self._commit("drop asserts", DURING)
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        msg = _system_message(out)
+        self.assertIn("Pattern B", msg)
+        self.assertIn("세션 커밋", msg)
+
+    def test_commits_before_session_are_ignored(self):
+        (Path(self.repo) / "tests/FooTest.java").write_text(NO_ASSERT_FOO)
+        self._commit("drop asserts long ago", "2026-02-01T00:00:00+00:00")
+        rc, out, err = self._run()
+        self.assertEqual((rc, out.strip()), (0, ""), err)
+
+    def test_committed_warning_only_once_per_session_until_it_changes(self):
+        (Path(self.repo) / "tests/FooTest.java").write_text(NO_ASSERT_FOO)
+        self._commit("drop asserts", DURING)
+        self.assertIn("Pattern B", _system_message(self._run()[1]))
+        self.assertEqual(self._run()[1].strip(), "")            # 같은 내용은 다시 띄우지 않는다
+        (Path(self.repo) / "hooks/test_x.py").write_text("def test_x():\n    pass\n")
+        self._commit("drop more", DURING)
+        self.assertIn("Pattern B", _system_message(self._run()[1]))   # 새 변조는 다시 알린다
+        self.assertIn("Pattern B", _system_message(self._run(session_id="S-2")[1]))  # 다른 세션은 따로
+
+    def test_committed_ci_change_warns_but_does_not_block(self):
+        (Path(self.repo) / "docker-compose.yml").write_text("services:\n  app:\n    image: CHANGED\n")
+        self._commit("ci", DURING)
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Pattern D", _system_message(out))
+
+    def test_uncommitted_tests_outside_tests_dir_are_checked(self):
+        for rel, body in (("hooks/test_x.py", "def test_x():\n    pass\n"),
+                          ("web/a.test.ts", "it('a', () => {\n});\n")):
+            (Path(self.repo) / rel).write_text(body)
+            rc, out, err = self._run(transcript=False)
+            self.assertEqual(rc, 0, err)
+            self.assertIn("Pattern B", _system_message(out), rel)
+            _git(self.repo, "checkout", "--", rel)
+
+    def test_without_transcript_session_scope_is_skipped(self):
+        (Path(self.repo) / "tests/FooTest.java").write_text(NO_ASSERT_FOO)
+        self._commit("drop asserts", DURING)
+        rc, out, err = self._run(transcript=False)
+        self.assertEqual((rc, out.strip()), (0, ""), err)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
