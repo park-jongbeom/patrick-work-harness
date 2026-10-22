@@ -75,6 +75,27 @@ class TestReportFacts(unittest.TestCase):
         self.assertEqual(facts["changed"]["total"], 3)
         self.assertEqual(facts["changed"]["by_category"], {"code": 1, "docs": 1, "tests": 1})
 
+    def test_rename_keeps_old_path_only_when_asked(self):
+        """레인 범위 훅(S7)은 보호 경로 밖으로 옮긴 파일도 봐야 한다 — 옛 경로는 「D」로 돌려준다."""
+        git(self.repo, "mv", "impl.py", "lib_impl.py")
+        git(self.repo, "commit", "-q", "-m", "rename")
+        self.assertNotIn(("D", "impl.py"), rf.changed_files(self.repo, self.base))
+        both = rf.changed_files(self.repo, self.base, both_sides=True)
+        self.assertIn(("R", "lib_impl.py"), both)
+        self.assertIn(("D", "impl.py"), both)
+
+    def test_changed_lines_counts_tracked_and_untracked(self):
+        self._write("impl.py", "x = 2\ny = 3\n")              # 1줄 삭제 + 2줄 추가 = 3
+        self._write("tests/test_new.py", "a = 1\nb = 2\nc = 3\n")  # 추적 안 된 새 파일 3줄
+        lines = rf.changed_lines(self.repo, self.base)
+        self.assertEqual(lines, {"impl.py": 3, "tests/test_new.py": 3})
+
+    def test_changed_lines_keys_renames_by_new_path(self):
+        git(self.repo, "mv", "impl.py", "lib_impl.py")
+        self._write("lib_impl.py", "x = 1\ny = 2\n")      # 옮기고 1줄 추가
+        git(self.repo, "add", "-A")
+        self.assertEqual(rf.changed_lines(self.repo, self.base), {"lib_impl.py": 1})
+
     def test_junit_totals(self):
         self._write("j.xml", '<testsuites><testsuite><testcase name="a"/><testcase name="b">'
                              '<failure/></testcase><testcase name="c"><skipped/></testcase>'

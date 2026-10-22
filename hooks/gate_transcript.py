@@ -10,7 +10,10 @@
 대화 기록은 비동기로 쓰여 현재 턴의 최신 줄이 아직 없을 수 있다(공식 hooks 문서).
 호출하는 훅은 이 지연을 감안해 판정 방향을 정해야 한다.
 
-쓰는 곳: test-write-guard.py(S1), comprehension-pending-guard.py(S3a).
+`autonomous_approved` 는 마지막 gate-a 뒤에 사용자가 「자율 레인 승인」을 직접 썼는지 본다(S7). 스킬 본문
+(`isMeta`)과 대화 압축 요약(`isCompactSummary`)도 user 줄로 기록되므로 뺀다 — gate-a 본문에 이 문구가 있다.
+
+쓰는 곳: test-write-guard.py(S1), comprehension-pending-guard.py(S3a), lane-scope-guard.py(S7).
 """
 
 import json
@@ -18,6 +21,8 @@ import re
 
 GATE_SKILL = re.compile(r"(?:^|:)gate-([a-e])$")
 GATE_COMMAND = re.compile(r"<command-name>/(?:[\w-]+:)?gate-([a-e])</command-name>")
+AUTONOMOUS_APPROVAL = "자율 레인 승인"
+_TAGGED = re.compile(r"<([\w-]+)[^>]*>.*?</\1>", re.S)
 
 
 def gate_sequence(transcript_path):
@@ -59,3 +64,45 @@ def last_gate(transcript_path):
     """마지막으로 부른 Gate 글자. 없거나 못 읽으면 None."""
     seq = gate_sequence(transcript_path)
     return seq[-1] if seq else None
+
+
+def _user_texts(event):
+    content = (event.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return [content]
+    return [b.get("text", "") for b in (content or []) if isinstance(b, dict) and b.get("type") == "text"]
+
+
+def autonomous_approved(transcript_path):
+    """마지막 gate-a 뒤에 사용자가 「자율 레인 승인」을 썼으면 True. 못 읽거나 없으면 False."""
+    if not transcript_path:
+        return False
+    approved = False
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if "gate-" not in line and AUTONOMOUS_APPROVAL not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(event, dict) or event.get("isSidechain"):
+                    continue
+                if event.get("type") == "assistant":
+                    for block in (event.get("message") or {}).get("content") or []:
+                        if isinstance(block, dict) and block.get("type") == "tool_use" \
+                                and block.get("name") == "Skill":
+                            m = GATE_SKILL.search(str((block.get("input") or {}).get("skill", "")))
+                            if m and m.group(1) == "a":
+                                approved = False
+                elif event.get("type") == "user":
+                    for text in _user_texts(event):
+                        if any(m.group(1) == "a" for m in GATE_COMMAND.finditer(text or "")):
+                            approved = False
+                        elif not (event.get("isMeta") or event.get("isCompactSummary")) \
+                                and AUTONOMOUS_APPROVAL in _TAGGED.sub("", text or ""):
+                            approved = True
+    except Exception:
+        return False
+    return approved

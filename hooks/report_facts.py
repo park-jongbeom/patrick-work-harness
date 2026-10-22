@@ -51,8 +51,12 @@ def category(path):
     return "code"
 
 
-def changed_files(repo, base=None):
-    """[(상태, 경로)] — base 이후 커밋 + 작업 트리 변경 + 추적 안 된 새 파일."""
+def changed_files(repo, base=None, both_sides=False):
+    """[(상태, 경로)] — base 이후 커밋 + 작업 트리 변경 + 추적 안 된 새 파일.
+
+    이름 바꾸기는 새 경로만 남긴다. `both_sides=True` 면 옛 경로도 「D」로 넣는다 —
+    레인 범위 훅이 보호 경로 밖으로 옮긴 파일을 놓치지 않게(S7, 2026-10-22).
+    """
     ref = base or "HEAD"
     out = git(repo, "diff", "--name-status", "-M", ref)
     files = []
@@ -61,10 +65,44 @@ def changed_files(repo, base=None):
         if len(parts) >= 2:
             status = parts[0][0]
             files.append((status, parts[-1]))
+            if both_sides and status == "R" and len(parts) >= 3:
+                files.append(("D", parts[1]))
     for path in git(repo, "ls-files", "--others", "--exclude-standard").splitlines():
         if path.strip():
             files.append(("A", path.strip()))
     return sorted(set(files), key=lambda x: x[1])
+
+
+def changed_lines(repo, base=None):
+    """{경로: 추가+삭제 줄 수} — `changed_files` 와 같은 범위(추적 안 된 새 파일은 전체 줄 수).
+
+    이진 파일은 0줄로 센다(파일 수에는 `changed_files` 쪽에서 잡힌다).
+    """
+    lines = {}
+    # -z: 이름 바꾸기가 `옛 => 새` 한 칸이 아니라 「빈 경로 칸 + 옛 + 새」 토큰으로 온다
+    tokens = git(repo, "diff", "--numstat", "-M", "-z", base or "HEAD").split("\0")
+    i = 0
+    while i < len(tokens):
+        parts = tokens[i].split("\t")
+        i += 1
+        if len(parts) < 3:
+            continue
+        added, deleted = (int(n) if n.isdigit() else 0 for n in parts[:2])
+        path = parts[2]
+        if not path:          # 이름 바꾸기 — 다음 두 토큰이 옛 경로·새 경로
+            path = tokens[i + 1] if i + 1 < len(tokens) else ""
+            i += 2
+        if path:
+            lines[path] = added + deleted
+    for path in git(repo, "ls-files", "--others", "--exclude-standard").splitlines():
+        path = path.strip()
+        if path:
+            try:
+                with open(os.path.join(repo, path), "rb") as f:
+                    lines[path] = f.read().count(b"\n")
+            except OSError:
+                lines[path] = 0
+    return lines
 
 
 def junit_cases(path):
