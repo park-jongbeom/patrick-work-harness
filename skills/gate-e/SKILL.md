@@ -1,6 +1,6 @@
 ---
 name: gate-e
-description: "WORKLOG recording, session cleanup, and archiving after Gate C or Gate D confirmation. Use on 'Gate E', 'WORKLOG', '세션 정리', 'C~E 일괄', 'D~E 일괄', etc."
+description: "WORKLOG recording, session cleanup, and archiving after Gate D confirmation (or at the end of an authorized C~E·D~E batch run). Use on 'Gate E', 'WORKLOG', '세션 정리', 'C~E 일괄', 'D~E 일괄', etc."
 effort: low
 ---
 

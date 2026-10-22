@@ -26,10 +26,14 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 #### Process flow
 
 ```
-/gate-a  →  user approval  →  /gate-b  →  /gate-c  →  (/gate-d)  →  /gate-e
-  plan            ↑            comprehend  implement    verify        record
+/gate-a  →  user approval  →  /gate-b  →  /gate-c  →  /gate-d  →  /gate-e
+  plan            ↑            comprehend  implement    verify      record
             no code change
 ```
+
+Gate D is never skipped. Saying 「C~E 일괄」 (or 「D~E 일괄」) runs C → D → E without stopping in between, except for
+high-risk sessions (security, migrations, public API, irreversible or cross-repo work) and whenever verification fails —
+see `skills/gate-c/SKILL.md` §Batch runs.
 
 | Gate | Role | Description |
 |------|------|-------------|
@@ -285,10 +289,13 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 #### 프로세스 흐름
 
 ```
-/gate-a  →  사용자 승인  →  /gate-b  →  /gate-c  →  (/gate-d)  →  /gate-e
-  계획           ↑             이해도      구현       검증+리팩터      기록
+/gate-a  →  사용자 승인  →  /gate-b  →  /gate-c  →  /gate-d  →  /gate-e
+  계획           ↑             이해도      구현     검증+리팩터     기록
              변경 없음
 ```
+
+Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이라고 하면 C → D → E 를 중간 정지 없이 이어 간다. 단 위험 세션
+(보안·마이그레이션·공개 API·비가역·저장소 간 작업)과 검증이 실패한 경우는 예외다 — `skills/gate-c/SKILL.md` §Batch runs.
 
 | Gate | 역할 | 설명 |
 |------|------|------|

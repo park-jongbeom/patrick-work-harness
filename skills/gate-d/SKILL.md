@@ -136,7 +136,7 @@ If none of the above files exist: skip silently.
    - `${CURRENT_SESSION_FILE}` — record the full test plan + execution result + FIX-B·DEP items
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
-7. STOP — await user document review·confirmation
+7. STOP — await user document review·confirmation. **Batch exception** (`gate-c/SKILL.md` §Batch runs): if the user authorized 「C~E 일괄」 or 「D~E 일괄」, the session is not high-risk, and this Gate ended with every test and build passing and no FIX-B/DEP item, continue to `/gate-e` instead of stopping. Any failure → STOP and report; never run Gate E on a failing verification
 
 ## Docker Execution Commands (mandatory in Gate D record)
 

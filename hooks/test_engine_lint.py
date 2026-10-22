@@ -14,6 +14,9 @@
   5. 소스 쪽 저장소 수를 박은 표현 — 「세 저장소」「three repositories」.
   6. 훅이 발동 표지로 읽는 문자열(self-debug N회 · FIX-B N건)을 쓰라고 지시하는 스킬이 있다.
   7. 스킬이 `${CLAUDE_SKILL_DIR}/<파일>` 로 부르는 파일이 실제로 같이 배포된다.
+  8. 일괄 실행 문구(「C~E 일괄」「D~E 일괄」)가 쓰이면 gate-c 에 그 정의 절이 있다 (S4, 2026-10-22).
+  9. 정의되지 않은 일괄 문구(예: 「B~E 일괄」)를 쓰지 않는다.
+ 10. Gate D 를 선택 단계처럼 표시하지 않는다 — `(/gate-d)`, 「Gate C or Gate D」. D 는 생략 불가(2026-10-22 결정).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -49,6 +52,14 @@ def hits(pattern, files=None):
             if rx.search(line):
                 out.append(f"{f.relative_to(ROOT)}:{i}: {line.strip()[:120]}")
     return out
+
+
+BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
+DEFINED_BATCHES = {"C~E", "D~E"}
+
+
+def skills_and_readme():
+    return [p for p in (ROOT / "skills").rglob("SKILL.md")] + [ROOT / "README.md"]
 
 
 def review_hits_pattern():
@@ -99,6 +110,23 @@ class EngineLint(unittest.TestCase):
                     if not (skill_md.parent / rel).is_file():
                         missing.append(f"{skill_md.relative_to(ROOT)}:{i}: {rel}")
         self.assertEqual(missing, [], "스킬이 부르는 번들 파일이 없음:\n" + "\n".join(missing))
+
+    def test_batch_phrases_have_a_definition(self):
+        used = hits(r"[A-E]~E 일괄", files=skills_and_readme())
+        if not used:
+            return
+        gate_c = (ROOT / "skills" / "gate-c" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(BATCH_DEFINITION_HEADING, gate_c.splitlines(),
+                      "일괄 문구가 쓰이는데 gate-c 에 정의 절이 없음:\n" + "\n".join(used))
+
+    def test_no_undefined_batch_phrases(self):
+        bad = [h for h in hits(r"[A-E]~E 일괄", files=skills_and_readme())
+               if any(m not in DEFINED_BATCHES for m in re.findall(r"([A-E]~E) 일괄", h))]
+        self.assertEqual(bad, [], "정의되지 않은 일괄 문구:\n" + "\n".join(bad))
+
+    def test_gate_d_is_not_marked_optional(self):
+        found = hits(r"\(/gate-d\)|Gate C or Gate D", files=skills_and_readme())
+        self.assertEqual(found, [], "Gate D 를 선택 단계처럼 표시함:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

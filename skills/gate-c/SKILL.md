@@ -47,16 +47,33 @@ If `API_SPEC.md` exists **and this session changed an endpoint contract**:
    - `${CURRENT_SESSION_FILE}` dashboard + Gate C block
    > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
-4. STOP — await user document review·confirmation
+4. STOP — await user document review·confirmation (unless a batch run was authorized — see §Batch runs)
 
-> **No test·build execution in this turn after Gate C completion** (`npm test` / `pytest` / `./gradlew test`, etc.).
-> Proceed in a separate turn after Gate D verification confirmation.
+> **Tests and builds run only in Gate D** (`npm test` / `pytest` / `./gradlew test`, etc.) — never inside Gate C's own steps.
+> Without a batch authorization, Gate D starts in a separate turn after the user confirms Gate C.
 
 ## Scope of 「구현해라」-like Instructions
 
 「구현해」「계획대로 구현」「다음 계획을 구현해라」 reach **Gate C at most** — they never authorize Gate D·E.
 At the Gate A stage, 「계획대로 구현」 is the Gate A approval and starts **gate-b first** (see Step 0 for a pending Gate B question).
-To allow C→E, the user must specify the scope in a sentence such as 「Gate C부터 E까지 한 번에」「C~E 일괄로 진행해」.
+To run C→D→E without stopping, the user must say so in a sentence that names the range — see §Batch runs.
+
+## Batch runs (C~E·D~E 일괄)
+
+The single definition of the batch phrases (gate-d and gate-e only point here). Defined 2026-10-22: the phrases had been used
+(24 sessions in one month, 10 of them security-related) with no procedure behind them.
+
+- **Meaning**: 「C~E 일괄」 = run Gate C → Gate D → Gate E without the human STOP between them. 「D~E 일괄」 = Gate D → Gate E.
+  **Gate D is never skipped** — a batch removes the waiting, not the verification.
+- **Authorization**: only a sentence that names the range counts — 「C~E 일괄」「Gate C부터 E까지 한 번에」「D~E 일괄」. 「진행」「구현」
+  「계획대로 구현」 alone never authorize a batch (they reach Gate C at most, as above).
+- **Not for hard-trigger sessions**: if the session touches security·auth, DB schema·migrations, a public API contract, destructive or
+  irreversible operations, more than one repository, or a change that tests cannot verify — keep every STOP and tell the user why the batch
+  was declined. When unsure, decline.
+- **Stop inside a batch**: if Gate D ends with any FIX-B/DEP item, a non-converging verification loop, or a build failure, STOP after Gate D
+  and report — do not run Gate E on a failing verification.
+- **Record**: add `> 일괄 실행: C~E (승인 문구: 「…」)` (or `D~E`) at the top of each Gate block written during the batch.
+- The guards still apply during a batch: the comprehension-question guard, the test-write guard in Gate D and the test-tampering guard.
 
 ---
 
