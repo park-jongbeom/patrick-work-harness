@@ -56,7 +56,10 @@ DEFAULT_PROTECTED = (
 SESSION_DOCS = ("CURRENT_SESSION.md", "SESSION_INDEX.md", "session-dashboard.html")
 DOC_PATH_KEYS = ("archive_path", "worklog_path", "learning_path", "process_evolution_path",
                  "error_topics_path", "master_plan_file", "detail_plan_file", "single_plan_file")
-LIMIT_DEFAULTS = {"max_files": 5, "hard_max_lines": 400}
+#: 키가 없을 때 훅이 실제로 쓰는 기본 경로 (comprehension-ledger-stale-guard · skill-usage-auto).
+#: 빠뜨리면 하네스가 스스로 쓴 기록이 「계획 밖 파일」로 잡힌다(S8c 실사용에서 발견).
+DOC_PATH_DEFAULTS = {"learning_path": "plans/learning", "process_evolution_path": "plans/process_evolution"}
+LIMIT_DEFAULTS = {"max_files": 5, "max_lines": 200, "hard_max_lines": 400}
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
@@ -77,7 +80,8 @@ def _scalar(value):
 def lane_settings(text):
     """`autonomous_lane:` 블록 → dict. 블록이 없으면 enabled=False. 숫자가 틀리면 Unverifiable."""
     out = dict(LIMIT_DEFAULTS, enabled=False, protected_paths=[])
-    m = re.search(r"^autonomous_lane:[ \t]*\n((?:[ \t]+[^\n]*\n?|[ \t]*\n)*)", text or "", re.M)
+    # 키 줄 뒤의 주석(`autonomous_lane:  # 설명`)도 정상 YAML 이다 — 못 읽으면 레인이 꺼진 것으로 보인다
+    m = re.search(r"^autonomous_lane:[ \t]*(?:#[^\n]*)?\n((?:[ \t]+[^\n]*\n?|[ \t]*\n)*)", text or "", re.M)
     if not m:
         return out
     key = None
@@ -106,7 +110,7 @@ def doc_paths(text):
     out = []
     for key in DOC_PATH_KEYS:
         m = re.search(rf"^{key}:\s*(.+)$", text or "", re.M)
-        value = _scalar(m.group(1)) if m else ""
+        value = _scalar(m.group(1)) if m else DOC_PATH_DEFAULTS.get(key, "")
         if not value or value.startswith("<"):
             continue
         if os.path.isabs(value):
@@ -134,15 +138,30 @@ def existed_at(base, path):
     return git("cat-file", "-e", f"{base}:{path}")[0] == 0
 
 
+def read_session():
+    try:
+        with open(os.path.join(BASE_DIR, "CURRENT_SESSION.md"), encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
 def read_plan():
     from session_dashboard_parsers import parse_lane_decision
 
-    try:
-        with open(os.path.join(BASE_DIR, "CURRENT_SESSION.md"), encoding="utf-8") as f:
-            content = f.read()
-    except OSError:
-        content = ""
-    return parse_lane_decision(content)
+    return parse_lane_decision(read_session())
+
+
+def gate_d_recorded(content):
+    """Gate D 블록에 `self-debug N회`·`FIX-B N건` 표지가 있는가 — 자율 레인도 Gate D 는 생략하지 않는다.
+
+    대화 기록이 아니라 세션 문서로 본다. 대화 기록은 현재 턴의 최신 줄이 늦게 쓰일 수 있고, 일괄로 C→D→E 를
+    한 턴에 돌면 바로 그 경우다. 표지는 error-topics 가드도 읽으므로 빠지면 그쪽도 조용히 꺼진다.
+    """
+    from session_dashboard_parsers import _gate_block
+
+    block = _gate_block(content, "D")[1]
+    return bool(re.search(r"self-debug\s*\d+", block) and re.search(r"FIX-B\s*\d+\s*건", block))
 
 
 def answers_at(base):
@@ -218,10 +237,24 @@ def on_gate_e(event):
         problems, summary = [f"확인 불가 — {e}"], ""
     except Exception as e:  # 예상 못 한 실패도 막는 쪽
         problems, summary = [f"확인 불가 — {type(e).__name__}: {e}"], ""
-    if not problems:
+    d_missing = "Gate D 기록 없음 — CURRENT_SESSION.md 에 `## Gate D` 블록과 `self-debug N회`·`FIX-B N건` 표지가 없다"
+    has_d = gate_d_recorded(read_session())
+    if not problems and has_d:
         print(json.dumps({"systemMessage": f"[레인] 자율 레인 범위 확인 통과 ({summary})"},
                          ensure_ascii=False))
         return 0
+    if not problems:
+        # 범위는 지켰고 Gate D 만 건너뛴 경우 — 세션을 멈추지 않고 되돌려 보낸다
+        reason = (f"[레인] {d_missing}. 자율 레인도 Gate D 는 생략하지 않는다 — 먼저 /gate-d 로 시험을 돌리고 결과를 "
+                  f"기록한 뒤 /gate-e 를 다시 부르세요.")
+        if event == "UserPromptExpansion":
+            print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
+        else:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                     "permissionDecisionReason": reason}}, ensure_ascii=False))
+        return 0
+    if not has_d:
+        problems = problems + [d_missing]
     reason = stop_reason(problems)
     if event == "UserPromptExpansion":
         out = {"decision": "block", "reason": reason}
@@ -250,15 +283,15 @@ def on_edit(tool_input):
 
     why = ""
     if is_protected(rel, DEFAULT_PROTECTED + tuple(extra)):
-        why = "보호 경로"
+        why = "보호 경로를"
     elif category(rel) == "tests" and existed_at(base, rel):
-        why = "기준 커밋에 있던 시험"
+        why = "기준 커밋에 있던 시험을"
     if not why:
         return 0
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse", "permissionDecision": "ask",
         "permissionDecisionReason": (
-            f"[레인] 자율 레인에서 {why}를 고치려 합니다: {rel}. 자율 레인은 이 경로를 바꾸지 않습니다 — "
+            f"[레인] 자율 레인에서 {why} 고치려 합니다: {rel}. 자율 레인은 이 경로를 바꾸지 않습니다 — "
             f"정말 필요하면 허용하되, Gate E 에서 범위 위반으로 멈추고 검토 레인으로 넘어갑니다."),
     }}, ensure_ascii=False))
     return 0

@@ -26,6 +26,9 @@
  14. `/gate-x ← 역할` 표기는 현행 역할(A 계획·B 이해도·C 구현·D 검증·E 기록)과 맞는다 (S5b — README 사용법이 B=구현 옛 체계였다).
  15. gate-a 의 `### 레인 판정` 예시는 `parse_lane_decision` 이 「자율」로 읽는다 (S6, 2026-10-22 — 레인 범위 훅이 이 파서로
      계획을 읽으므로, 스킬이 가르치는 형식과 파서가 어긋나면 자율 레인이 아무 말 없이 영영 열리지 않거나 잘못 열린다).
+ 16. 「자율 레인 승인」을 말하는 스킬이 있으면 gate-c 에 그 절차 절(`## Autonomous lane (자율 레인)`)이 있다 (S8c).
+ 17. `hooks/hooks.json` 에 배선된 훅은 README 훅 표(영문·한글)에 모두 있고, 종류 칸의 이벤트가 실제 배선과 같다 (S8c —
+     표에 훅 3개가 빠져 있었고 dashboard-sync 를 Stop 이라 적었다. S5a 는 스킬 문구만 고쳐 README 를 놓쳤다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -67,6 +70,8 @@ def hits(pattern, files=None):
 
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
+AUTONOMOUS_HEADING = "## Autonomous lane (자율 레인)"
+HOOK_EVENTS = ("PreToolUse", "PostToolUse", "Stop", "UserPromptExpansion", "UserPromptSubmit", "SessionStart")
 STUB_LABELS = ("> **세션 ID**:", "> **현재 상태**:")
 ENGLISH_STUB_LABELS = r"\*\*Session ID\*\*|\*\*Status\*\*:|\|\s*(?:Current Gate|Gate Progress|Start Date)\s*\|"
 GATE_ROLE_WORDS = {
@@ -205,6 +210,35 @@ class EngineLint(unittest.TestCase):
         doc = "## Gate A 계획\n\n" + examples[0] + "\n### 변경 파일 (1개)\n\n1. `src/x.py` (수정)\n"
         d = sdp.parse_lane_decision(doc)
         self.assertEqual((d["lane"], d["reasons"]), ("자율", []), "gate-a 예시를 파서가 자율로 읽지 못함")
+
+    def test_autonomous_lane_procedure_exists(self):
+        used = hits(r"자율 레인 승인", files=list((ROOT / "skills").rglob("SKILL.md")))
+        if not used:
+            return
+        gate_c = (ROOT / "skills" / "gate-c" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(AUTONOMOUS_HEADING, gate_c.splitlines(),
+                      "「자율 레인 승인」이 쓰이는데 gate-c 에 절차 절이 없음:\n" + "\n".join(used[:5]))
+
+    def test_readme_hook_tables_match_hooks_json(self):
+        cfg = json.loads((ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+        wired = collections.defaultdict(set)
+        for ev, groups in cfg.get("hooks", {}).items():
+            for g in groups:
+                for h in g.get("hooks", []):
+                    wired[h.get("command", "").split("/")[-1].strip('"')].add(ev)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        bad = []
+        for heading in ("### Hooks", "### 훅 목록"):
+            section = readme.split(heading, 1)[1].split("\n#", 1)[0] if heading in readme else ""
+            rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([\w.-]+\.py)` \| ([^|]+) \|", section, re.M)}
+            for name, events in sorted(wired.items()):
+                if name not in rows:
+                    bad.append(f"{heading}: {name} 행 없음")
+                    continue
+                claimed = {e for e in HOOK_EVENTS if e in rows[name]}
+                if claimed != events:
+                    bad.append(f"{heading}: {name} 종류 칸 {sorted(claimed)} ≠ 배선 {sorted(events)}")
+        self.assertEqual(bad, [], "README 훅 표가 hooks.json 배선과 다름:\n" + "\n".join(bad))
 
 
 if __name__ == "__main__":

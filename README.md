@@ -35,6 +35,12 @@ Gate D is never skipped. Saying 「C~E 일괄」 (or 「D~E 일괄」) runs C �
 high-risk sessions (security, migrations, public API, irreversible or cross-repo work) and whenever verification fails —
 see `skills/gate-c/SKILL.md` §Batch runs.
 
+**Two lanes (off by default).** Gate A also routes each plan. Anything that touches security, schema or stored data,
+dependencies, tests or CI, a public contract or more than one module — or is simply ambiguous — takes the review lane above.
+A small plan with an acceptance command and no trigger may take the **autonomous lane**: after 「자율 레인 승인」 it runs
+C → D → E without stops, `lane-scope-guard.py` checks the real diff against the plan, and you judge one review card at the
+end. Opt in per project — see Usage below and `skills/gate-a/SKILL.md` §0-Lane.
+
 | Gate | Role | Description |
 |------|------|-------------|
 | A | **Plan** | Per-file change plan — scope, steps, risks. No code until approved. |
@@ -82,7 +88,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 
 ### Hooks
 
-Stop hooks and PreToolUse hooks run automatically before/after each Claude Code response.
+Hooks run automatically around each Claude Code response and tool call (Stop, PreToolUse, PostToolUse, UserPromptExpansion).
 
 | File | Type | Role |
 |------|------|------|
@@ -92,10 +98,13 @@ Stop hooks and PreToolUse hooks run automatically before/after each Claude Code 
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
 | `comprehension-ledger-stale-guard.py` | Stop | Detects expired comprehension-gate (Gate B) evidence ledger entries |
-| `session-dashboard-sync.py` | Stop | Auto-regenerates `session-dashboard.html` |
+| `session-dashboard-sync.py` | PostToolUse | Auto-regenerates `session-dashboard.html` after each Edit/Write |
 | `skill-usage-auto.py` | Stop | Auto-records skill usage history markers |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
+| `test-write-guard.py` | PreToolUse | During Gate D, asks before any edit to a test file — no passing by weakening tests |
+| `comprehension-pending-guard.py` | PreToolUse · UserPromptExpansion | Blocks `/gate-c`·`d`·`e` while a comprehension question still awaits an answer |
+| `lane-scope-guard.py` | PreToolUse · UserPromptExpansion | Autonomous-lane sessions only: asks before writing a protected path; at Gate E compares the real diff with the plan and stops the session on any breach (fail-closed) |
 
 > **Design note — the harness does not block edits before Gate A approval (2026-09-23).**
 > A `claude-gate-guard.py` used to sit on PreToolUse and refuse edits while a session
@@ -226,6 +235,14 @@ or
 refactor step. (Pre-2026-09-24 this README said simple work could take A→B→C→E; that path skipped
 the only gate that runs tests.)
 
+#### Autonomous lane (opt-in)
+
+1. Set `enabled: true` under `autonomous_lane:` in `.claude/harness-answers.yml` and **commit** it — the lane reads the setting
+   at the plan's base commit, so a session cannot switch itself on. `archive_path` must be set; the card ledger lives there.
+2. Run `/gate-a` as usual. If the plan's `### 레인 판정` says 자율, reply 「자율 레인 승인」. 「Gate A 승인」 keeps the review lane.
+3. Gate E shows a review card — acceptance commands re-run by script, diff counts, the scope check and flags. Reply 「카드 승인」
+   or 「지적: 심각|경미 — …」. `python3 hooks/lane_card.py pending` lists cards still waiting for a verdict.
+
 #### Direction check — /audit
 
 Every 3 sessions or at a chain transition:
@@ -298,6 +315,11 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이라고 하면 C → D → E 를 중간 정지 없이 이어 간다. 단 위험 세션
 (보안·마이그레이션·공개 API·비가역·저장소 간 작업)과 검증이 실패한 경우는 예외다 — `skills/gate-c/SKILL.md` §Batch runs.
 
+**두 레인 (기본은 꺼짐).** Gate A 는 계획마다 레인도 정한다. 보안, 스키마·저장 데이터, 의존성, 시험·CI, 공개 계약, 둘 이상의
+모듈에 닿거나 애매한 작업은 위의 검토 레인으로 간다. 수락 명령이 있고 트리거가 하나도 없는 작은 계획만 **자율 레인**으로 갈 수
+있다. 「자율 레인 승인」 뒤 C → D → E 를 멈추지 않고 진행하고, `lane-scope-guard.py` 가 실제 diff 를 계획과 대조하며, 사람은
+마지막에 검토 카드 한 장을 판정한다. 프로젝트마다 켜야 한다 — 아래 사용법과 `skills/gate-a/SKILL.md` §0-Lane.
+
 | Gate | 역할 | 설명 |
 |------|------|------|
 | A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음(절차 규칙이며 사전 차단 훅은 없다 — 위 설계 원칙 참고). |
@@ -346,7 +368,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 
 ### 훅 목록
 
-Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니다.
+훅은 Claude Code 응답과 도구 호출 전후에 자동 실행됩니다(Stop·PreToolUse·PostToolUse·UserPromptExpansion).
 
 | 파일 | 종류 | 역할 |
 |------|------|------|
@@ -356,10 +378,13 @@ Stop hook과 PreToolUse hook이 Claude Code 응답 전후에 자동 실행됩니
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
 | `comprehension-ledger-stale-guard.py` | Stop | 이해도 게이트(Gate B) 증적 원장 만료 감지 |
-| `session-dashboard-sync.py` | Stop | `session-dashboard.html` 자동 재생성 |
+| `session-dashboard-sync.py` | PostToolUse | Edit·Write 뒤 `session-dashboard.html` 자동 재생성 |
 | `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
+| `test-write-guard.py` | PreToolUse | Gate D 중 시험 파일 편집 전에 확인 — 시험을 약하게 고쳐 통과시키지 못하게 |
+| `comprehension-pending-guard.py` | PreToolUse · UserPromptExpansion | 이해도 질문이 답을 기다리는 동안 `/gate-c`·`d`·`e` 진입 차단 |
+| `lane-scope-guard.py` | PreToolUse · UserPromptExpansion | 자율 레인 세션에서만: 보호 경로 쓰기 전 확인, Gate E 진입 때 실제 diff 를 계획과 대조해 벗어나면 세션을 멈춤(확인할 수 없으면 막음) |
 
 > **설계 원칙 — 이 하네스는 Gate A 승인 전 편집을 기계로 막지 않는다 (2026-09-23).**
 > 예전에는 `claude-gate-guard.py` 가 PreToolUse 에서 Gate A 진행 중의 코드 편집을
@@ -488,6 +513,14 @@ Gate A 승인
 Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 — 선택적인 리팩터 단계가 아닙니다.
 (2026-09-24 이전 이 문서는 단순 작업에 A→B→C→E 를 안내했는데, 그 경로는 **시험을 돌리는 유일한
 게이트를 건너뜁니다.**)
+
+#### 자율 레인 (선택)
+
+1. `.claude/harness-answers.yml` 의 `autonomous_lane:` 아래 `enabled: true` 로 바꾸고 **커밋**한다 — 레인은 계획의 기준 커밋에
+   있는 설정을 읽으므로 세션이 스스로 켤 수 없다. 카드 원장이 `archive_path` 에 쌓이므로 그 값이 있어야 한다.
+2. 평소처럼 `/gate-a`. 계획의 `### 레인 판정` 이 자율이면 「자율 레인 승인」으로 답한다. 「Gate A 승인」은 검토 레인이다.
+3. Gate E 에서 검토 카드가 나온다 — 스크립트가 다시 돌린 수락 명령 결과, diff 수치, 범위 판정, 깃발. 「카드 승인」 또는
+   「지적: 심각|경미 — …」로 답한다. `python3 hooks/lane_card.py pending` 이 판정 없는 카드를 보여 준다.
 
 #### 방향성 점검 — /audit
 

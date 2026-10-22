@@ -43,6 +43,10 @@ PLAN = """# 현재 세션 상태
 ### 변경 파일 ({n}개)
 
 {files}
+
+## Gate D 검증
+
+- self-debug 0회 · FIX-B 0건 · DEP 0건
 """
 
 PLANNED = ["src/slug.py", "tests/test_slug.py"]
@@ -191,6 +195,31 @@ class TestGateE(LaneGuardCase):
         self.set_plan(PLANNED + ["src/schema.sql"])
         self.assertDenied(self.gate_e(), "migrations/001.sql")
 
+    def test_default_harness_doc_paths_are_exempt(self):
+        """설정에 경로 키가 없으면 훅은 기본 경로에 쓴다(skill-usage-auto 등) — 그것도 하네스 문서다(S8c 실사용에서 발견)."""
+        self.implement()
+        self.write("plans/process_evolution/skill_usage_2026-10.md", "# 사용 기록\n")
+        self.write("plans/learning/comprehension_ledger.md", "# 원장\n")
+        self.assertPassed(self.gate_e())
+
+    def test_gate_e_without_a_gate_d_record_is_denied_without_stopping(self):
+        """Gate D 를 건너뛰면 막되 세션은 멈추지 않는다 — /gate-d 를 돌리면 풀리는 절차 누락이다(S8c 실사용에서 발견)."""
+        self.implement()
+        with open(os.path.join(self.repo, "CURRENT_SESSION.md"), encoding="utf-8") as f:
+            doc = f.read().split("## Gate D 검증")[0]
+        self.write("CURRENT_SESSION.md", doc)
+        rc, out = self.gate_e()
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("/gate-d", out["hookSpecificOutput"]["permissionDecisionReason"])
+        self.assertNotIn("continue", out)
+
+    def test_gate_d_block_without_markers_is_not_a_record(self):
+        self.implement()
+        with open(os.path.join(self.repo, "CURRENT_SESSION.md"), encoding="utf-8") as f:
+            doc = f.read().replace("- self-debug 0회 · FIX-B 0건 · DEP 0건", "- 시험 통과")
+        self.write("CURRENT_SESSION.md", doc)
+        self.assertIn("/gate-d", self.gate_e()[1]["hookSpecificOutput"]["permissionDecisionReason"])
+
     def test_too_many_files(self):
         files = [f"src/m{i}.py" for i in range(6)]
         for p in files:
@@ -245,6 +274,31 @@ class TestFailClosed(LaneGuardCase):
         shutil.rmtree(os.path.join(self.repo, ".git"))
         os.makedirs(os.path.join(self.repo, ".git"))     # 대화 기록 자리만 남긴다
         self.assertDenied(self.gate_e(), "확인 불가")
+
+
+class TestLaneSettings(unittest.TestCase):
+    """설정 읽기 — 틀린 YAML 은 아니지만 읽지 못하던 두 경우(S8c, 2026-10-22)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("lane_guard_mod", SCRIPT)
+        cls.guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.guard)
+
+    def test_comment_after_the_block_key(self):
+        """`autonomous_lane:  # 설명` 은 정상 YAML — 읽지 못하면 레인이 꺼진 것으로 보인다."""
+        cfg = self.guard.lane_settings("autonomous_lane:   # gate-a §0-Lane\n  enabled: true\n")
+        self.assertTrue(cfg["enabled"])
+
+    def test_max_lines_is_read(self):
+        cfg = self.guard.lane_settings("autonomous_lane:\n  enabled: true\n  max_lines: 120\n")
+        self.assertEqual(cfg["max_lines"], 120)
+
+    def test_defaults_when_block_is_absent(self):
+        cfg = self.guard.lane_settings("project: t\n")
+        self.assertEqual((cfg["enabled"], cfg["max_files"], cfg["max_lines"], cfg["hard_max_lines"]),
+                         (False, 5, 200, 400))
 
 
 class TestInactive(LaneGuardCase):

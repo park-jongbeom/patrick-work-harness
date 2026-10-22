@@ -218,7 +218,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
 
 #### 0-Lane. Lane decision (review · autonomous)
 
-> **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) the project's hooks wire `lane-scope-guard`. Otherwise every plan takes the review lane (A→B→C→D→E).
+> **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) `lane-scope-guard` is wired — `grep -l lane-scope-guard` finds it in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` (plugin), `~/.claude/settings.json` (`install.sh`) or `.claude/settings.json`. Otherwise every plan takes the review lane (A→B→C→D→E).
 
 A plan goes to the **autonomous lane** only when **no row below applies**. **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」. The user may always move a plan up to review; a plan with a trigger is never moved down to autonomous.
 
