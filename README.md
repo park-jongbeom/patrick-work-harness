@@ -243,6 +243,16 @@ the only gate that runs tests.)
 3. Gate E shows a review card — acceptance commands re-run by script, diff counts, the scope check and flags. Reply 「카드 승인」
    or 「지적: 심각|경미 — …」. `python3 hooks/lane_card.py pending` lists cards still waiting for a verdict.
 
+#### Measuring how the harness is used
+
+`python3 hooks/harness_report.py` reads Claude Code's conversation transcripts (`~/.claude/projects`) and writes a
+report: per session, which harness copy ran (plugin, `install.sh`, or a source copy), the models used, the Gate order,
+and per guard how often it fired, asked, denied, blocked or warned — including whether you allowed or denied each
+confirmation prompt — plus warnings repeated within one session. Run from this repository it also shows how far each
+pending prediction in `DECISION_LOG.md` has come. It only reads; the output contains project names and conversation
+snippets, so it is written outside any repository (`~/.claude/harness-reports/<date>/`). Transcripts are deleted after
+30 days unless `cleanupPeriodDays` is raised (see `/init` Step 6-b).
+
 #### Direction check — /audit
 
 Every 3 sessions or at a chain transition:
@@ -521,6 +531,15 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 2. 평소처럼 `/gate-a`. 계획의 `### 레인 판정` 이 자율이면 「자율 레인 승인」으로 답한다. 「Gate A 승인」은 검토 레인이다.
 3. Gate E 에서 검토 카드가 나온다 — 스크립트가 다시 돌린 수락 명령 결과, diff 수치, 범위 판정, 깃발. 「카드 승인」 또는
    「지적: 심각|경미 — …」로 답한다. `python3 hooks/lane_card.py pending` 이 판정 없는 카드를 보여 준다.
+
+#### 하네스 사용 측정
+
+`python3 hooks/harness_report.py` 는 Claude Code 대화 기록(`~/.claude/projects`)을 읽어 보고서를 만든다. 세션마다 어느
+하네스 사본이 돌았는지(플러그인·`install.sh`·원본 사본), 쓰인 모델, Gate 순서, 가드별 발동·묻기·거부·차단·알림 수와
+확인 창에 사용자가 허용했는지 거부했는지, 한 세션 안에서 반복된 경고를 센다. 이 저장소에서 돌리면 `DECISION_LOG.md` 의
+대기 예측이 확인 시점까지 얼마나 왔는지도 보여 준다. 읽기만 하고, 결과에 프로젝트 이름과 대화 조각이 들어가므로 저장소
+밖(`~/.claude/harness-reports/<날짜>/`)에 쓴다. 대화 기록은 `cleanupPeriodDays` 를 늘리지 않으면 30일 뒤 지워진다
+(`/init` 6-b 단계).
 
 #### 방향성 점검 — /audit
 
