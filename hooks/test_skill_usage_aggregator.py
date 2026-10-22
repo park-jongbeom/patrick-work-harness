@@ -216,5 +216,51 @@ class TestPortability(unittest.TestCase):
         self.assertEqual(sua.KST.utcoffset(None), timedelta(hours=9))
 
 
+# ── 현행 A→E 체계의 이상 판정 (S3b, 2026-10-22) ───────────────────────────────
+# 옛 판정은 B=구현·C=검증 체계라 「b→e = 검증 누락」, 「gate-d 부재 = 정상」이었다.
+# 현행은 A 계획 → B 이해도 → C 구현 → D 검증 → E 기록이고, D 는 생략할 수 없다.
+from collections import Counter  # noqa: E402
+
+
+def _anomalies(*seqs):
+    return sua.detect_anomalies(Counter({s: 1 for s in seqs}))
+
+
+class TestAnomalyRules(unittest.TestCase):
+
+    def test_full_flow_and_repeated_tracks_are_normal(self):
+        a = _anomalies("gate-a→gate-b→gate-c→gate-d→gate-e",
+                       "gate-a→gate-b→gate-c→gate-d→gate-e→gate-a→gate-b→gate-c→gate-d→gate-e")
+        self.assertEqual(sum(v["sessions"] for v in a.values()), 0, a)
+
+    def test_implement_then_record_without_verify_is_verify_skipped(self):
+        a = _anomalies("gate-a→gate-b→gate-c→gate-e")
+        self.assertEqual(a["verify_skipped"]["sessions"], 1, a)
+        self.assertEqual(a["gate_skipped"]["sessions"], 0, a)
+
+    def test_implement_without_comprehension_is_reported(self):
+        a = _anomalies("gate-a→gate-c→gate-d→gate-e")
+        self.assertEqual(a["comprehension_skipped"]["sessions"], 1, a)
+        self.assertEqual(a["verify_skipped"]["sessions"], 0, a)
+
+    def test_record_right_after_plan_or_comprehension_is_gate_skipped(self):
+        for seq in ("gate-a→gate-e", "gate-a→gate-b→gate-e"):
+            a = _anomalies(seq)
+            self.assertEqual(a["gate_skipped"]["sessions"], 1, seq)
+            self.assertEqual(a["verify_skipped"]["sessions"], 0, seq)
+
+    def test_plan_only_unchanged(self):
+        self.assertEqual(_anomalies("gate-a")["plan_only"]["sessions"], 1)
+
+    def test_recommendations_name_the_current_flow(self):
+        recs = sua.build_recommendations({"anomalies": _anomalies(
+            "gate-a→gate-b→gate-c→gate-e", "gate-a→gate-c→gate-d→gate-e"),
+            "total_by_skill": {s: 1 for s in sua.NINE_SKILLS}, "hour_counter": {}})
+        text = "\n".join(recs)
+        self.assertIn("gate-c→gate-e", text)
+        self.assertIn("gate-a→gate-c", text)
+        self.assertNotIn("gate-b→gate-e`) — Gate C", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

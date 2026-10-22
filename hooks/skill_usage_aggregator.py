@@ -182,28 +182,33 @@ TOP_ANOMALY_EXAMPLES = 5
 def detect_anomalies(session_sequences: Counter) -> dict:
     """세션 Gate 시퀀스를 **인접 신호 기반**으로 분류해 이상 패턴을 집계한다.
 
-    정본 흐름은 `gate-a→gate-b→gate-c→gate-e`(단순) / `…→gate-d→gate-e`(복잡).
-    인접쌍 검사라 다트랙 반복(`a→b→c→e→a→b→c→e`)에 robust하다.
+    정본 흐름은 `gate-a→gate-b→gate-c→gate-d→gate-e` — A 계획, B 이해도, C 구현, D 검증, E 기록.
+    D 는 생략할 수 없다(2026-10-22 결정). 인접쌍 검사라 다트랙 반복에 robust하다.
+    (S3b, 2026-10-22: 이전 판정은 B=구현·C=검증 체계라 진짜 검증 누락 c→e 를 정상으로 봤다.)
 
-    이상 3종:
-      - 검증 누락: `gate-b` 직후 `gate-c` 없이 `gate-e` (b→e) — Gate C 스킵 의심
-      - 게이트 스킵: `gate-a` 직후 `gate-e` (a→e) — 구현·검증 동시 스킵
+    이상 4종:
+      - 검증 누락: `gate-c` 직후 `gate-e` (c→e) — 구현 뒤 Gate D 없이 기록
+      - 이해도 생략: `gate-a` 직후 `gate-c` (a→c) — Gate B 없이 구현
+      - 게이트 건너뜀: `gate-a`·`gate-b` 직후 `gate-e` (a→e, b→e) — 구현·검증 없이 기록
       - 계획 후 미진행: 시퀀스가 `gate-a` 단독 — 계획 적체
-    정상으로 제외: gate-d 부재 · `b→c→e`(이전 세션 계획) · `a→audit` 등.
+    정상으로 제외: 정본 흐름의 반복, `a→audit` 등 Gate 밖 스킬.
     """
     anomalies = {
-        "verify_skipped": {"sessions": 0, "examples": []},  # b→e
-        "gate_skipped": {"sessions": 0, "examples": []},    # a→e
-        "plan_only": {"sessions": 0, "examples": []},       # 단독 a
+        "verify_skipped": {"sessions": 0, "examples": []},         # c→e
+        "comprehension_skipped": {"sessions": 0, "examples": []},  # a→c
+        "gate_skipped": {"sessions": 0, "examples": []},           # a→e, b→e
+        "plan_only": {"sessions": 0, "examples": []},              # 단독 a
     }
     for seq_str, count in session_sequences.items():
         seq = seq_str.split("→")
         pairs = list(zip(seq, seq[1:]))
         if seq == ["gate-a"]:
             _bump(anomalies["plan_only"], seq_str, count)
-        if ("gate-b", "gate-e") in pairs:
+        if ("gate-c", "gate-e") in pairs:
             _bump(anomalies["verify_skipped"], seq_str, count)
-        if ("gate-a", "gate-e") in pairs:
+        if ("gate-a", "gate-c") in pairs:
+            _bump(anomalies["comprehension_skipped"], seq_str, count)
+        if ("gate-a", "gate-e") in pairs or ("gate-b", "gate-e") in pairs:
             _bump(anomalies["gate_skipped"], seq_str, count)
     return anomalies
 
@@ -220,12 +225,15 @@ def build_recommendations(result: dict) -> list:
     recs: list = []
     anomalies = result.get("anomalies", {})
     vs = anomalies.get("verify_skipped", {}).get("sessions", 0)
+    cs = anomalies.get("comprehension_skipped", {}).get("sessions", 0)
     gs = anomalies.get("gate_skipped", {}).get("sessions", 0)
     po = anomalies.get("plan_only", {}).get("sessions", 0)
     if vs:
-        recs.append(f"검증 누락 {vs}세션 (`gate-b→gate-e`) — Gate C 스킵 점검 권장")
+        recs.append(f"검증 누락 {vs}세션 (`gate-c→gate-e`) — Gate D 없이 기록, 점검 권장")
+    if cs:
+        recs.append(f"이해도 생략 {cs}세션 (`gate-a→gate-c`) — Gate B 없이 구현, 위험 세션인지 확인")
     if gs:
-        recs.append(f"게이트 스킵 {gs}세션 (`gate-a→gate-e`) — 비표준 흐름 검토")
+        recs.append(f"게이트 건너뜀 {gs}세션 (`gate-a`·`gate-b`→`gate-e`) — 구현·검증 없이 기록")
     if po:
         recs.append(f"계획 후 미진행 {po}세션 (`gate-a` 단독) — 계획 적체 점검")
     zero_total = [s for s in NINE_SKILLS if result["total_by_skill"].get(s, 0) == 0]
@@ -406,8 +414,9 @@ def format_dashboard(result: dict, month: str, window_start: datetime, window_en
     lines.append("")
     anomalies = result["anomalies"]
     anomaly_specs = [
-        ("verify_skipped", "검증 누락 (`gate-b→gate-e` — Gate C 스킵 의심)"),
-        ("gate_skipped", "게이트 스킵 (`gate-a→gate-e` — 구현·검증 동시 스킵)"),
+        ("verify_skipped", "검증 누락 (`gate-c→gate-e` — Gate D 없이 기록)"),
+        ("comprehension_skipped", "이해도 생략 (`gate-a→gate-c` — Gate B 없이 구현)"),
+        ("gate_skipped", "게이트 건너뜀 (`gate-a`·`gate-b`→`gate-e` — 구현·검증 없이 기록)"),
         ("plan_only", "계획 후 미진행 (`gate-a` 단독 — 계획 적체)"),
     ]
     any_anomaly = any(anomalies[k]["sessions"] for k, _ in anomaly_specs)
