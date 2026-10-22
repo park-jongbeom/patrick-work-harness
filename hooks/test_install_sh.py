@@ -66,8 +66,9 @@ class TestInstallFromLocalSource(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         texts = self.skill_texts()
         self.assertTrue(texts, "스킬이 설치되지 않음")
-        left = [p for p, t in texts.items() if "${CLAUDE_PLUGIN_ROOT}" in t]
-        self.assertEqual(left, [], "설치된 스킬에 빈 문자열이 될 변수가 남음")
+        # 경로로 쓰인 것(`${CLAUDE_PLUGIN_ROOT}/…`)만 본다. 「설정에 이 변수를 쓰지 말라」처럼 이름으로 부르는 문장은 그대로 남아야 맞다.
+        left = [p for p, t in texts.items() if "${CLAUDE_PLUGIN_ROOT}/" in t]
+        self.assertEqual(left, [], "설치된 스킬에 빈 문자열이 될 경로가 남음")
         referenced = set()
         for t in texts.values():
             referenced.update(re.findall(re.escape(self.hooks_dir) + r"/([\w.-]+)", t))

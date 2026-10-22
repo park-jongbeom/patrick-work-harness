@@ -31,6 +31,9 @@
      표에 훅 3개가 빠져 있었고 dashboard-sync 를 Stop 이라 적었다. S5a 는 스킬 문구만 고쳐 README 를 놓쳤다).
  18. 스킬이 `${CLAUDE_PLUGIN_ROOT}/hooks/<파일>`·`${CLAUDE_PLUGIN_ROOT}/plugin.json` 으로 부르는 파일이 실제로 있다 (A1, 2026-10-22 —
      install.sh 가 이 경로를 훅 설치 폴더로 바꿔 쓰므로, 이름이 바뀌면 플러그인·install.sh 설치가 함께 깨진다).
+ 19. 스킬이 보여 주는 settings.json 훅 예시(`"command": …`)에 `${CLAUDE_PLUGIN_ROOT}` 를 쓰지 않는다 (A2, 2026-10-22 — Claude Code 는
+     settings.json 의 훅에서 이 변수를 거부한다: 「only available in hooks defined in a plugin's hooks/hooks.json file」. `/init` 이
+     그렇게 배선한 훅은 한 번도 돌지 않고 응답마다 훅 오류만 남겼다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -250,6 +253,11 @@ class EngineLint(unittest.TestCase):
                     if not (ROOT / rel).is_file():
                         missing.append(f"{skill_md.relative_to(ROOT)}:{i}: {rel}")
         self.assertEqual(missing, [], "스킬이 부르는 하네스 파일이 없음:\n" + "\n".join(missing))
+
+    def test_no_plugin_root_in_settings_snippets(self):
+        # 값 안의 이스케이프된 따옴표(\\")를 건너뛴다 — 예시가 `python3 \\"${…}/hooks/x.py\\"` 꼴이다
+        found = hits(r'"command":\s*"(?:[^"\\\n]|\\.)*\$\{CLAUDE_PLUGIN_ROOT\}', files=list((ROOT / "skills").rglob("*.md")))
+        self.assertEqual(found, [], "settings.json 훅 예시에 ${CLAUDE_PLUGIN_ROOT} — Claude Code 가 실행을 거부한다:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

@@ -186,7 +186,7 @@ To add HARNESS zones to an existing project:
 /init
 ```
 
-Creates `CLAUDE.md` sentinel zones · `SESSION_INDEX.md` · `CURRENT_SESSION.md` stubs · wires 3 Stop hooks in one go.
+Creates `CLAUDE.md` sentinel zones · `SESSION_INDEX.md` · `CURRENT_SESSION.md` stubs in one go. Hooks come from the plugin or `install.sh`; `/init` wires them into the project only for a hand-copied source install.
 
 #### Method 3 — Manual install
 
@@ -482,7 +482,7 @@ your-project/
 /init
 ```
 
-`CLAUDE.md` sentinel 2구역·`SESSION_INDEX.md`·`CURRENT_SESSION.md` stub·Stop hook 3종 배선을 일괄 생성합니다.
+`CLAUDE.md` sentinel 2구역·`SESSION_INDEX.md`·`CURRENT_SESSION.md` stub 을 일괄 생성합니다. 훅은 플러그인이나 `install.sh` 가 걸고, `/init` 은 손으로 복사한 원본 설치에서만 프로젝트에 훅을 겁니다.
 
 #### 방법 3 — 수동 설치
 

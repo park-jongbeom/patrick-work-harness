@@ -137,7 +137,7 @@
 
 ### [2026-10-22] 레인 가드는 플러그인과 install.sh 에만 배선하고, /init 은 설정 칸만 다룬다
 - **결정**: 배선 → `hooks/hooks.json`·`install.sh`(PreToolUse Skill·Edit 계열, UserPromptExpansion). `/init` 은 `autonomous_lane:` 블록(기본 false)만 쓰고 가드는 배선하지 않는다 — 적용 계획의 「/init 6단계 배선」을 바꿨다(사용자 승인 「S8b 승인」). `/harness-update` 축 G 는 블록을 꺼진 채로 추가한다. `install.sh` 의 중복 판정을 matcher 까지 보게 고쳤다.
-- **근거**: 플러그인·install.sh 배선은 그 사용자의 모든 프로젝트에 걸린다. 프로젝트 설정에서 `${CLAUDE_PLUGIN_ROOT}` 가 펼쳐지는지는 확인하지 못했는데, PreToolUse 훅의 스크립트 경로가 틀리면 exit 2 가 차단이라 모든 편집이 막힐 수 있다(install.sh 주석, 2026-10-15). 확인 안 된 경로로 PreToolUse 를 걸지 않는다. **발견 사항(이번 범위 밖)**: `/init` 6단계는 플러그인 경로로 Stop 가드 3개를 프로젝트 설정에 배선하라고 하는데, 플러그인 설치에서는 같은 가드가 `hooks.json` 으로도 걸려 두 번 돈다 — 따로 확인·결정한다. **이월**: 설정 읽기의 줄 끝 주석·`max_lines` 결함은 S8c 에서 고친다(이번에 고치면 9파일).
+- **근거**: 플러그인·install.sh 배선은 그 사용자의 모든 프로젝트에 걸린다. 프로젝트 설정에서 `${CLAUDE_PLUGIN_ROOT}` 가 펼쳐지는지는 확인하지 못했는데, PreToolUse 훅의 스크립트 경로가 틀리면 exit 2 가 차단이라 모든 편집이 막힐 수 있다(install.sh 주석, 2026-10-15). 확인 안 된 경로로 PreToolUse 를 걸지 않는다. **발견 사항(이번 범위 밖)**: `/init` 6단계는 플러그인 경로로 Stop 가드 3개를 프로젝트 설정에 배선하라고 하는데, 플러그인 설치에서는 같은 가드가 `hooks.json` 으로도 걸려 두 번 돈다 — 따로 확인·결정한다. *(2026-10-22 정정: 실제로는 두 번 도는 것이 아니라 프로젝트 설정 쪽이 한 번도 돌지 않았다 — Claude Code 가 settings.json 훅의 `${CLAUDE_PLUGIN_ROOT}` 를 거부하고 응답마다 실패한 훅으로 남긴다. 아래 A2 항목.)* **이월**: 설정 읽기의 줄 끝 주석·`max_lines` 결함은 S8c 에서 고친다(이번에 고치면 9파일).
 - **예측**: ① 다음 릴리스 뒤 자율 레인을 켜지 않은 프로젝트에서 이 가드가 무언가를 내는 일은 0건(승인 문구가 없으면 동작 안 함). ② 가드 실행 시간은 대화 기록 크기에 비례하며, 16.8MB 기록에서 Edit·Skill 호출당 약 150ms(중앙값)다. *(2026-10-22 정정: 처음 기록은 「보통 대화에서 0.1초 아래」였으나 같은 세션의 실측(약 150ms)과 맞지 않았다 — 기록 점검에서 발견.)*
 - **확인 시점**: v1.11.0 릴리스 뒤 첫 실사용 주간
 - **결과**:
@@ -201,4 +201,11 @@
 - **발견(범위 밖)**: `install.sh` 는 rsync 를 쓰는데 Git Bash(Windows)와 최소 컨테이너에는 rsync 가 없다 — 그 환경에서는 설치 자체가 실패할 수 있다. 시험은 rsync 가 없으면 이유를 밝히고 건너뛴다.
 - **예측**: R0 뒤 `install.sh` 로 설치한 프로젝트의 사용 보고서에서 Gate E 카드·원장 명령의 「파일 없음」 오류가 0건이다.
 - **확인 시점**: R0 뒤 첫 월간 사용 보고서, 또는 다음 `install.sh` 설치
+- **결과**:
+
+### [2026-10-22] /init 은 훅을 확인만 하고, 손으로 복사한 원본 설치에서만 프로젝트에 건다
+- **결정**: 수정 → `/init` 6단계·`/harness-update` 축 B(확인 명령 `ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py"` — 있으면 건너뜀, 없으면 원본 사본의 절대 경로로 배선. `/harness-update` 는 예전 `/init` 이 넣은 `${CLAUDE_PLUGIN_ROOT}` 항목을 승인 받아 지운다), 엔진 린트 19(스킬의 settings.json 예시에 `${CLAUDE_PLUGIN_ROOT}` 금지), README 두 줄. 설치 시험의 「남은 변수」 판정을 「경로로 쓰인 것」으로 좁힘 — 「설정에 이 변수를 쓰지 말라」는 문장은 그대로 남아야 맞다.
+- **근거**: Claude Code 2.1.307 실측 — 플러그인을 올린 프로젝트에 `/init` 식으로 `${CLAUDE_PLUGIN_ROOT}` Stop 훅을 넣자 「Hook command references ${CLAUDE_PLUGIN_ROOT} but the hook is not associated with a plugin」로 실행을 거부하고 응답마다 실패한 훅으로 남겼다. 플러그인 자신의 Stop 훅 7개는 정상으로 돌았다. 그러니 `/init` 배선은 플러그인 설치에서 한 번도 돈 적이 없고, A1 뒤 `install.sh` 설치에서는 전역 등록과 겹친다. 확인 명령은 플러그인(로드 때 치환)·install.sh(설치 때 치환)·원본 사본(빈 변수) 세 경우 모두 기대대로 갈렸다.
+- **예측**: R0 뒤 사용 보고서에서 「not associated with a plugin」 훅 오류가 0건이고, 같은 하네스 훅이 한 응답에 두 번 도는 경우가 0건이다.
+- **확인 시점**: R0 뒤 첫 월간 사용 보고서
 - **결과**:

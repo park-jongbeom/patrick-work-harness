@@ -262,11 +262,21 @@ priority_note: ""
 
 **Stub creation must be verified (do not silently skip)**: after writing each stub, confirm the file exists (`[ -f <repo>/${SESSION_INDEX_FILE} ]` / `[ -f <repo>/${CURRENT_SESSION_FILE} ]`). If either is absent, the Write step failed — retry it before proceeding. (Recurrence guard: a prior `/init` left a repo with `harness-answers.yml` present but both session stubs missing — `session_docs: true` was set yet Step 5 did not produce the files.)
 
-### Step 6 — Wire Stop hooks into `.claude/settings.json`
+### Step 6 — Hook wiring: check first, wire only a source copy
 
-Without this step, the session-dashboard·error-topics·gate-e guards never fire in the target repo (a prior `/init` produced `CLAUDE.md` + stubs but **no hook wiring** → `session-dashboard.html` was never generated).
+The guards are usually wired already. Check before adding anything to the project's `.claude/settings.json`:
 
-Add a `Stop` hook array to the target repo's `.claude/settings.json` (create the file if absent; merge into the existing `hooks` object if present — do not clobber other hook events). Wire these 3 guards:
+```bash
+ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py"
+```
+
+- **The file exists → skip this step.** The harness came from the plugin (its `hooks/hooks.json` wires every guard) or from
+  `install.sh` (which registered them in `~/.claude/settings.json`). Adding them to the project settings again either never runs —
+  Claude Code refuses `${CLAUDE_PLUGIN_ROOT}` in `settings.json` ("only available in hooks defined in a plugin's hooks/hooks.json
+  file"; verified on 2.1.307, the hook is logged as a failed hook at every response) — or runs every guard twice.
+- **The file is missing → a source copy** (skills copied by hand, neither plugin nor `install.sh`). Wire the 3 guards into the
+  target repo's `.claude/settings.json` with the **absolute path** of that copy's `hooks/` folder (create the file if absent; merge
+  into an existing `hooks` object — do not clobber other events):
 
 ```json
 {
@@ -274,9 +284,9 @@ Add a `Stop` hook array to the target repo's `.claude/settings.json` (create the
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py\"", "timeout": 10 },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-e-sync-guard.py\"", "timeout": 10 },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/error-topics-guard.py\"", "timeout": 10 }
+          { "type": "command", "command": "python3 \"<absolute hooks folder>/session-dashboard-sync.py\"", "timeout": 10 },
+          { "type": "command", "command": "python3 \"<absolute hooks folder>/gate-e-sync-guard.py\"", "timeout": 10 },
+          { "type": "command", "command": "python3 \"<absolute hooks folder>/error-topics-guard.py\"", "timeout": 10 }
         ]
       }
     ]
@@ -284,8 +294,9 @@ Add a `Stop` hook array to the target repo's `.claude/settings.json` (create the
 }
 ```
 
-> **Path resolution**: prefer `${CLAUDE_PLUGIN_ROOT}/hooks/` (plugin-install topology). All 3 guards resolve their target repo via `CLAUDE_PROJECT_DIR` (3-tier fallback: custom env → `CLAUDE_PROJECT_DIR` → absolute), so wiring them here makes them operate on **this** repo, not the source repo. If the harness is used source-relative (not plugin-installed), substitute the source `plans/hooks/` absolute path instead.
-> **dashboard-sync first**: keep `session-dashboard-sync.py` as the **first** Stop entry (HARNESS-STALE-GUARD-3 ordering — it is fail-open and regenerates the HTML before the consistency guards run).
+> **Never write `${CLAUDE_PLUGIN_ROOT}` into a settings file** — the engine lint (rule 19) rejects it in skill examples.
+> All 3 guards resolve their target repo via `CLAUDE_PROJECT_DIR`, so they operate on **this** repo. Keep `session-dashboard-sync.py`
+> as the **first** Stop entry (HARNESS-STALE-GUARD-3 ordering — it is fail-open and regenerates the HTML before the guards run).
 
 #### 6-b. Recommend two user settings (print them — do not write them)
 
@@ -631,7 +642,7 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - [ ] C3: `CLAUDE.md` contains `<!-- HARNESS:START -->` and `<!-- HARNESS:END -->` and `<!-- PROJECT-OWNED below -->`
 - [ ] C4: `archive_path` / `worklog_path` appear only in `harness-answers.yml`, not duplicated as hardcoded prose in `CLAUDE.md`
 - [ ] C5: `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` stubs exist (if `session_docs: true`)
-- [ ] C6: `.claude/settings.json` has a `Stop` hook array wiring all 3 guards (`session-dashboard-sync.py` first, `gate-e-sync-guard.py`, `error-topics-guard.py`; the last is optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path`)
+- [ ] C6: hooks are wired exactly once — plugin or `install.sh` install: the project's `.claude/settings.json` has no harness entries (Step 6 skipped); source copy: the 3 Stop guards with absolute paths, `session-dashboard-sync.py` first. No settings file contains `${CLAUDE_PLUGIN_ROOT}`
 - [ ] C7: `session-dashboard.html` exists at the repo root (generated by Step 7)
 - [ ] C8: `--docs=full` run → PROJECT_MAP.md · ARCHITECTURE.md · DATA_FLOW.md · DOC_INDEX.md all present at repo root
 - [ ] C9: Brownfield conflict → `_harness` suffix file written, original file untouched
@@ -655,4 +666,4 @@ Update DOC_INDEX.md Layer 2 row `Status` as each section is filled:
 - `/harness-update` reads `_engine_version` from `harness-answers.yml` and reconciles the HARNESS zone in `CLAUDE.md` (Axis A) when the engine version bumps.
 - Re-running `/init` on an existing repo: warn the user if `CLAUDE.md` already has a HARNESS zone to avoid overwriting customizations in that zone.
 - `archive_path` and `worklog_path` in `harness-answers.yml` replace the hardcoded prose values that previously lived in `CLAUDE.md §Archive Canonical Paths` — this resolves the SSOT-in-prose violation.
-- Step 6/7 (hook wiring + dashboard generation) close the gap where `/init` previously produced docs but no live dashboard/guards. All 3 wired guards resolve their target repo via `CLAUDE_PROJECT_DIR` (3-tier fallback), so the same hook scripts serve any repo without per-repo path edits.
+- Step 6/7 (hook wiring check + dashboard generation): plugin and `install.sh` installs already wire the guards, so Step 6 only wires a source copy, with absolute paths. Before 2026-10-22 it wired `${CLAUDE_PLUGIN_ROOT}` paths into the project settings, which Claude Code never runs.

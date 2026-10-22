@@ -95,7 +95,7 @@ Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ 
 | # | Axis | Check | Needs update condition |
 |---|------|-------|------------------------|
 | A | **HARNESS zone** | `CLAUDE.md` contains `<!-- HARNESS:START v{latest} -->` | Version tag differs from `latest` |
-| B | **Stop hook 3종** | `.claude/settings.json` Stop array contains all 3: `session-dashboard-sync.py`, `gate-e-sync-guard.py`, `error-topics-guard.py`. `error-topics-guard.py` is optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path` (the hook has nothing to check) — then only the other 2 are required | Any required hook is absent |
+| B | **Hook wiring** | Plugin or `install.sh` install (`${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py` exists): the project's `.claude/settings.json` has no entry containing `${CLAUDE_PLUGIN_ROOT}`. Source copy: the Stop array has `session-dashboard-sync.py` (first), `gate-e-sync-guard.py`, `error-topics-guard.py` with absolute paths (`error-topics-guard.py` optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path`) | A `${CLAUDE_PLUGIN_ROOT}` entry exists in the project settings, or a source copy is missing a required guard |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
@@ -138,35 +138,19 @@ Reconcile the HARNESS zone:
 
 If sentinels are absent: output "⚠️ HARNESS sentinel 없음 — `/init`을 먼저 실행하세요." and skip this axis.
 
-### Axis B — Wire Stop hooks
+### Axis B — Hook wiring (check, then fix)
 
-Read `.claude/settings.json` (create `{"hooks":{}}` if absent).
+Same check as `/init` Step 6: `ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py"`.
 
-Check which of the 3 guards are missing from the Stop array:
-- `session-dashboard-sync.py`
-- `gate-e-sync-guard.py`
-- `error-topics-guard.py`
+- **The file exists (plugin or `install.sh` install).** The guards are already wired outside the project. In the project's
+  `.claude/settings.json`, **remove** every hook entry whose command contains `${CLAUDE_PLUGIN_ROOT}` — an earlier `/init` added them,
+  and Claude Code refuses that variable in `settings.json`, so they never ran and logged a failed hook at every response. List the
+  entries you will remove in the Step 4 approval. Leave every other entry untouched.
+- **The file is missing (a source copy).** Make sure the 3 Stop guards are wired with the **absolute path** of that copy's
+  `hooks/` folder (`/init` Step 6 JSON shape), `session-dashboard-sync.py` first; prepend only the missing ones and keep existing
+  entries.
 
-**Prepend** the missing guards to the existing Stop array (preserve all existing entries).
-`session-dashboard-sync.py` must always be the **first** Stop entry (HARNESS-STALE-GUARD-3 ordering).
-
-Use `${CLAUDE_PLUGIN_ROOT}/hooks/` paths. All 3 guards resolve their target repo via `CLAUDE_PROJECT_DIR` (3-tier fallback) — no per-repo path edits needed.
-
-Result JSON shape:
-```json
-{
-  "hooks": {
-    "Stop": [{
-      "hooks": [
-        { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py\"", "timeout": 10 },
-        { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-e-sync-guard.py\"", "timeout": 10 },
-        { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/error-topics-guard.py\"", "timeout": 10 }
-        /* existing entries preserved after this point */
-      ]
-    }]
-  }
-}
-```
+Never write `${CLAUDE_PLUGIN_ROOT}` into a settings file.
 
 ### Axis C — Generate session-dashboard.html
 
@@ -242,7 +226,7 @@ All other fields remain unchanged.
 
 - [ ] C1: `harness-answers.yml` → `_engine_version` equals latest engine version
 - [ ] C2: `CLAUDE.md` HARNESS zone version tag matches latest: `<!-- HARNESS:START v{latest} -->`
-- [ ] C3: `.claude/settings.json` Stop array contains all 3 guards with `session-dashboard-sync.py` first
+- [ ] C3: no settings file contains `${CLAUDE_PLUGIN_ROOT}`; a source copy has the 3 Stop guards with absolute paths, `session-dashboard-sync.py` first
 - [ ] C4: `session-dashboard.html` exists at repo root
 - [ ] C5: Already-up-to-date repo exits cleanly at Step 1 with "✅ 이미 최신 버전"
 - [ ] C6: `--check` mode produces no file writes (read-only confirmed by grep)
