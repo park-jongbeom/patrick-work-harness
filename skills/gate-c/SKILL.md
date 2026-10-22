@@ -45,7 +45,7 @@ If `API_SPEC.md` exists **and this session changed an endpoint contract**:
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` dashboard + Gate C block
-   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
+   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 4. STOP — await user document review·confirmation (unless a batch run was authorized — see §Batch runs)
 

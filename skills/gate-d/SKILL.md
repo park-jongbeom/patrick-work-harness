@@ -134,7 +134,7 @@ If none of the above files exist: skip silently.
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` — record the full test plan + execution result + FIX-B·DEP items
-   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
+   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 7. STOP — await user document review·confirmation. **Batch exception** (`gate-c/SKILL.md` §Batch runs): if the user authorized 「C~E 일괄」 or 「D~E 일괄」, the session is not high-risk, and this Gate ended with every test and build passing and no FIX-B/DEP item, continue to `/gate-e` instead of stopping. Any failure → STOP and report; never run Gate E on a failing verification
 
@@ -182,21 +182,12 @@ Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Ad
 
 ## This Gate response's mandatory final output
 
-After completing the entire Gate D procedure (test plan + execution + result classification + plan document(s) update), output **whichever applies** of the blocks below at the **very end** of the response.
-Omitting it or replacing it with other content is a **PROC violation**.
+After completing the entire Gate D procedure (test plan + execution + result classification + plan document(s) update), output the block below at the **very end** of the response — the same block whether or not a refactor was performed.
+Omitting it or replacing it with other content is a **PROC violation**. Exception: in an authorized C~E·D~E batch run that passed Gate D, continue to `/gate-e` instead of printing it.
 
-**When refactor was performed:**
 ```
 ---
 **다음 단계**: Gate D 확인 후 「Gate E 진행」또는 「세션 정리」로 응답하면 `/gate-e` (Gate E WORKLOG·아카이브)가 시작됩니다.
 **권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
-💡 **캐시 TTL 참고**: Gate D 결과를 검토할 때, 5분 이내에 응답하면 프롬프트 캐시가 유지되어 토큰 비용이 절감됩니다.
-```
-
-**When refactor was not needed:**
-```
----
-**다음 단계**: Gate D 확인 후 「Gate E 진행」또는 「세션 정리」로 응답하면 `/gate-e` (Gate E WORKLOG·아카이브)가 시작됩니다.
-**권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
-💡 **캐시 TTL 참고**: Gate D 결과를 검토할 때, 5분 이내에 응답하면 프롬프트 캐시가 유지되어 토큰 비용이 절감됩니다.
+💡 **캐시 참고**: 프롬프트 캐시 유지 시간은 구독 로그인 기본 1시간, API 키 사용 시 5분입니다. 그 안에 응답하면 다시 읽는 토큰 비용이 줄어듭니다.
 ```

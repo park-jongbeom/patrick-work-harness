@@ -309,7 +309,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` dashboard + the full Gate A block content (no writing a summary table only)
      - **Intent-field obligation (DASHBOARD-INTENT-1)**: in the header, write 2 lines in plain Korean — `> **세션 주제**: <평이 한 줄>` (banner title)·`> **작업 의도**: <무엇을 왜, 1~2문장>` (banner body). No jargon·filename dumps — the banner 「🎯 지금 하는 작업」 displays these 2 lines as-is (falls back to work_topic·priority_note if absent).
-   > **session-dashboard.html update**: `session-dashboard-sync.py` always runs as the first entry of the `Stop` hook array, auto-regenerating the HTML (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
+   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
    > **Human-review panel (DASHBOARD-PLAN-VIZ-1, 2026-09-25)**: the dashboard renders your
    > `## Gate A 계획` block as a review panel — counts first (changed files · Steps · risks ·

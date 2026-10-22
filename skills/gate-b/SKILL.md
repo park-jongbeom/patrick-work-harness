@@ -86,7 +86,7 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 - `${SESSION_INDEX_FILE}` YAML
 - `${CURRENT_SESSION_FILE}` dashboard + Gate B block
   - The Gate B block keeps every asked question with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
-> **session-dashboard.html update**: `session-dashboard-sync.py` runs as the first Stop hook entry, auto-regenerating the HTML. No skill Bash Step needed.
+> **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 6. STOP — await user document review·confirmation
 

@@ -17,9 +17,15 @@
   8. 일괄 실행 문구(「C~E 일괄」「D~E 일괄」)가 쓰이면 gate-c 에 그 정의 절이 있다 (S4, 2026-10-22).
   9. 정의되지 않은 일괄 문구(예: 「B~E 일괄」)를 쓰지 않는다.
  10. Gate D 를 선택 단계처럼 표시하지 않는다 — `(/gate-d)`, 「Gate C or Gate D」. D 는 생략 불가(2026-10-22 결정).
+ 11. Gate 스킬이 dashboard-sync 배선을 말하면 `hooks/hooks.json` 의 실제 이벤트를 함께 말한다 (S5a, 2026-10-22 —
+     「항상 Stop 첫 항목」이라 적었지만 플러그인·install.sh 는 PostToolUse 에 배선한다). /init·/harness-update 는
+     자기 배선(Stop)을 설명하므로 제외.
+ 12. 한 스킬 안에 같은 코드 블록(3줄 이상)이 두 번 나오지 않는다.
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
+import collections
+import json
 import os
 import pathlib
 import re
@@ -127,6 +133,28 @@ class EngineLint(unittest.TestCase):
     def test_gate_d_is_not_marked_optional(self):
         found = hits(r"\(/gate-d\)|Gate C or Gate D", files=skills_and_readme())
         self.assertEqual(found, [], "Gate D 를 선택 단계처럼 표시함:\n" + "\n".join(found))
+
+    def test_dashboard_sync_wiring_claims_match_hooks_json(self):
+        cfg = json.loads((ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+        events = {ev for ev, groups in cfg.get("hooks", {}).items()
+                  for g in groups for h in g.get("hooks", []) if "session-dashboard-sync" in h.get("command", "")}
+        self.assertTrue(events, "hooks.json 에 session-dashboard-sync 배선이 없음")
+        bad = []
+        for name in ("gate-a", "gate-b", "gate-c", "gate-d", "gate-e"):
+            path = ROOT / "skills" / name / "SKILL.md"
+            for i, line in enumerate(lines_of(path), 1):
+                if "session-dashboard-sync" in line and ("Stop" in line or "PostToolUse" in line) \
+                        and not all(ev in line for ev in events):
+                    bad.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()[:110]}")
+        self.assertEqual(bad, [], f"hooks.json 배선({sorted(events)})과 다른 주장:\n" + "\n".join(bad))
+
+    def test_no_duplicate_code_blocks_within_a_skill(self):
+        dup = []
+        for path in (ROOT / "skills").rglob("SKILL.md"):
+            blocks = re.findall(r"```[^\n]*\n(.*?)```", path.read_text(encoding="utf-8"), re.S)
+            counts = collections.Counter(b.strip() for b in blocks if b.strip().count("\n") >= 2)
+            dup += [f"{path.relative_to(ROOT)}: {k.splitlines()[0][:60]!r} ×{v}" for k, v in counts.items() if v > 1]
+        self.assertEqual(dup, [], "같은 코드 블록이 한 스킬에 두 번 이상:\n" + "\n".join(dup))
 
 
 if __name__ == "__main__":
