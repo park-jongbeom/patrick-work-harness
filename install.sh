@@ -286,11 +286,24 @@ NEW_HOOKS = {
             "matcher": "Edit|Write|MultiEdit|NotebookEdit",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/test-write-guard.py"}]
         },
+        # 자율 레인 범위 가드 — 「자율 레인 승인」 세션에서만 동작한다(검토 레인은 그대로 통과).
+        # 보호 경로는 쓰기 전에 묻고, Gate E 진입 때 실제 diff 를 계획과 대조해 벗어나면 세션을 멈춘다.
+        {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/lane-scope-guard.py"}]
+        },
+        {
+            "matcher": "Skill",
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/lane-scope-guard.py"}]
+        },
     ],
     # 같은 차단의 다른 경로 — 사용자가 /gate-c 를 직접 입력하면 PreToolUse 를 거치지 않는다
     "UserPromptExpansion": [
         {
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-pending-guard.py"}]
+        },
+        {
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/lane-scope-guard.py"}]
         },
     ],
     "PostToolUse": [
@@ -331,8 +344,12 @@ NEW_HOOKS = {
     ],
 }
 
-def cmd_exists(hook_list, cmd):
+def cmd_exists(hook_list, cmd, matcher=None):
+    # matcher 까지 같아야 중복이다 (2026-10-22). 명령만 보면 같은 훅을 다른 matcher 에 거는 배선
+    # (lane-scope-guard: Edit 계열 + Skill)의 두 번째가 「이미 있음」으로 빠진다.
     for entry in hook_list:
+        if entry.get("matcher") != matcher:
+            continue
         for h in entry.get("hooks", []):
             if h.get("command") == cmd:
                 return True
@@ -353,7 +370,7 @@ for event, entries in NEW_HOOKS.items():
             if not os.path.isfile(script_of(h["command"])):
                 print(f"      건너뜀(파일 없음): {event} {os.path.basename(script_of(h['command']))}")
                 break
-            if not cmd_exists(existing, h["command"]):
+            if not cmd_exists(existing, h["command"], entry.get("matcher")):
                 existing.append(entry)
                 changed = True
                 break

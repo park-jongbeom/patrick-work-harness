@@ -92,6 +92,7 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
 | `single_plan_file` | Single plan-doc filename (meaningful only when `plan_tier: "1"`) | `WORK_PLAN.md` |
 | `single_plan_threshold` | Slimming line-count threshold for `single_plan_file` (meaningful only when `plan_tier: "1"`) | ask user — suggest 500 lines as a starting point, re-tune after ~10 sessions of observed growth |
+| `autonomous_lane` | Allow the autonomous lane (`gate-a/SKILL.md §0-Lane`): small, test-verifiable plans run C→D→E without human stops and end in a review card. Needs a git repository and `archive_path` (the card ledger lives there). The lane guard comes from the plugin's `hooks.json` or `install.sh` — `/init` does not wire it. Limits and defaults → `SKILL_DETAIL.md §Lane Routing` | `false` |
 
 ### Step 3 — Write `.claude/harness-answers.yml` (D-2 provenance sidecar)
 
@@ -119,7 +120,17 @@ master_plan_file: "<answers.master_plan_file>"
 detail_plan_file: "<answers.detail_plan_file>"
 single_plan_file: "<answers.single_plan_file>"
 single_plan_threshold: <answers.single_plan_threshold>
+# autonomous_lane: gate-a §0-Lane · SKILL_DETAIL.md §Lane Routing (keep this comment off the key line)
+autonomous_lane:
+  enabled: <answers.autonomous_lane>   # false = every plan takes the review lane
+  max_files: 5
+  max_lines: 200
+  hard_max_lines: 400
+  protected_paths: []            # added to the default list; never replaces it
 ```
+
+> Write the `autonomous_lane:` block even when it is `false`, so the setting is visible. Turning it on takes effect only once this file
+> is **committed** — the lane reads it at the plan's base commit, so a session cannot switch its own lane on.
 
 > `_engine_version` must match `plugin.json` → `version` at init time.
 > `archive_path` / `worklog_path` here are the SSOT — do NOT duplicate these values as prose in CLAUDE.md (SSOT-in-prose violation, [SSOT 서술에 값 금지] policy).

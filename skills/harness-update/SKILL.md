@@ -90,7 +90,7 @@ If `CHANGELOG.md` is absent or the section is empty, output "변경 내역 없�
 
 ## Step 3 — Checklist: what needs applying
 
-Inspect the current repo state across 6 axes (A–F). Mark each ✅ (ok) or ❌ (needs update):
+Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ (needs update):
 
 | # | Axis | Check | Needs update condition |
 |---|------|-------|------------------------|
@@ -100,6 +100,7 @@ Inspect the current repo state across 6 axes (A–F). Mark each ✅ (ok) or ❌ 
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
 | F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
+| G | **Autonomous-lane setting** | `harness-answers.yml` has an `autonomous_lane:` block | Block absent — every plan then takes the review lane, which is safe but leaves the setting invisible |
 
 Output the checklist table with ✅/❌ per row, then:
 - If all ✅: "모든 항목 최신 상태 — 갱신 불필요합니다."
@@ -221,6 +222,12 @@ After writing, verify both files exist (`ls` check). If either is absent after w
 ### Axis F — Lesson store
 
 Ask the user where Gate E should record lessons (default `error_topics_path: "docs/rules/error_topics"`; a multi-repo workspace may list `code_repos` instead), write the field into `harness-answers.yml`, then create the folder `README.md` with the `/init` Step 4-b template. For `code_repos`, create files inside sibling repositories only after the user confirms those paths. Existing entries are never rewritten.
+
+### Axis G — Autonomous-lane setting
+
+Append the `/init` Step 3 `autonomous_lane:` block with `enabled: false`. Do not turn it on here — say that the user can set
+`enabled: true` and commit the file to opt in (`gate-a/SKILL.md §0-Lane`), and that the lane also needs `archive_path` for the card
+ledger. The lane guard itself arrives with the plugin update; a user who installed with `install.sh` must re-run it to wire the guard.
 
 ---
 
