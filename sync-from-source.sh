@@ -107,7 +107,7 @@ if [[ -d "$SKILLS_SRC" ]]; then
   # that survived the absolute-path sed pass concatenated with an unresolved shell variable from
   # the filename sed pass (recurrence guard: PATCHREVIEW-1, both sed passes must independently
   # sanitize every occurrence, but a stray prefix that predates the filename pass can slip through).
-  REVIEW_HITS=$(grep -rlE '00_MODERNIZATION_MASTER_PLAN\.md|05_PLATFORM_MODERNIZATION|ga-api-platform|react-web-ga|college-crawler|REPORTS/HARNESS_|ai-consulting-plans/\$\{' "$STAGE/skills" 2>/dev/null || true)
+  REVIEW_HITS=$(grep -rlE '00_MODERNIZATION_MASTER_PLAN\.md|05_PLATFORM_MODERNIZATION|ga-api-platform|react-web-ga|college-crawler|REPORTS/HARNESS_|ai-consulting-plans' "$STAGE/skills" 2>/dev/null || true)
   if [[ -n "$REVIEW_HITS" ]]; then
     echo ""
     echo "[WARN] The following staged skill files still reference source-repo-specific"
