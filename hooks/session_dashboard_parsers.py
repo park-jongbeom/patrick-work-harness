@@ -740,6 +740,65 @@ def _parse_comprehension(content, out):
     return out
 
 
+#: 레인 판정 블록의 라벨 (S6, 2026-10-22). gate-a/SKILL.md §0-Lane 의 예시와 같아야 한다
+#: — 엔진 린트가 그 예시를 이 함수로 읽어 확인한다.
+LANE_LABELS = ("레인", "걸린 트리거", "기준 커밋", "수락 명령")
+
+
+def parse_lane_decision(content):
+    """Gate A 계획의 `### 레인 판정` 블록을 읽는다 (S6, 2026-10-22).
+
+    반환: `{"lane": "자율"|"검토", "reasons": [검토로 떨어진 이유…],
+            "triggers": str, "base_commit": str, "acceptance": [명령…], "files": [경로…]}`
+
+    대시보드 파서들과 극성이 **반대**다 — 칸 하나라도 비었거나 형식이 다르거나
+    예외가 나면 「검토」다(fail-closed). 레인 범위 훅(S7)이 이 결과로 자율 레인을
+    열지 정하므로, 못 읽은 계획이 자율로 새면 안 된다.
+    """
+    out = {"lane": "검토", "reasons": [], "triggers": "", "base_commit": "",
+           "acceptance": [], "files": []}
+    try:
+        return _parse_lane_decision(content or "", out)
+    except Exception:
+        return dict(out, lane="검토", reasons=["레인 판정 블록을 읽지 못함"])
+
+
+def _parse_lane_decision(content, out):
+    """`parse_lane_decision` 본체. 예외는 호출부가 가둔다."""
+    secs = _sections(_plan_block(content))
+    _, body = next(((t, b) for t, b in secs if "레인 판정" in t), ("", ""))
+    if not body:
+        out["reasons"].append("레인 판정 블록 없음")
+        return out
+    items = dict(_labeled_items(body))
+    lane = _strip_md(items.get("레인", ""))
+    out["triggers"] = _strip_md(items.get("걸린 트리거", ""))
+    base = _strip_md(items.get("기준 커밋", ""))
+    out["acceptance"] = re.findall(r"`([^`\n]+)`", items.get("수락 명령", ""))
+
+    _, files_body = _find_section(secs, "files")
+    entries = re.findall(r"^(?:\*\*)?\d+\.\s*(.+?)(?:\*\*)?\s*$", files_body, re.MULTILINE)
+    paths = [re.search(r"`([^`\n]+)`", e) for e in entries]
+    out["files"] = [p.group(1) for p in paths if p]
+
+    reasons = out["reasons"]
+    if not re.fullmatch(r"자율(?:\s*[(（].*)?", lane):
+        reasons.append(f"레인 값이 자율이 아님: {lane or '(비어 있음)'}")
+    if not re.fullmatch(r"없음\.?", out["triggers"]):
+        reasons.append(f"걸린 트리거: {out['triggers'] or '(비어 있음)'}")
+    if re.fullmatch(r"[0-9a-f]{7,40}", base):
+        out["base_commit"] = base
+    else:
+        reasons.append("기준 커밋이 커밋 해시가 아님")
+    if not out["acceptance"]:
+        reasons.append("수락 명령이 `백틱` 명령으로 적혀 있지 않음")
+    if not entries or len(out["files"]) != len(entries):
+        reasons.append("변경 파일 목록에 `경로` 가 없는 항목이 있음")
+    if not reasons:
+        out["lane"] = "자율"
+    return out
+
+
 def _clean_file_entry(text):
     """파일 항목에서 경로와 변경유형을 최대한 평이하게 남긴다."""
     return _strip_md(text)

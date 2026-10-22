@@ -1,6 +1,6 @@
 ---
 name: SKILL_DETAIL
-description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, Effort/Thinking rule, or tier-aware plan-doc update wording is needed."
+description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, Effort/Thinking rule, tier-aware plan-doc update wording, or the lane-routing limits and evidence (§Lane Routing) are needed."
 ---
 
 # Skill Common Model Rubric Detail
@@ -190,3 +190,57 @@ obligation from the system context.
   A one-dimensional complexity label cannot stay consistent with R/V/D 3-axis scoring: two tasks
   with the same "M" can differ on every axis. The 3-axis format also makes a follow-up Gate's model
   verification **re-scorable with the same metadata**, which a collapsed label cannot support.
+
+---
+
+## §Lane Routing (review · autonomous)
+
+> Canonical detail for `gate-a/SKILL.md §0-Lane` (added 2026-10-22). The trigger table and the
+> block format stay in gate-a; the settings, defaults and evidence live here.
+>
+> **Status**: the lane-scope guard and the autonomous-lane procedure ship in v1.11.0. Until a
+> project wires that guard, 0-Lane's entry condition (2) fails and every plan takes the review lane.
+
+**Settings** — `.claude/harness-answers.yml`, read at the base commit (`git show HEAD:…`), never from
+the working tree, so a running session cannot loosen its own policy (the same principle as a
+protected default branch):
+
+```yaml
+autonomous_lane:
+  enabled: false        # opt-in; absent = false
+  max_files: 5          # files in the real diff, untracked files and both sides of a rename included; new test files excluded
+  max_lines: 200        # Gate A's estimate must stay under this (added + deleted, new tests included)
+  hard_max_lines: 400   # the real diff is never accepted above this
+  protected_paths: []   # added to the defaults below; never replaces them
+```
+
+**Default protected paths**: dependency manifests and lock files; `**/migrations/**` and schema files;
+auth/security code; CI (`.github/`, `.gitlab-ci.yml`, `Jenkinsfile`); hooks (`.husky/`, `.git/hooks/`);
+`.claude/`; `.env*`; every test file that already exists at the base commit.
+
+**Why these numbers.** 5 files and 200 lines are starting values chosen from this harness's own
+session archive (599 sessions: 74% already touched ≤ 5 files), not a cited standard. External
+references point the same way: Google's review guide calls ~100 lines reasonable and 1,000 too
+large ([small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html)); across
+~33k agent-authored PRs, merged and unmerged PRs differed more by lines changed than by file count
+([Ehsani et al.](https://arxiv.org/abs/2601.15195)). Declared plan sizes undercount — in 100
+archived sessions with both numbers, 14 grew past the plan — so the guard counts the real diff.
+
+**Why these triggers** (where a change lands matters more than how big it is):
+
+| Trigger | Evidence |
+|---|---|
+| Security · auth · secrets | ~40% of Copilot-generated programs in security-relevant scenarios were vulnerable ([Pearce et al.](https://arxiv.org/abs/2108.09293)); AI-assisted users wrote less secure code and believed it more secure ([Perry et al.](https://arxiv.org/abs/2211.03622)) |
+| Schema · migration · stored data | 63% of upgrade failures surfaced only in production ([Zhang et al., SOSP '21](https://www.cs.purdue.edu/homes/yonglezh/pub/upgrade-sosp21.pdf)) |
+| Destructive · irreversible | `git revert` cannot undo applied migrations, deleted data, external side effects or pushed secrets |
+| Dependency manifests | package-name hallucination: 5.2% (commercial) and 21.7% (open) of suggested packages did not exist ([Spracklen et al.](https://arxiv.org/abs/2406.10279)) |
+| Verification apparatus | an agent that may edit its own tests can pass by weakening them — the reason `test-write-guard.py` exists |
+| R items · ambiguity | no external evidence validates model-scored reasoning risk, so the rule uses categories, not scores, and sends ambiguity to review |
+
+**Tie rule.** R scoring leans low on purpose (「애매하면 0점」) to save model cost. Lane routing must
+lean the other way, or ambiguous work drifts into the autonomous lane.
+
+**Fail-closed reading.** `session_dashboard_parsers.parse_lane_decision` returns 검토 for a missing
+section, a blank field, a lane value other than 자율, any trigger, a non-hash base commit, no
+backticked acceptance command, or a file entry without a `` `path` ``. Every other parser in the
+dashboard fails open; this one decides whether the autonomous lane opens, so it must not.

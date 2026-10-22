@@ -548,3 +548,83 @@ class TestParseComprehension(unittest.TestCase):
         with um.patch.object(sdp, "_labeled_items", side_effect=RuntimeError):
             self.assertEqual(sdp.parse_comprehension(_BRIEF_DOC),
                              {"briefing": [], "missing": [], "questions": []})
+
+
+_LANE_DOC = (
+    "# 현재 세션 상태\n\n"
+    "> **세션 ID**: T-LANE\n\n"
+    "## Gate A 계획\n\n"
+    "### 이해 브리핑\n\n"
+    "- **왜 바꾸나**: 슬러그 함수가 공백을 남긴다.\n\n"
+    "### 레인 판정\n\n"
+    "- **레인**: 자율\n"
+    "- **걸린 트리거**: 없음\n"
+    "- **기준 커밋**: `3bb3b42`\n"
+    "- **수락 명령**: `python3 -m pytest tests/test_slug.py -q`\n\n"
+    "### 변경 파일 (2개)\n\n"
+    "1. `src/slug.py` (수정)\n"
+    "2. `tests/test_slug.py` (생성)\n\n"
+    "## Gate B\n"
+)
+
+
+class TestParseLaneDecision(unittest.TestCase):
+    """레인 판정 블록 (S6, 2026-10-22).
+
+    S7 의 레인 범위 훅이 이 함수로 계획을 읽는다. 대시보드 파서들과 극성이
+    반대다 — 칸 하나라도 비거나 못 읽으면 「검토」를 돌려준다(fail-closed).
+    자율 레인이 조용히 열리는 경우가 없어야 한다.
+    """
+
+    def test_complete_autonomous_block(self):
+        d = sdp.parse_lane_decision(_LANE_DOC)
+        self.assertEqual(d["lane"], "자율")
+        self.assertEqual(d["reasons"], [])
+        self.assertEqual(d["base_commit"], "3bb3b42")
+        self.assertEqual(d["acceptance"], ["python3 -m pytest tests/test_slug.py -q"])
+        self.assertEqual(d["files"], ["src/slug.py", "tests/test_slug.py"])
+
+    def test_missing_base_commit_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_DOC.replace("- **기준 커밋**: `3bb3b42`\n", ""))
+        self.assertEqual(d["lane"], "검토")
+        self.assertTrue(any("기준 커밋" in r for r in d["reasons"]))
+
+    def test_non_hex_base_commit_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_DOC.replace("`3bb3b42`", "HEAD"))
+        self.assertEqual(d["lane"], "검토")
+
+    def test_missing_acceptance_command_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_DOC.replace(
+            "`python3 -m pytest tests/test_slug.py -q`", "시험을 돌린다"))
+        self.assertEqual(d["lane"], "검토")
+        self.assertTrue(any("수락 명령" in r for r in d["reasons"]))
+
+    def test_any_trigger_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_DOC.replace(
+            "- **걸린 트리거**: 없음", "- **걸린 트리거**: 의존성 — requirements.txt"))
+        self.assertEqual(d["lane"], "검토")
+        self.assertEqual(d["triggers"], "의존성 — requirements.txt")
+
+    def test_file_entry_without_path_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_DOC.replace("2. `tests/test_slug.py` (생성)", "2. 시험 파일"))
+        self.assertEqual(d["lane"], "검토")
+
+    def test_review_lane_and_absent_block_are_review(self):
+        self.assertEqual(sdp.parse_lane_decision(_LANE_DOC.replace(
+            "- **레인**: 자율", "- **레인**: 검토"))["lane"], "검토")
+        self.assertEqual(sdp.parse_lane_decision(_DOC)["lane"], "검토")
+        self.assertEqual(sdp.parse_lane_decision("")["lane"], "검토")
+
+    def test_lane_value_must_start_with_autonomous(self):
+        """「자율 아님」「검토(자율 불가)」 같은 값은 자율이 아니다."""
+        for v in ("**자율**", "자율 (트리거 없음)"):
+            self.assertEqual(sdp.parse_lane_decision(_LANE_DOC.replace(
+                "- **레인**: 자율", f"- **레인**: {v}"))["lane"], "자율", v)
+        for v in ("검토 (자율 불가)", "자율 아님", "모름"):
+            self.assertEqual(sdp.parse_lane_decision(_LANE_DOC.replace(
+                "- **레인**: 자율", f"- **레인**: {v}"))["lane"], "검토", v)
+
+    def test_parser_failure_is_review(self):
+        import unittest.mock as um
+        with um.patch.object(sdp, "_labeled_items", side_effect=RuntimeError):
+            self.assertEqual(sdp.parse_lane_decision(_LANE_DOC)["lane"], "검토")

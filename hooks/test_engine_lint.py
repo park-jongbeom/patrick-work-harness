@@ -24,6 +24,8 @@
  13. 스킬이 주는 CURRENT_SESSION 틀은 훅이 읽는 한글 라벨(`**세션 ID**`·`**현재 상태**`)을 쓰고 영문 라벨을 쓰지 않는다
      (S5b, 2026-10-22 — /init 틀이 영문이라 그 틀대로 쓴 문서는 가드·대시보드가 세션을 못 찾았다).
  14. `/gate-x ← 역할` 표기는 현행 역할(A 계획·B 이해도·C 구현·D 검증·E 기록)과 맞는다 (S5b — README 사용법이 B=구현 옛 체계였다).
+ 15. gate-a 의 `### 레인 판정` 예시는 `parse_lane_decision` 이 「자율」로 읽는다 (S6, 2026-10-22 — 레인 범위 훅이 이 파서로
+     계획을 읽으므로, 스킬이 가르치는 형식과 파서가 어긋나면 자율 레인이 아무 말 없이 영영 열리지 않거나 잘못 열린다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -189,6 +191,20 @@ class EngineLint(unittest.TestCase):
                 if m and not m.group(2).lower().startswith(GATE_ROLE_WORDS[m.group(1)]):
                     bad.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()[:100]}")
         self.assertEqual(bad, [], "Gate 역할 표기가 현행 체계(A 계획·B 이해도·C 구현·D 검증·E 기록)와 다름:\n" + "\n".join(bad))
+
+    def test_gate_a_lane_example_parses_as_autonomous(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sdp_lint", ROOT / "hooks" / "session_dashboard_parsers.py")
+        sdp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sdp)
+        gate_a = (ROOT / "skills" / "gate-a" / "SKILL.md").read_text(encoding="utf-8")
+        examples = [b for b in re.findall(r"```markdown\n(.*?)```", gate_a, re.S) if "### 레인 판정" in b]
+        self.assertEqual(len(examples), 1, "gate-a 에 `### 레인 판정` 예시 블록이 정확히 하나 있어야 함")
+        for label in sdp.LANE_LABELS:
+            self.assertIn(f"- **{label}**:", examples[0], f"예시에 파서 라벨 「{label}」 이 없음")
+        doc = "## Gate A 계획\n\n" + examples[0] + "\n### 변경 파일 (1개)\n\n1. `src/x.py` (수정)\n"
+        d = sdp.parse_lane_decision(doc)
+        self.assertEqual((d["lane"], d["reasons"]), ("자율", []), "gate-a 예시를 파서가 자율로 읽지 못함")
 
 
 if __name__ == "__main__":

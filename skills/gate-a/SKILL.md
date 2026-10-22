@@ -216,6 +216,41 @@ For **each factual claim** in the plan — file/line counts, existing behavior, 
 
 Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (same natural-skip pattern as 0-OSS 「N/A」 — cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
 
+#### 0-Lane. Lane decision (review · autonomous)
+
+> **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) the project's hooks wire `lane-scope-guard`. Otherwise every plan takes the review lane (A→B→C→D→E).
+
+A plan goes to the **autonomous lane** only when **no row below applies**. **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」. The user may always move a plan up to review; a plan with a trigger is never moved down to autonomous.
+
+| Hard trigger (→ review) | Look for |
+|---|---|
+| Security · auth · permissions · crypto · secrets | auth/session/token code, `.env*`, any R5 item |
+| Schema · migration · stored data · serialization format | migrations, DDL, files other programs read back |
+| Destructive · irreversible · operational | deploys, data deletion, external side effects, push/publish |
+| More than one repository or top-level module | |
+| Dependency manifest or lock file | `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, lock files |
+| Verification apparatus | existing tests and fixtures, CI, hooks, settings, Gate skills, `.claude/` |
+| Public contract | API endpoints, CLI flags, hook input/output |
+| Any R item (R1–R5) | architecture, concurrency, algorithm, math, security policy |
+| Ambiguity | any open question or undecided point in this plan |
+| No acceptance command | no command whose output decides pass/fail |
+| Size or protected path | over `max_files` changed files (new test files excluded) or `max_lines` estimated lines; any `protected_paths` match |
+| Not a git repository | |
+
+Limits, default protected paths and the evidence for each row → `SKILL_DETAIL.md §Lane Routing`.
+
+Write the result as the section right after `### 이해 브리핑`, in exactly this form (the lane guard reads it with `parse_lane_decision`; a blank or malformed field reads as review):
+
+```markdown
+### 레인 판정
+- **레인**: 자율
+- **걸린 트리거**: 없음
+- **기준 커밋**: `3bb3b42`
+- **수락 명령**: `python3 -m pytest tests/test_slug.py -q`
+```
+
+`기준 커밋` is `git rev-parse --short HEAD` at planning time. Put each acceptance command in backticks. Files come from `### 변경 파일`, so every entry there needs a `` `path` ``. For the review lane write `- **레인**: 검토` and `- **걸린 트리거**: {row} — {where}`; the other two fields may be left out.
+
 1. **After reading all related files**, output the Gate A content as text
    - **이해 브리핑** (HARNESS-DASH-LEARN-1-b, mandatory) — write it as the **first `###` section of the Gate A block**, heading exactly `### 이해 브리핑`, with exactly these 4 bold-label bullets in this order:
 
@@ -228,6 +263,7 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
 
      Write for a reader who has **not** read the rest of the plan: plain Korean, 2~4 sentences per item. **No** session IDs, rule numbers (R-12 etc.), claim tags (ⓐⓑⓒ), or bare `파일:줄` lists — name a file only when the reader needs it, and say what it does. Empty phrases (「안정성을 높인다」「구조를 개선한다」) do not count; each item must contain something a person could check. Trivial plans (docs·config) may use 1 sentence per item but must not omit the section.
      Why: this section is the **source of Gate B's questions** (`gate-b/SKILL.md §Step 2`) and what a reader should see first on the session dashboard (rendered as its top card from HARNESS-DASH-LEARN-1-b-2). The sections below it are its evidence. Without it, the dashboard's summary shows only the plan's flow (files·order·risk counts), and the full-text panel shows every section at equal weight, so a reader looking for "why" or "how" has to dig through process records (HARNESS-DASH-LEARN-1-a: the summary carried 26 of the plan's 135 lines/cells, and none of the 3 sentences needed to answer that session's comprehension question).
+   - **레인 판정** — the 0-Lane result, right after the briefing (only when the lane is enabled; see 0-Lane)
    - Changed-file list (number·path·change type)
    - Per-file detailed change content: current code structure → post-change structure, key decisions
    - **기존 구현 참조 경로** (Pre-Plan investigation result; "없음" if none)
@@ -355,6 +391,7 @@ If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or c
 
 - 「진행」「다음 작업」 alone are not interpreted as Gate A approval
 - Explicit phrases recognized as approval: 「Gate A 승인」「계획대로 구현」「위 Gate A대로 구현해」 etc.
+- 「자율 레인 승인」 approves an autonomous-lane plan; continue in the autonomous-lane procedure (`gate-c/SKILL.md`). 「Gate A 승인」 on the same plan means the review lane. 「자율 레인 승인」 on a review-lane plan is **not** approval — say which trigger keeps it in review and wait.
 
 ## Dashboard Required Fields (PROC-MODEL-RUBRIC-2 revision)
 
@@ -381,3 +418,5 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ---
 **다음 단계**: Gate A 검토 후 「Gate A 승인」또는 「계획대로 구현」으로 승인하면 `/gate-b` (Gate B 이해도 게이트)가 시작됩니다.
 ```
+
+When the plan's lane is 자율, add this line inside the block, after 다음 단계: `**자율 레인**: 「자율 레인 승인」으로 승인하면 사람 정지 없이 구현·검증한 뒤 검토 카드로 확인을 받습니다. 「Gate A 승인」은 검토 레인으로 진행합니다.`
