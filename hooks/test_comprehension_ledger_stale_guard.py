@@ -24,8 +24,11 @@ MARKER = "COMPREHENSION-LEDGER-STALE"
 
 
 def run_hook(ledger_content, session_id="test-sess", write_ledger=True,
-             stop_hook_active=False):
-    """훅을 서브프로세스로 실행, (returncode, stderr) 반환."""
+             stop_hook_active=False, state_dir=None):
+    """훅을 서브프로세스로 실행, (returncode, stderr) 반환.
+
+    state_dir: 「세션당 한 번」 기록을 둘 곳. 주지 않으면 실행마다 새 폴더라 다른 시험의 알림에 가려지지 않는다.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         ledger_path = os.path.join(tmpdir, "comprehension_ledger.md")
         if write_ledger:
@@ -37,6 +40,7 @@ def run_hook(ledger_content, session_id="test-sess", write_ledger=True,
         # 타지 못해 import-time 크래시(Path 미정의)를 놓친다(과거 위양성 통과 원인).
         env["CLAUDE_PROJECT_DIR"] = os.environ.get("CLAUDE_PROJECT_DIR", ".")
         env["COMPREHENSION_LEDGER_PATH"] = ledger_path
+        env["COMPREHENSION_LEDGER_STALE_STATE_DIR"] = state_dir or tmpdir
         payload = {"session_id": session_id}
         if stop_hook_active:
             payload["stop_hook_active"] = True
@@ -323,6 +327,7 @@ def _raw_run(ledger_content, env_extra=None):
         env = os.environ.copy()
         env["CLAUDE_PROJECT_DIR"] = os.environ.get("CLAUDE_PROJECT_DIR", ".")
         env["COMPREHENSION_LEDGER_PATH"] = ledger_path
+        env["COMPREHENSION_LEDGER_STALE_STATE_DIR"] = tmpdir
         if env_extra is not None:
             for k, v in env_extra.items():
                 if v is None:
@@ -355,6 +360,39 @@ def test_notify_goes_to_stdout_json():
     assert MARKER in payload["systemMessage"], payload["systemMessage"]
     assert MARKER not in err, f"경고가 stderr 로 샜다: {err}"
     print("  PASS: 만료 알림이 stdout systemMessage JSON 으로 전달")
+
+
+def test_same_expired_set_notifies_once_per_session():
+    """같은 세션에서 만료 목록이 같으면 두 번째부터는 조용하다 (경고 피로, 2026-10-22).
+
+    실사용 보고서에서 같은 「만료 24건」 알림이 제품 작업 공간 6세션에 60회, 한 세션 최대 18회 반복됐다.
+    """
+    led = ledger(_EXPIRED)
+    with tempfile.TemporaryDirectory() as state:
+        _, first = run_hook(led, session_id="s-a", state_dir=state)
+        _, second = run_hook(led, session_id="s-a", state_dir=state)
+    assert MARKER in first, f"첫 알림이 없음: {first}"
+    assert MARKER not in second, f"같은 세션·같은 목록인데 또 알림: {second}"
+    print("  PASS: 같은 세션·같은 만료 목록 → 한 번만 알림")
+
+
+def test_changed_expired_set_notifies_again():
+    """새로 만료된 항목이 생겨 목록이 바뀌면 같은 세션에서도 다시 알린다."""
+    more = _EXPIRED + [("2020-02-01", "auth/TokenService", "3개월", "AI", "통과", "토큰")]
+    with tempfile.TemporaryDirectory() as state:
+        run_hook(ledger(_EXPIRED), session_id="s-b", state_dir=state)
+        _, again = run_hook(ledger(more), session_id="s-b", state_dir=state)
+    assert MARKER in again and "auth/TokenService" in again, f"목록이 바뀌었는데 알림 없음: {again}"
+    print("  PASS: 만료 목록이 바뀌면 다시 알림")
+
+
+def test_new_session_notifies_again():
+    led = ledger(_EXPIRED)
+    with tempfile.TemporaryDirectory() as state:
+        run_hook(led, session_id="s-c", state_dir=state)
+        _, other = run_hook(led, session_id="s-d", state_dir=state)
+    assert MARKER in other, f"새 세션인데 알림 없음: {other}"
+    print("  PASS: 새 세션 → 다시 알림")
 
 
 def test_notify_survives_cp949_default_stdout():
@@ -392,6 +430,10 @@ if __name__ == "__main__":
         # 전달 경로 고정 (HARNESS-CROSSCHECK-FIX-1-a-5)
         test_notify_goes_to_stdout_json,
         test_notify_survives_cp949_default_stdout,
+        # 세션당 한 번 (경고 피로, 2026-10-22)
+        test_same_expired_set_notifies_once_per_session,
+        test_changed_expired_set_notifies_again,
+        test_new_session_notifies_again,
     ]
     print(f"comprehension-ledger-stale-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)

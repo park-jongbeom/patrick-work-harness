@@ -38,10 +38,12 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
 """
 
 import calendar
+import hashlib
 import json
 import os
 import re
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -165,6 +167,35 @@ def notify(reason):
     sys.exit(0)
 
 
+def _state_path(session_id):
+    safe = re.sub(r"[^\w\-]", "_", session_id or "nosession")
+    base_dir = os.environ.get("COMPREHENSION_LEDGER_STALE_STATE_DIR") or tempfile.gettempdir()
+    return os.path.join(base_dir, f".comprehension-ledger-stale-{safe}.seen")
+
+
+def first_time_this_session(session_id, expired):
+    """이 세션에서 같은 만료 목록을 아직 알리지 않았으면 True (2026-10-22, 경고 피로).
+
+    응답이 끝날 때마다 같은 「만료 N건」을 다시 내던 것이 실사용 보고서에서 제품 작업 공간 6세션에 60회
+    (한 세션 최대 18회) 반복됐다. 목록이 바뀌면(새로 만료된 항목) 다시 알린다. 기록을 못 쓰면 알리는 쪽.
+    """
+    keys = sorted(f"{verified}|{scope}" for verified, _tags, scope, *_ in expired)
+    digest = hashlib.sha1(json.dumps(keys, ensure_ascii=False).encode()).hexdigest()
+    path = _state_path(session_id)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if f.read().strip() == digest:
+                return False
+    except OSError:
+        pass
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(digest)
+    except OSError:
+        pass
+    return True
+
+
 def read_text(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -255,6 +286,10 @@ def main():
         allow()
 
     if not expired:
+        allow()
+
+    # ── 같은 세션에서 같은 목록은 한 번만 알린다 ──
+    if not first_time_this_session(payload.get("session_id"), expired):
         allow()
 
     # ── 만료 ≥1건 — 비차단 알림 ──
