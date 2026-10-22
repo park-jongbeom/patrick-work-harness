@@ -75,6 +75,22 @@ The single definition of the batch phrases (gate-d and gate-e only point here). 
 - **Record**: add `> 일괄 실행: C~E (승인 문구: 「…」)` (or `D~E`) at the top of each Gate block written during the batch.
 - The guards still apply during a batch: the comprehension-question guard, the test-write guard in Gate D and the test-tampering guard.
 
+## Autonomous lane (자율 레인)
+
+Entered only by 「자율 레인 승인」 on a plan whose `### 레인 판정` reads 자율 (`gate-a/SKILL.md §0-Lane`). `lane-scope-guard.py`
+holds the scope; this section holds the procedure. It runs like a C~E batch (above) with these differences:
+
+- **No Gate B.** Gate C → Gate D → Gate E with no human STOP until the review card in Gate E (`gate-e/SKILL.md` step 0).
+  Gate D is never skipped.
+- **One prohibition**: do not edit a test file, an acceptance command, CI config or anything under `.claude/` to make a check pass —
+  a check you cannot pass is a 막힘, not something to fix.
+- **One retry.** In Gate D's loop (2-B) the upper bound is one retry, not ~3. Still failing after one fix → stop.
+- **막힘 exit**: stop and write `막힘: {reason}` when a decision outside the plan is needed, a protected path or a file outside the plan
+  would have to change, the spec and a test disagree, or the lane guard asked or denied. Do not work around it (for example via Bash).
+  The user then chooses: revert, or a new `/gate-a` in the review lane.
+- **Markers stay**: the Gate D block still writes `self-debug N회` and `FIX-B N건 · DEP N건` — `error-topics-guard.py` reads them.
+- **Record**: add `> 자율 레인 (승인 문구: 「자율 레인 승인」, 기준 커밋 {sha})` at the top of each Gate block written in the lane.
+
 ---
 
 ## Advisor Escalation (optional)

@@ -1,12 +1,21 @@
 ---
 name: gate-e
-description: "WORKLOG recording, session cleanup, and archiving after Gate D confirmation (or at the end of an authorized C~E·D~E batch run). Use on 'Gate E', 'WORKLOG', '세션 정리', 'C~E 일괄', 'D~E 일괄', etc."
+description: "WORKLOG recording, session cleanup, and archiving after Gate D confirmation (or at the end of an authorized C~E·D~E batch run or an autonomous-lane run). Use on 'Gate E', 'WORKLOG', '세션 정리', 'C~E 일괄', 'D~E 일괄', etc."
 effort: low
 ---
 
 # Gate E Procedure (follow order strictly)
 
 ---
+
+0. **Autonomous lane only — review card** (sessions approved with 「자율 레인 승인」; skip otherwise). This is the lane's one
+   human stop after approval.
+   - Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lane_card.py" card --run` and paste its output verbatim. The script re-runs the
+     plan's acceptance commands and counts the diff itself — do not restate or soften its flags.
+   - If the script exits non-zero (no `archive_path` to hold the ledger), stop and tell the user; do not continue without a card.
+   - **STOP** and wait. The user answers 「카드 승인」 or 「지적: 심각|경미 — 내용」.
+   - Record the answer before anything else: `lane_card.py verdict --verdict 승인` (or `경미`/`심각` with `--note "내용"`).
+     Then continue with step 1. A 심각 finding goes into the WORKLOG line and the archive as well.
 
 1. **WORKLOG record** — add to the top of `${HARNESS_PLANS_DIR}/tasks/worklog/YYYY-Www.md` in the format below:
    ```
