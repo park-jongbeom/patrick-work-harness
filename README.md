@@ -212,12 +212,13 @@ or
 계획대로 구현
 ```
 
-#### Gate B → C → E (implement · verify · record)
+#### Gate B → C → D → E (comprehend · implement · verify · record)
 
 ```
-/gate-b   ← implement (exactly per Gate A plan)
-/gate-c   ← verify (external execution signal loop)
-/gate-e   ← session wrap-up (WORKLOG + archive)
+/gate-b   ← comprehension check (pass-through for trivial work)
+/gate-c   ← implement (exactly per Gate A plan)
+/gate-d   ← verify (test plan · execution · failure classification)
+/gate-e   ← record (WORKLOG + archive)
 ```
 
 **All work runs A→B→C→D→E.** Gate D is where tests are planned, run and classified, and where the
@@ -474,12 +475,13 @@ Gate A 승인
 계획대로 구현
 ```
 
-#### Gate B → C → E (구현·검증·기록)
+#### Gate B → C → D → E (이해도·구현·검증·기록)
 
 ```
-/gate-b   ← 구현 (Gate A 계획 그대로)
-/gate-c   ← 검증 (외부 실행 신호 기반 루프)
-/gate-e   ← 세션 정리 (WORKLOG + archive)
+/gate-b   ← 이해도 점검 (단순 작업은 pass-through)
+/gate-c   ← 구현 (Gate A 계획 그대로)
+/gate-d   ← 검증 (시험 계획·실행·실패 분류)
+/gate-e   ← 기록 (WORKLOG + archive)
 ```
 
 **모든 작업은 A→B→C→D→E 를 따릅니다.** Gate D 는 시험을 계획·실행하고 실패를 분류하는 단계이며,

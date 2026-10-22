@@ -21,6 +21,9 @@
      「항상 Stop 첫 항목」이라 적었지만 플러그인·install.sh 는 PostToolUse 에 배선한다). /init·/harness-update 는
      자기 배선(Stop)을 설명하므로 제외.
  12. 한 스킬 안에 같은 코드 블록(3줄 이상)이 두 번 나오지 않는다.
+ 13. 스킬이 주는 CURRENT_SESSION 틀은 훅이 읽는 한글 라벨(`**세션 ID**`·`**현재 상태**`)을 쓰고 영문 라벨을 쓰지 않는다
+     (S5b, 2026-10-22 — /init 틀이 영문이라 그 틀대로 쓴 문서는 가드·대시보드가 세션을 못 찾았다).
+ 14. `/gate-x ← 역할` 표기는 현행 역할(A 계획·B 이해도·C 구현·D 검증·E 기록)과 맞는다 (S5b — README 사용법이 B=구현 옛 체계였다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -62,6 +65,12 @@ def hits(pattern, files=None):
 
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
+STUB_LABELS = ("> **세션 ID**:", "> **현재 상태**:")
+ENGLISH_STUB_LABELS = r"\*\*Session ID\*\*|\*\*Status\*\*:|\|\s*(?:Current Gate|Gate Progress|Start Date)\s*\|"
+GATE_ROLE_WORDS = {
+    "a": ("plan", "계획"), "b": ("comprehen", "이해도"), "c": ("implement", "구현"),
+    "d": ("verif", "test", "검증", "시험"), "e": ("record", "session wrap", "기록", "세션 정리"),
+}
 
 
 def skills_and_readme():
@@ -131,7 +140,7 @@ class EngineLint(unittest.TestCase):
         self.assertEqual(bad, [], "정의되지 않은 일괄 문구:\n" + "\n".join(bad))
 
     def test_gate_d_is_not_marked_optional(self):
-        found = hits(r"\(/gate-d\)|Gate C or Gate D", files=skills_and_readme())
+        found = hits(r"\(/gate-d\)|Gate C or Gate D|Gate B → C → E", files=skills_and_readme())
         self.assertEqual(found, [], "Gate D 를 선택 단계처럼 표시함:\n" + "\n".join(found))
 
     def test_dashboard_sync_wiring_claims_match_hooks_json(self):
@@ -155,6 +164,31 @@ class EngineLint(unittest.TestCase):
             counts = collections.Counter(b.strip() for b in blocks if b.strip().count("\n") >= 2)
             dup += [f"{path.relative_to(ROOT)}: {k.splitlines()[0][:60]!r} ×{v}" for k, v in counts.items() if v > 1]
         self.assertEqual(dup, [], "같은 코드 블록이 한 스킬에 두 번 이상:\n" + "\n".join(dup))
+
+    def test_current_session_stubs_use_labels_hooks_parse(self):
+        hooks_src = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "hooks").glob("*.py")
+                              if not p.name.startswith("test_"))
+        for label in STUB_LABELS:
+            self.assertTrue(label[2:].replace("*", "\\*") in hooks_src, f"훅이 더는 {label} 를 읽지 않음 — 이 규칙을 고칠 것")
+        bad = []
+        for path in (ROOT / "skills").rglob("SKILL.md"):
+            for block in re.findall(r"```[^\n]*\n(.*?)```", path.read_text(encoding="utf-8"), re.S):
+                if "Session ID**" not in block and "세션 ID**:" not in block:
+                    continue
+                missing = [l for l in STUB_LABELS if l not in block]
+                english = re.findall(ENGLISH_STUB_LABELS, block)
+                if missing or english:
+                    bad.append(f"{path.relative_to(ROOT)}: 빠진 라벨 {missing}, 영문 라벨 {english}")
+        self.assertEqual(bad, [], "CURRENT_SESSION 틀이 훅이 읽는 라벨과 다름:\n" + "\n".join(bad))
+
+    def test_gate_role_arrows_match_current_roles(self):
+        bad = []
+        for path in skills_and_readme():
+            for i, line in enumerate(lines_of(path), 1):
+                m = re.search(r"/gate-([a-e])\s*←\s*(.+)", line)
+                if m and not m.group(2).lower().startswith(GATE_ROLE_WORDS[m.group(1)]):
+                    bad.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()[:100]}")
+        self.assertEqual(bad, [], "Gate 역할 표기가 현행 체계(A 계획·B 이해도·C 구현·D 검증·E 기록)와 다름:\n" + "\n".join(bad))
 
 
 if __name__ == "__main__":

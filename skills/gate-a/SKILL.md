@@ -359,7 +359,7 @@ If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or c
 ## Dashboard Required Fields (PROC-MODEL-RUBRIC-2 revision)
 
 At every Gate transition, the items below must be updated:
-- Current Gate, Gate progress (✅⏸☐), next action
+- `| 현재 Gate |`, `| Gate 진행 |` (✅⏸☐), next action — keep these Korean labels; the guards and the dashboard parse them literally
 - **R/V/D decomposition** — Step 0-A-a 3-axis scoring result (e.g. `R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1`)
 - **Per-Gate recommended model** (B/C/D/E each, the result of applying the Step 0-A-b + 0-A-b'' decision rule — e.g. `B: Sonnet 5.5 (medium) / C: Haiku 5.5 (low) / D: Sonnet 5.5 (medium) / E: Haiku 5.5 (low)`)
   - Format: `{모델} ({effort})` — writing both items is mandatory (model only is a PROC violation). Thinking is not written: current models have no off switch

@@ -233,19 +233,21 @@ priority_note: ""
 
 **${CURRENT_SESSION_FILE} stub**:
 ```markdown
-# Current Session State
+# 현재 세션 상태
 
-> **Session ID**: (none — run /gate-a to start)
-> **Status**: no active session
+> **세션 ID**: (미정 — /gate-a로 시작)
+> **현재 상태**: 세션 없음
 
-## Dashboard
+## 대시보드
 
-| Item | Value |
-|------|-------|
-| Current Gate | — |
-| Gate Progress | — |
-| Start Date | — |
+| 항목 | 값 |
+|------|-----|
+| 현재 Gate | — |
+| Gate 진행 | — |
+| 착수일 | — |
 ```
+
+> **Labels are a contract**: keep these Korean labels as written — the guards and the dashboard parse `**세션 ID**`·`**현재 상태**`·`현재 Gate`·`Gate 진행`·`착수일` literally, whatever language the project writes in. A translated label makes the guards fail open and the dashboard lose the session.
 
 **Stub creation must be verified (do not silently skip)**: after writing each stub, confirm the file exists (`[ -f <repo>/${SESSION_INDEX_FILE} ]` / `[ -f <repo>/${CURRENT_SESSION_FILE} ]`). If either is absent, the Write step failed — retry it before proceeding. (Recurrence guard: a prior `/init` left a repo with `harness-answers.yml` present but both session stubs missing — `session_docs: true` was set yet Step 5 did not produce the files.)
 
@@ -273,6 +275,20 @@ Add a `Stop` hook array to the target repo's `.claude/settings.json` (create the
 
 > **Path resolution**: prefer `${CLAUDE_PLUGIN_ROOT}/hooks/` (plugin-install topology). All 3 guards resolve their target repo via `CLAUDE_PROJECT_DIR` (3-tier fallback: custom env → `CLAUDE_PROJECT_DIR` → absolute), so wiring them here makes them operate on **this** repo, not the source repo. If the harness is used source-relative (not plugin-installed), substitute the source `plans/hooks/` absolute path instead.
 > **dashboard-sync first**: keep `session-dashboard-sync.py` as the **first** Stop entry (HARNESS-STALE-GUARD-3 ordering — it is fail-open and regenerates the HTML before the consistency guards run).
+
+#### 6-b. Recommend two user settings (print them — do not write them)
+
+These live in the user's `~/.claude/settings.json`, outside the target repo, so `/init` only shows them and asks. Never edit user settings without an explicit yes.
+
+```json
+{
+  "cleanupPeriodDays": 3650,
+  "permissions": { "ask": ["Bash(git push *)", "Bash(gh pr create *)"] }
+}
+```
+
+- `cleanupPeriodDays` — Claude Code deletes conversation transcripts after 30 days by default. `hooks/skill_usage_aggregator.py` reads them for the monthly usage review, so the default leaves at most one month to review. Any value ≥ 1 works (0 is rejected).
+- `permissions.ask` — pushing and opening a PR always ask first, even inside an authorized C~E·D~E batch run. `ask` rules win over `allow` rules. Merge into an existing `permissions.ask` array; do not replace it.
 
 ### Step 7 — Generate the initial `session-dashboard.html`
 
