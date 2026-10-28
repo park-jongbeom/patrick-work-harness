@@ -131,13 +131,30 @@ class TestHookDecisions(ReportCase):
         r = self.rows()["s1"]
         self.assertEqual(r["max_repeat_notice"]["count"], 5)
         self.assertTrue(r["max_repeat_notice"]["text"].startswith("[COMPREHENSION-LEDGER-STALE]"))
-        self.assertEqual(r["guards"]["COMPREHENSION-LEDGER-STALE"]["notice"], 5)
+        self.assertEqual(r["guards"]["comprehension-ledger-stale-guard.py"]["notice"], 5)   # 꼬리표 → 그 훅 파일
 
     def test_list_shaped_attachment_content(self):
         """실제 기록에서 알림 content 가 문자열이 아니라 블록 목록인 경우가 있었다(2026-10-22 첫 실행에서 발견)."""
         self.session([hook("hook_system_message", "Stop", "", content=[{"type": "text", "text": "[GATE-E-SYNC] 알림"}]),
                       {"type": "attachment", "attachment": {"type": "hook_success", "hookName": "Stop", "stdout": ["x"]}}])
-        self.assertEqual(self.rows()["s1"]["guards"]["GATE-E-SYNC"]["notice"], 1)
+        self.assertEqual(self.rows()["s1"]["guards"]["gate-e-sync-guard.py"]["notice"], 1)
+
+    def test_notice_tag_joins_its_hook_row(self):
+        """Stop 알림에는 명령이 안 남아 꼬리표로만 보인다 — 같은 훅의 실행 시간 행과 한 줄로 합친다(2026-10-28 대조 검증:
+        두 줄로 나뉘어 훅 수를 잘못 셌다). 엔진 훅이 내지 않는 꼬리표는 그대로 둔다."""
+        stale = "python3 /home/u/.claude/hooks/patrick-work-harness/comprehension-ledger-stale-guard.py"
+        self.session([hook("hook_system_message", "Stop", "", content="[COMPREHENSION-LEDGER-STALE] 만료 1건"),
+                      {"type": "system", "subtype": "stop_hook_summary", "hookInfos": [{"command": stale, "durationMs": 300}]},
+                      hook("hook_system_message", "Stop", "", content="[OTHER-TOOL] 남의 알림")])
+        g = self.rows()["s1"]["guards"]
+        self.assertEqual(g["comprehension-ledger-stale-guard.py"], {"notice": 1, "fired": 1, "ms_median": 300, "ms_max": 300})
+        self.assertNotIn("COMPREHENSION-LEDGER-STALE", g)
+        self.assertEqual(g["OTHER-TOOL"]["notice"], 1)
+
+    def test_every_engine_notice_tag_has_one_owner(self):
+        self.assertEqual(hr.NOTICE_OWNERS.get("DOCKER-GUARD"), "docker-command-guard.py")
+        self.assertEqual(hr.NOTICE_OWNERS.get("GATE-A-SYNC"), "gate-a-sync-guard.py")
+        self.assertTrue(all(v in hr.ENGINE_HOOKS for v in hr.NOTICE_OWNERS.values()))
 
     def test_one_broken_session_does_not_stop_the_report(self):
         self.session([user("ok")], sid="good")

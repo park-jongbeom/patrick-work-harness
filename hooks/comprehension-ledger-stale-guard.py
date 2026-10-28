@@ -64,6 +64,8 @@ except ImportError:
 # 필드 부재 시 기본값 — plan_tier 미기재를 "2" 로 간주하는 것과 동일한 하위 호환 패턴
 _DEFAULT_LEARNING_PATH = "plans/learning"
 LEDGER_FILENAME = "comprehension_ledger.md"
+SHOWN = 3          # 알림에 나열할 만료 항목 수 — 나머지는 건수와 원장 경로로
+SCOPE_CHARS = 80   # scope 칸이 길면 자른다
 
 
 def _find_answers_yml():
@@ -297,12 +299,17 @@ def main():
         f"[COMPREHENSION-LEDGER-STALE] 이해도 ledger 만료 항목 {len(expired)}건 "
         f"— 재검증 권장 (비차단·종료 막지 않음)"
     ]
-    for verified, tech_tags, scope, n_months, expiry, days_over in expired:
+    # 최근에 만료된 SHOWN 건만 보인다 (2026-10-28). 실사용에서 24건 알림 한 번이 7,201자였다.
+    # 다시 알리는 것은 목록이 바뀌었을 때(새로 만료)이므로 최근 만료부터.
+    for verified, tech_tags, scope, n_months, expiry, days_over in sorted(expired, key=lambda e: e[5])[:SHOWN]:
         tag_str = f"[{tech_tags}] " if tech_tags else ""
+        scope = scope if len(scope) <= SCOPE_CHARS else scope[:SCOPE_CHARS] + "…"
         lines.append(
             f"  - {tag_str}scope '{scope}': verified {verified} + {n_months}개월 "
             f"→ 만료 {expiry.isoformat()} ({days_over}일 경과)"
         )
+    if len(expired) > SHOWN:
+        lines.append(f"  - … 외 {len(expired) - SHOWN}건 — 전체 목록: {LEDGER_PATH}")
     lines.append(
         "  조치: 해당 scope 작업 재개 시 gate-b Step 1 에서 재검증하세요 "
         "(간격 둔 재인출 = 기억 강화)."

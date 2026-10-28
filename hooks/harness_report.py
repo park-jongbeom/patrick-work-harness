@@ -78,12 +78,30 @@ def engine_source(command):
     return "other"
 
 
+def _notice_owners():
+    """알림 꼬리표 → 그 꼬리표를 내는 엔진 훅 파일. Stop 훅 알림에는 명령이 남지 않아 꼬리표로만 보이는데, 같은 훅의
+    실행 시간은 파일 이름으로 남는다 — 둘을 한 행으로 합쳐야 훅 수를 바로 센다(2026-10-28 대조 검증에서 두 행으로 나뉜 것을
+    두 훅으로 셌다). 두 파일 이상에 나오는 꼬리표는 주인을 정할 수 없어 꼬리표 그대로 둔다."""
+    owners = collections.defaultdict(set)
+    for name in ENGINE_HOOKS - {os.path.basename(__file__)}:
+        try:
+            text = open(os.path.join(HERE, name), encoding="utf-8").read()
+        except OSError:
+            continue
+        for tag in re.findall(r"[\"']\[([A-Z][A-Z0-9_-]+)\]", text):
+            owners[tag].add(name)
+    return {tag: next(iter(files)) for tag, files in owners.items() if len(files) == 1}
+
+
+NOTICE_OWNERS = _notice_owners()
+
+
 def guard_name(command="", content="", fallback=""):
     names = PY_NAME.findall(command or "")
     if names:
         return names[-1]
     tag = NOTICE_TAG.match((content or "").strip())
-    return tag.group(1) if tag else (fallback or "?")
+    return NOTICE_OWNERS.get(tag.group(1), tag.group(1)) if tag else (fallback or "?")
 
 
 def parse_output(stdout):
@@ -367,6 +385,8 @@ METRICS = [
      "최신 엔진(플러그인·install.sh)으로 하네스 스킬을 적재한 세션 수 — 몫은 「문맥 비용」 표"),
     ("모델 판정 재생은 사례마다 두 번", None, None, "다음 재생 측정"),
     ("docker 가드는 남기되", _guard("docker-command-guard.py", "deny"), 10, "docker 가드 거부 수(정탐 여부는 사람이 판정)"),
+    ("사용 보고서는 알림 꼬리표를", None, None, "월간 보고서 가드 표의 대문자 꼬리표 행 수"),
+    ("이해도 원장 만료 알림은 최근 만료", None, None, "원장의 verified 갱신 수(R0 전후 한 달)"),
 ]
 
 

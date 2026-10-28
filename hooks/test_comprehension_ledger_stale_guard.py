@@ -410,6 +410,25 @@ def test_notify_survives_cp949_default_stdout():
     print("  PASS: cp949 기본 stdout 에서도 systemMessage 유지")
 
 
+def test_long_list_is_summarized():
+    """만료가 많으면 최근에 만료된 3건과 「외 N건」·원장 경로만 보인다 (2026-10-28).
+
+    실사용에서 만료 24건 알림 한 번이 7,201자였다 — scope 칸이 길어 화면을 덮는다. 다시 알리는 것은 목록이 바뀌었을
+    때(새로 만료)이므로 최근 만료부터 보인다.
+    """
+    long_scope = "harness/LongScope " + "가" * 200
+    rows = [(f"2020-0{m}-01", f"scope/M{m}", "3개월", "AI", "통과", "요약") for m in range(1, 5)]
+    rows.append(("2020-05-01", long_scope, "3개월", "AI", "통과", "요약"))
+    _, out = run_hook(ledger(rows))
+    assert "만료 항목 5건" in out, out
+    for kept in ("2020-05-01", "scope/M4", "scope/M3"):
+        assert kept in out, f"최근 만료 {kept} 가 빠짐: {out}"
+    assert "scope/M1" not in out and "scope/M2" not in out, f"오래된 항목까지 나열: {out}"
+    assert "외 2건" in out and "comprehension_ledger.md" in out, out
+    assert "harness/LongScope" in out and long_scope not in out, "긴 scope 를 자르지 않음"
+    print("  PASS: 만료 5건 → 최근 3건 + 외 2건 + 원장 경로")
+
+
 if __name__ == "__main__":
     tests = [
         test_empty_ledger_allows,
@@ -434,6 +453,8 @@ if __name__ == "__main__":
         test_same_expired_set_notifies_once_per_session,
         test_changed_expired_set_notifies_again,
         test_new_session_notifies_again,
+        # 긴 목록 요약 (2026-10-28)
+        test_long_list_is_summarized,
     ]
     print(f"comprehension-ledger-stale-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)
