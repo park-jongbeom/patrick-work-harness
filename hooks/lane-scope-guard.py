@@ -158,10 +158,9 @@ def gate_d_recorded(content):
     대화 기록이 아니라 세션 문서로 본다. 대화 기록은 현재 턴의 최신 줄이 늦게 쓰일 수 있고, 일괄로 C→D→E 를
     한 턴에 돌면 바로 그 경우다. 표지는 error-topics 가드도 읽으므로 빠지면 그쪽도 조용히 꺼진다.
     """
-    from session_dashboard_parsers import _gate_block
+    from session_dashboard_parsers import gate_d_recorded as recorded
 
-    block = _gate_block(content, "D")[1]
-    return bool(re.search(r"self-debug\s*\d+", block) and re.search(r"FIX-B\s*\d+\s*건", block))
+    return recorded(content)
 
 
 def answers_at(base):

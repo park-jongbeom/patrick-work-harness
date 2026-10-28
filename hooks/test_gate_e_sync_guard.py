@@ -28,8 +28,11 @@ def clear_counter(session_id):
 
 
 def run_hook(session_index, current_session, session_id="test-sess",
-             write_index=True, write_current=True, stop_hook_active=False):
-    """gate-e-sync-guard.py 를 서브프로세스로 실행, (returncode, stderr) 반환."""
+             write_index=True, write_current=True, stop_hook_active=False, transcript=None):
+    """gate-e-sync-guard.py 를 서브프로세스로 실행, (returncode, stderr) 반환.
+
+    transcript: 대화 기록 줄(dict) 목록 — 주면 JSONL 로 써서 transcript_path 로 넘긴다.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         if write_index:
             with open(os.path.join(tmpdir, "SESSION_INDEX.md"), "w",
@@ -43,6 +46,12 @@ def run_hook(session_index, current_session, session_id="test-sess",
         env = os.environ.copy()
         env["GATE_E_GUARD_BASE"] = tmpdir
         payload = {"session_id": session_id}
+        if transcript is not None:
+            tpath = os.path.join(tmpdir, "transcript.jsonl")
+            with open(tpath, "w", encoding="utf-8") as f:
+                for event in transcript:
+                    f.write(json.dumps(event, ensure_ascii=False) + "\n")
+            payload["transcript_path"] = tpath
         if stop_hook_active:
             payload["stop_hook_active"] = True
         proc = subprocess.run(
@@ -85,6 +94,18 @@ def current_md(session_id, status, gate_cell):
         '|------|-----|\n'
         f'| 현재 Gate | **{gate_cell}** |\n'
     )
+
+
+GATE_D = "## Gate D 검증\n\n- self-debug 0회 · 수렴\n- FIX-B 0건 · DEP 0건\n"
+
+
+def wrote(tool, **inp):
+    """이 대화에서 모델이 도구로 무언가를 쓴 기록 한 줄."""
+    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": tool, "input": inp}]}}
+
+
+def wrote_e(path="/w/CURRENT_SESSION.md"):
+    return wrote("Edit", file_path=path, old_string="C (확인 대기)", new_string="✅E 완료 (2026-10-28)")
 
 
 # --- 테스트 ---
@@ -190,6 +211,67 @@ def test_stop_hook_active_allows():
     print("  PASS: stop_hook_active → 차단 조건 성립해도 즉시 허용")
 
 
+# --- Gate D 기록 없이 ✅E (2026-10-28) ---
+# 대조 실험의 「C~E 일괄」 8회 중 2회가 Gate D 블록 없이 ✅E 로 끝났다. Gate D 기록 확인은 자율 레인 가드에만
+# 있었다. 이 대화가 ✅E 를 써 넣었을 때만 본다 — 이전 세션이 ✅E 로 남은 프로젝트의 다른 대화를 막지 않는다.
+
+def test_e_without_gate_d_written_this_session_blocks():
+    clear_counter("t-nod")
+    code, err = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"),
+                         session_id="t-nod", transcript=[wrote_e()])
+    assert code == 2, f"expected 2, got {code}"
+    assert "Gate D" in err and "self-debug" in err, err
+    clear_counter("t-nod")
+    print("  PASS: 이 대화가 ✅E 를 썼는데 Gate D 기록 없음 → 차단")
+
+
+def test_e_with_gate_d_record_allows():
+    clear_counter("t-withd")
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료") + GATE_D,
+                       session_id="t-withd", transcript=[wrote_e()])
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: Gate D 표지 있음 → 허용")
+
+
+def test_e_from_earlier_session_allows():
+    """✅E 가 이전 대화에서 쓰였다(이 대화 기록에는 ✅E 쓰기가 없다) → 허용."""
+    clear_counter("t-old")
+    other = wrote("Edit", file_path="/w/src/app.ts", old_string="a", new_string="✅E")   # 다른 파일
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"),
+                       session_id="t-old", transcript=[other])
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: 이전 대화의 ✅E → 허용")
+
+
+def test_e_written_by_bash_heredoc_blocks():
+    clear_counter("t-bash")
+    cmd = "cat >> CURRENT_SESSION.md <<'EOF'\n> **현재 상태**: ✅ E 완료\nEOF"
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅ E 완료", "✅ E 완료"),
+                       session_id="t-bash", transcript=[wrote("Bash", command=cmd)])
+    assert code == 2, f"expected 2, got {code}"
+    clear_counter("t-bash")
+    print("  PASS: Bash 로 ✅E 를 쓴 것도 본다 → 차단")
+
+
+def test_gate_d_block_releases_after_max():
+    clear_counter("t-dmax")
+    args = (index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"))
+    codes = [run_hook(*args, session_id="t-dmax", transcript=[wrote_e()])[0] for _ in range(MAX_BLOCKS + 1)]
+    assert codes == [2] * MAX_BLOCKS + [0], codes
+    clear_counter("t-dmax")
+    print(f"  PASS: Gate D 차단도 {MAX_BLOCKS}회 뒤 해제")
+
+
+def test_gate_d_marker_needs_both_counts():
+    """표지 하나만 있으면 기록으로 보지 않는다(자율 레인 가드와 같은 판정)."""
+    clear_counter("t-half")
+    half = current_md("SESS-1", "✅E 완료", "✅E 완료") + "## Gate D 검증\n\n- self-debug 1회\n"
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), half, session_id="t-half", transcript=[wrote_e()])
+    assert code == 2, f"expected 2, got {code}"
+    clear_counter("t-half")
+    print("  PASS: 표지 하나만 → 차단")
+
+
 if __name__ == "__main__":
     tests = [
         test_active_session_allows,
@@ -200,6 +282,13 @@ if __name__ == "__main__":
         test_malformed_current_allows,
         test_loop_guard_releases_after_max,
         test_stop_hook_active_allows,
+        # Gate D 기록 없이 ✅E (2026-10-28)
+        test_e_without_gate_d_written_this_session_blocks,
+        test_e_with_gate_d_record_allows,
+        test_e_from_earlier_session_allows,
+        test_e_written_by_bash_heredoc_blocks,
+        test_gate_d_block_releases_after_max,
+        test_gate_d_marker_needs_both_counts,
     ]
     print(f"gate-e-sync-guard.py 테스트 ({len(tests)}건)")
     print("=" * 50)

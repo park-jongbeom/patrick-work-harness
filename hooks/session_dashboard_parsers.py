@@ -748,6 +748,16 @@ def _parse_comprehension(content, out):
 LANE_LABELS = ("레인", "걸린 트리거", "기준 커밋", "수락 명령")
 
 
+def gate_d_recorded(content):
+    """세션 문서의 Gate D 블록에 `self-debug N회`·`FIX-B N건` 표지가 둘 다 있는가.
+
+    gate-d 가 두 표지를 Gate D 블록에 쓰게 하고(루프를 안 돌았으면 `self-debug 0회`), error-topics 가드도 같은 표지를
+    읽는다. 쓰는 곳: lane-scope-guard(자율 레인 Gate E 진입), gate-e-sync-guard(✅E 를 쓴 대화, 2026-10-28).
+    """
+    block = _gate_block(content or "", "D")[1]
+    return bool(re.search(r"self-debug\s*\d+", block) and re.search(r"FIX-B\s*\d+\s*건", block))
+
+
 def parse_lane_decision(content):
     """Gate A 계획의 `### 레인 판정` 블록을 읽는다 (S6, 2026-10-22).
 

@@ -94,7 +94,7 @@ Hooks run automatically around each Claude Code response and tool call (Stop, Pr
 |------|------|------|
 | `master-plan-stale-guard.py` | Stop | Detects mismatch between `00_MASTER_PLAN.md` L7 session ID and `CURRENT_SESSION.md` |
 | `gate-a-sync-guard.py` | Stop | Detects missing required fields (e.g. `작업 의도`) while Gate A approval is pending |
-| `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E |
+| `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E, and sends the session back when this conversation wrote ✅E without a Gate D record |
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
 | `comprehension-ledger-stale-guard.py` | Stop | Detects expired comprehension-gate (Gate B) evidence ledger entries |
@@ -394,7 +394,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 |------|------|------|
 | `master-plan-stale-guard.py` | Stop | `00_MASTER_PLAN.md` L7 세션 ID ↔ `CURRENT_SESSION.md` 불일치 감지 |
 | `gate-a-sync-guard.py` | Stop | Gate A 승인 대기 시 필수 필드(`작업 의도` 등) 누락 감지 |
-| `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지 |
+| `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지, 이 대화가 Gate D 기록 없이 ✅E 를 쓰면 되돌려 보냄 |
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
 | `comprehension-ledger-stale-guard.py` | Stop | 이해도 게이트(Gate B) 증적 원장 만료 감지 |

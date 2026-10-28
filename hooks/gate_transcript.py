@@ -13,7 +13,9 @@
 `autonomous_approved` 는 마지막 gate-a 뒤에 사용자가 「자율 레인 승인」을 직접 썼는지 본다(S7). 스킬 본문
 (`isMeta`)과 대화 압축 요약(`isCompactSummary`)도 user 줄로 기록되므로 뺀다 — gate-a 본문에 이 문구가 있다.
 
-쓰는 곳: test-write-guard.py(S1), comprehension-pending-guard.py(S3a), lane-scope-guard.py(S7).
+`wrote_to` 는 본 대화의 쓰기 도구(Edit·Write·MultiEdit)와 Bash 명령이 어떤 파일에 어떤 글자를 써 넣었는지 본다(2026-10-28).
+
+쓰는 곳: test-write-guard.py(S1), comprehension-pending-guard.py(S3a), lane-scope-guard.py(S7), gate-e-sync-guard.py(Gate D 기록).
 """
 
 import json
@@ -106,3 +108,50 @@ def autonomous_approved(transcript_path):
     except Exception:
         return False
     return approved
+
+
+WRITE_TOOLS = {"Edit", "Write", "MultiEdit"}
+
+
+def _written_texts(name, inp):
+    if name in WRITE_TOOLS:
+        texts = [inp.get("new_string"), inp.get("content")] + [e.get("new_string") for e in inp.get("edits") or []
+                                                               if isinstance(e, dict)]
+        return inp.get("file_path") or "", [t for t in texts if isinstance(t, str)]
+    if name == "Bash":
+        cmd = inp.get("command") if isinstance(inp.get("command"), str) else ""
+        return cmd, [cmd]
+    return "", []
+
+
+def wrote_to(transcript_path, filename, pattern):
+    """본 대화가 `filename` 에 `pattern`(정규식)에 맞는 글자를 써 넣었는가. 경로가 없거나 못 읽으면 None.
+
+    쓰기 도구는 대상 경로가 `filename` 으로 끝나야 하고, Bash 는 명령에 `filename` 과 글자가 함께 있어야 한다(heredoc).
+    하위 에이전트 줄은 뺀다. 현재 턴의 최신 줄은 아직 없을 수 있다 — 호출부는 None·False 를 통과로 다룬다.
+    """
+    if not transcript_path:
+        return None
+    rx = re.compile(pattern)
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if filename not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+                if event.get("type") != "assistant" or event.get("isSidechain"):
+                    continue
+                for block in (event.get("message") or {}).get("content") or []:
+                    if not (isinstance(block, dict) and block.get("type") == "tool_use"):
+                        continue
+                    target, texts = _written_texts(block.get("name"), block.get("input") or {})
+                    if block.get("name") in WRITE_TOOLS and not target.endswith(filename):
+                        continue
+                    if filename in target and any(rx.search(t) for t in texts):
+                        return True
+    except OSError:
+        return None
+    return False
