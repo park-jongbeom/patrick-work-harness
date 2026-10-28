@@ -197,6 +197,53 @@ class TestCollection(ReportCase):
         self.assertEqual(data["sessions"][0]["user_prompts"], 1)
 
 
+def call(mid, ctx, out=100, stop="end_turn", model="claude-sonnet-5-5"):
+    """응답 한 번 — 실제 기록처럼 내용 블록마다 줄이 나뉘고 같은 message.id·usage 가 되풀이된다."""
+    usage = {"input_tokens": 2, "cache_creation_input_tokens": 0, "cache_read_input_tokens": ctx - 2, "output_tokens": out}
+    return {"type": "assistant", "timestamp": "2026-10-23T10:00:01Z",
+            "message": {"id": mid, "model": model, "usage": usage, "stop_reason": stop,
+                        "content": [{"type": "text", "text": "ok"}]}}
+
+
+def skill_body(name):
+    return {"type": "user", "isMeta": True, "timestamp": "2026-10-23T10:00:02Z",
+            "message": {"content": [{"type": "text", "text": f"Base directory for this skill: /w/.claude/skills/{name}\n\n# 절차"}]}}
+
+
+class TestContextCost(ReportCase):
+
+    def test_skill_load_jump_share_and_output_limit_stops(self):
+        self.session([user("시작"), call("m1", 30000), call("m1", 30000),   # 같은 응답의 두 줄은 한 번으로 센다
+                      user("<command-name>/gate-a</command-name>"), skill_body("gate-a"),
+                      call("m2", 46000), call("m3", 47000, stop="max_tokens"),
+                      skill_body("deep-research"), call("m4", 57000)])       # 하네스 밖 스킬은 몫에 넣지 않는다
+        c = self.rows()["s1"]["context"]
+        self.assertEqual((c["calls"], c["first"], c["max"], c["max_tokens_stops"]), (4, 30000, 57000, 1))
+        self.assertEqual(c["input_total"], 30000 + 46000 + 47000 + 57000)
+        self.assertEqual(c["skill_loads"], {"gate-a": [16000], "deep-research": [10000]})
+        self.assertEqual(c["harness_skill_tokens"], 16000 * 3)              # 적재 뒤 호출 3번 동안 실려 있다
+
+    def test_sidechain_and_synthetic_calls_are_not_counted(self):
+        side = call("m9", 99000)
+        side["isSidechain"] = True
+        self.session([call("m1", 20000), side, call("m2", 21000, model="<synthetic>")])
+        c = self.rows()["s1"]["context"]
+        self.assertEqual((c["calls"], c["max"]), (1, 20000))
+
+    def test_harness_skill_names_match_the_engine(self):
+        skills = os.path.join(os.path.dirname(HERE), "skills")
+        self.assertEqual(hr.HARNESS_SKILLS, {d for d in os.listdir(skills) if os.path.isdir(os.path.join(skills, d))})
+
+    def test_report_has_context_cost_section(self):
+        self.session([user("시작"), call("m1", 30000), skill_body("gate-b"), call("m2", 34000)])
+        out = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, out, True)
+        hr.main(["--projects-dir", self.root, "--out", out])
+        md = open(os.path.join(out, "report.md"), encoding="utf-8").read()
+        self.assertIn("## 문맥 비용", md)
+        self.assertIn("| proj-a | `s1` | 2 | 30000 | 34000 | gate-b 4000 | 6% | 0 |", md)
+
+
 class TestPredictionsAndOutput(ReportCase):
 
     DECISION_LOG = """# 결정 기록

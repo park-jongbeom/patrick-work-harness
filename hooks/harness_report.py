@@ -47,6 +47,10 @@ AUTO_MODE_DENIAL = "denied by the Claude Code auto mode classifier"
 SAFETY_DENIAL = "denied by a built-in Claude Code safety check"
 #: 알림 본문에서 따로 셀 문구 — DECISION_LOG 예측이 이 수를 기다린다
 SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehension_earlier_plan": "이전 계획의 미답 질문"}
+#: 문맥 비용에서 「하네스 몫」으로 셀 스킬 — skills/ 의 폴더 이름과 같아야 한다(시험이 대조한다).
+#: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
+HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update"}
+SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
 
 
 def as_text(value):
@@ -131,6 +135,9 @@ def read_session(path):
     guards = collections.defaultdict(_new_guard)
     durations = collections.defaultdict(list)
     sources, notices, asks, ask_owner = set(), collections.Counter(), {}, {}
+    # 문맥 비용: 응답마다 실린 입력 토큰(입력+캐시 생성+캐시 읽기). 한 응답이 내용 블록마다 여러 줄로 남으므로
+    # message.id 로 묶는다. 스킬 본문은 적재 직전·직후 응답의 문맥 차로 잰다.
+    call_index, calls, stops, loads = {}, [], [], []
     bad = 0
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -152,11 +159,26 @@ def read_session(path):
                 message = event.get("message") or {}
                 if message.get("model") and message["model"] != "<synthetic>":
                     row["models"][message["model"]] += 1
+                    usage = message.get("usage")
+                    if isinstance(usage, dict):
+                        mid = message.get("id") or event.get("uuid") or len(calls)
+                        size = sum(usage.get(k) or 0 for k in
+                                   ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+                        if mid not in call_index:
+                            call_index[mid] = len(calls)
+                            calls.append(size)
+                            stops.append(None)
+                        calls[call_index[mid]] = size
+                        stops[call_index[mid]] = message.get("stop_reason") or stops[call_index[mid]]
                 for block in message.get("content") or []:
                     if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill":
                         row["skills"][str((block.get("input") or {}).get("skill", "")).split(":")[-1]] += 1
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
+                for text in (_texts(content) if isinstance(content, list) else []):
+                    body = SKILL_BODY.match(text)
+                    if body:
+                        loads.append((os.path.basename(body.group(1).rstrip("/")), len(calls)))
                 if _is_typed_prompt(event):
                     text = " ".join(_texts(content))
                     row["user_prompts"] += 1
@@ -264,6 +286,16 @@ def read_session(path):
     row["max_repeat_notice"] = {"count": count, "text": text[:160]}
     for key in ("models", "skills", "special"):
         row[key] = dict(row[key])
+    skill_loads, harness_tokens = collections.defaultdict(list), 0
+    for name, k in loads:                      # k = 적재 뒤 첫 응답의 위치
+        if 0 < k < len(calls):
+            jump = calls[k] - calls[k - 1]
+            skill_loads[name].append(jump)
+            if name in HARNESS_SKILLS:
+                harness_tokens += jump * (len(calls) - k)   # 적재 뒤 모든 응답에 다시 실린다(상한 — 같이 들어온 입력 포함)
+    row["context"] = {"calls": len(calls), "first": calls[0] if calls else 0, "max": max(calls, default=0),
+                      "input_total": sum(calls), "max_tokens_stops": stops.count("max_tokens"),
+                      "skill_loads": dict(skill_loads), "harness_skill_tokens": harness_tokens}
     return row, bad
 
 
@@ -331,7 +363,16 @@ METRICS = [
     ("레인 가드는 플러그인과 install.sh", _guard("lane-scope-guard.py", "fired"), None, "레인 가드 발동 수와 소요 시간(세션 표)"),
     ("레인 가드가 Gate D 기록을", _sum("autonomous_approvals"), 10, "「자율 레인 승인」 수"),
     ("사전 등록 — 자율 레인의", _sum("autonomous_approvals"), 20, "「자율 레인 승인」 수 — 판정은 카드 원장"),
+    ("하네스 문맥 비용을 사용 보고서가", lambda rows: sum(1 for r in rows if _engine_skill_session(r)), 10,
+     "최신 엔진(플러그인·install.sh)으로 하네스 스킬을 적재한 세션 수 — 몫은 「문맥 비용」 표"),
+    ("모델 판정 재생은 사례마다 두 번", None, None, "다음 재생 측정"),
+    ("docker 가드는 남기되", _guard("docker-command-guard.py", "deny"), 10, "docker 가드 거부 수(정탐 여부는 사람이 판정)"),
 ]
+
+
+def _engine_skill_session(row):
+    loads = (row.get("context") or {}).get("skill_loads") or {}
+    return bool(set(row.get("engine_source") or []) & {"plugin", "install.sh"}) and bool(set(loads) & HARNESS_SKILLS)
 
 
 def pending_entries(decision_log):
@@ -408,6 +449,19 @@ def render(data, progress, projects_dir, since):
     lines += ["", "## 반복된 알림 (한 세션에서 같은 알림 3회 이상 — 경고 피로 후보)", ""]
     lines += [f"- {r['project']} `{r['session'][:8]}`: {r['max_repeat_notice']['count']}회 — {r['max_repeat_notice']['text']}"
               for r in repeats[:15]] or ["- 없음"]
+    lines += ["", "## 문맥 비용 (응답마다 실린 입력 토큰)", "",
+              "- 첫 응답 문맥 = 시스템 프롬프트·도구·CLAUDE.md·스킬 목록의 고정 몫. 하네스 없는 프로젝트의 값과 비교한다.",
+              "- 하네스 스킬 몫 = 하네스 스킬 적재로 늘어난 문맥 × 적재 뒤 응답 수 ÷ 입력 합(상한 — 같은 차례의 입력 포함).", "",
+              "| 프로젝트 | 세션 | 응답 | 첫 응답 문맥 | 최대 문맥 | 스킬 적재(토큰) | 하네스 스킬 몫 | 출력 한도 중단 |",
+              "|---|---|---|---|---|---|---|---|"]
+    for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
+        c = r.get("context") or {}
+        if not c.get("calls"):
+            continue
+        loads = ", ".join(f"{n} {'/'.join(str(j) for j in js)}" for n, js in sorted(c["skill_loads"].items())) or "—"
+        share = f"{100 * c['harness_skill_tokens'] / c['input_total']:.0f}%" if c["input_total"] else "—"
+        lines.append(f"| {r['project']} | `{r['session'][:8]}` | {c['calls']} | {c['first']} | {c['max']} | "
+                     f"{loads} | {share} | {c['max_tokens_stops']} |")
     lines += ["", "## Gate 순서 (세션별)", "", "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E |", "|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:
