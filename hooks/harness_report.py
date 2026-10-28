@@ -387,6 +387,7 @@ METRICS = [
     ("docker 가드는 남기되", _guard("docker-command-guard.py", "deny"), 10, "docker 가드 거부 수(정탐 여부는 사람이 판정)"),
     ("사용 보고서는 알림 꼬리표를", None, None, "월간 보고서 가드 표의 대문자 꼬리표 행 수"),
     ("이해도 원장 만료 알림은 최근 만료", None, None, "원장의 verified 갱신 수(R0 전후 한 달)"),
+    ("최신 엔진 대조 실험", None, None, "어려운 과제 대조 실험(재료는 저장소 밖)"),
 ]
 
 
