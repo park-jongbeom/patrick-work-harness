@@ -74,7 +74,8 @@ The single definition of the batch phrases (gate-d and gate-e only point here). 
   and report — do not run Gate E on a failing verification.
 - **Record**: add `> 일괄 실행: C~E (승인 문구: 「…」)` (or `D~E`) at the top of each Gate block written during the batch.
 - The guards still apply during a batch: the comprehension-question guard, the test-write guard in Gate D, the test-tampering guard, and the
-  Gate E guard, which sends the session back when ✅E is written without the Gate D markers (`self-debug N회`·`FIX-B N건`).
+  Gate E guard, which sends the session back when ✅E is written (in `CURRENT_SESSION.md` or `SESSION_INDEX.md`) without the Gate D markers
+  (`self-debug N회`·`FIX-B N건`).
 
 ## Autonomous lane (자율 레인)
 

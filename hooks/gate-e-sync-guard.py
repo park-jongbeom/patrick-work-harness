@@ -14,8 +14,8 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
   - 차단: stderr 메시지 + exit 2 (Claude가 종료를 멈추고 계속 작업)
   - 허용: exit 0
 
-Gate D 기록 검사 (2026-10-28, check_gate_d): ✅E 인데 Gate D 블록에 `self-debug N회`·`FIX-B N건` 표지가 없고
-  이 대화가 CURRENT_SESSION.md 에 ✅E 를 써 넣었으면 차단한다(연속 한도는 따로 센다).
+Gate D 기록 검사 (2026-10-28, check_gate_d): 이 대화가 CURRENT_SESSION.md·SESSION_INDEX.md 에 ✅E 를 써 넣었는데
+  Gate D 표지(`self-debug N회`·`FIX-B N건`)가 세션 문서에도 이 대화의 쓰기에도 없으면 차단한다(연속 한도는 따로 센다).
 차단 조건 (3중 AND):
   (1) CURRENT_SESSION.md 세션 ID 추출 성공
   (2) SESSION_INDEX.md 활성 표에서 그 세션 ID 행의 상태가 ✅E
@@ -166,16 +166,23 @@ def check_gate_d(payload, cur_text, cur_id):
     """✅E 인데 Gate D 기록이 없으면 Gate D 로 되돌려 보낸다 (2026-10-28).
 
     대조 실험의 「C~E 일괄」 8회 중 2회가 Gate D 블록 없이 ✅E 로 끝났다(검증 명령은 돌았고 검토·기록이 빠졌다).
-    Gate D 기록 확인은 자율 레인 가드에만 있었다. 이 대화가 CURRENT_SESSION.md 에 ✅E 를 써 넣었을 때만 본다 —
-    이전 세션이 ✅E 로 남은 프로젝트의 다른 대화를 막지 않기 위해서다. 판정할 수 없으면(기록 없음·예외) 통과.
+    Gate D 기록 확인은 자율 레인 가드에만 있었다. 이 대화가 CURRENT_SESSION.md 나 SESSION_INDEX.md 에 ✅E 를 써 넣었을
+    때만 본다 — 이전 세션이 ✅E 로 남은 프로젝트의 다른 대화를 막지 않기 위해서다(재생 실험에서 CURRENT_SESSION.md 는
+    비워 둔 채 SESSION_INDEX.md 에만 ✅E 를 쓴 경우가 있었다).
+    기록으로 보는 것: 세션 문서의 D 표지, 또는 이 대화가 어느 .md 에든 쓴 D 표지(doc-cleanup·아카이브로 옮긴 경우).
+    이 대화가 doc-cleanup 을 불렀으면 본문이 옮겨졌을 수 있어 보지 않는다. 판정할 수 없으면(기록 없음·예외) 통과.
     """
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from gate_transcript import wrote_to
+        from gate_transcript import invoked, wrote_to
         from session_dashboard_parsers import gate_d_recorded
 
+        transcript = payload.get("transcript_path")
         dpath = counter_path(f"{payload.get('session_id', '')}-gate-d")
-        if gate_d_recorded(cur_text) or not wrote_to(payload.get("transcript_path"), "CURRENT_SESSION.md", r"✅\s*E"):
+        wrote_e = any(wrote_to(transcript, name, r"✅\s*E") for name in ("CURRENT_SESSION.md", "SESSION_INDEX.md"))
+        recorded = gate_d_recorded(cur_text) or (wrote_to(transcript, ".md", r"self-debug\s*\d+")
+                                                 and wrote_to(transcript, ".md", r"FIX-B\s*\d+\s*건"))
+        if not wrote_e or recorded or invoked(transcript, "doc-cleanup") is not False:
             clear_counter(dpath)
             return
     except Exception:
@@ -187,7 +194,7 @@ def check_gate_d(payload, cur_text, cur_id):
         clear_counter(dpath)
         return
     block(
-        f"[GATE-E-SYNC] Gate D 기록 없이 ✅E ({attempts}/{MAX_BLOCKS}) — 세션 '{cur_id}'\n"
+        f"[GATE-E-SYNC] Gate D 기록 없이 ✅E ({attempts}/{MAX_BLOCKS}) — 세션 '{cur_id or '?'}'\n"
         f"  CURRENT_SESSION.md 에 `## Gate D` 블록과 `self-debug N회`·`FIX-B N건` 표지가 없다.\n"
         f"  Gate D 는 생략하지 않는다(「C~E 일괄」도 같다 — gate-c §Batch runs).\n"
         f"  조치: /gate-d 로 시험·검토를 마치고 Gate D 블록을 기록한 뒤 Gate E 를 끝내라."
@@ -221,6 +228,7 @@ def main():
     index_is_e = index_row_is_e(index_text, cur_id)
     if not cur_id or cur_is_e is None or index_is_e is None:
         clear_counter(cpath)
+        check_gate_d(payload, cur_text, cur_id)
         allow()
 
     # ── 차단 조건 (3중 AND) ──
@@ -229,8 +237,7 @@ def main():
 
     if not mismatch:
         clear_counter(cpath)
-        if cur_is_e:
-            check_gate_d(payload, cur_text, cur_id)
+        check_gate_d(payload, cur_text, cur_id)
         allow()
 
     # ── 불일치 — 무한 루프 방지 (연속 차단 한도) ──

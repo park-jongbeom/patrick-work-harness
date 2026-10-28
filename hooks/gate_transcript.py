@@ -155,3 +155,32 @@ def wrote_to(transcript_path, filename, pattern):
     except OSError:
         return None
     return False
+
+
+def invoked(transcript_path, skill):
+    """본 대화가 스킬 `skill` 을 불렀는가(Skill 도구 또는 사용자가 입력한 `/skill`). 못 읽으면 None."""
+    if not transcript_path:
+        return None
+    rx = re.compile(r"<command-name>/(?:[\w-]+:)?" + re.escape(skill) + r"</command-name>")
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if skill not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+                if event.get("isSidechain"):
+                    continue
+                content = (event.get("message") or {}).get("content")
+                if event.get("type") == "assistant":
+                    for block in content or []:
+                        if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill" \
+                                and str((block.get("input") or {}).get("skill", "")).split(":")[-1] == skill:
+                            return True
+                elif event.get("type") == "user" and not event.get("isMeta") and rx.search(json.dumps(content, ensure_ascii=False)):
+                    return True
+    except OSError:
+        return None
+    return False

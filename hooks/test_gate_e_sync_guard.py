@@ -21,10 +21,12 @@ def counter_file(session_id):
 
 
 def clear_counter(session_id):
-    try:
-        os.remove(counter_file(session_id))
-    except OSError:
-        pass
+    """기존 불일치 카운터와 Gate D 카운터(`<세션>-gate-d`)를 함께 지운다 — 남으면 다음 실행에서 한도 해제로 통과한다."""
+    for sid in (session_id, f"{session_id}-gate-d"):
+        try:
+            os.remove(counter_file(sid))
+        except OSError:
+            pass
 
 
 def run_hook(session_index, current_session, session_id="test-sess",
@@ -272,6 +274,37 @@ def test_gate_d_marker_needs_both_counts():
     print("  PASS: 표지 하나만 → 차단")
 
 
+def test_e_in_index_only_without_session_doc_blocks():
+    """CURRENT_SESSION.md 를 쓰지 않고 SESSION_INDEX.md 에만 ✅E 를 쓴 경우(재생 실험 1회) → 차단."""
+    clear_counter("t-idx")
+    stub = "# 현재 세션 상태\n\n> **현재 상태**: 세션 없음\n"
+    row = wrote("Edit", file_path="/w/SESSION_INDEX.md", old_string="| X |", new_string="| AI-REF-1 | t | repo | ✅E (완료) |")
+    code, err = run_hook(index_yaml("AI-REF-1", "✅E"), stub, session_id="t-idx", transcript=[row])
+    assert code == 2 and "Gate D" in err, f"expected 2, got {code}: {err}"
+    clear_counter("t-idx")
+    print("  PASS: SESSION_INDEX 에만 ✅E, 세션 문서 없음 → 차단")
+
+
+def test_gate_d_markers_moved_to_archive_allows():
+    """doc-cleanup 등으로 본문이 아카이브로 옮겨졌어도 이 대화가 D 표지를 썼으면 기록으로 본다."""
+    clear_counter("t-arch")
+    arch = wrote("Write", file_path="/w/tasks/archive/ARCHIVE_X.md", content=GATE_D)
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"),
+                       session_id="t-arch", transcript=[wrote_e(), arch])
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: 이 대화가 아카이브에 D 표지를 씀 → 허용")
+
+
+def test_doc_cleanup_in_this_conversation_allows():
+    clear_counter("t-clean")
+    skill = {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Skill",
+                                                           "input": {"skill": "patrick-work-harness:doc-cleanup"}}]}}
+    code, _ = run_hook(index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"),
+                       session_id="t-clean", transcript=[wrote_e(), skill])
+    assert code == 0, f"expected 0, got {code}"
+    print("  PASS: 이 대화가 doc-cleanup 을 부름(본문이 옮겨짐) → 허용")
+
+
 if __name__ == "__main__":
     tests = [
         test_active_session_allows,
@@ -289,6 +322,9 @@ if __name__ == "__main__":
         test_e_written_by_bash_heredoc_blocks,
         test_gate_d_block_releases_after_max,
         test_gate_d_marker_needs_both_counts,
+        test_e_in_index_only_without_session_doc_blocks,
+        test_gate_d_markers_moved_to_archive_allows,
+        test_doc_cleanup_in_this_conversation_allows,
     ]
     print(f"gate-e-sync-guard.py 테스트 ({len(tests)}건)")
     print("=" * 50)
