@@ -13,6 +13,7 @@
 import json
 import os
 import subprocess
+import tempfile
 import sys
 import unittest
 
@@ -93,6 +94,53 @@ class TestCommitMsgGuard(unittest.TestCase):
     def test_non_commit_command_passes(self):
         rc, _ = run_hook('git status')
         self.assertEqual(rc, 0, "commit 이 아닌 명령을 판정했다")
+
+    # ── 메시지를 넘기는 다른 형식 (2026-10-29 대조 검증에서 발견: 아래 형식은 틀린 제목도 통과했다) ──
+    def test_combined_flags_are_checked(self):
+        for cmd in ('git commit -am "fixed stuff"', 'git commit -qam "fixed stuff"'):
+            rc, _ = run_hook(cmd)
+            self.assertEqual(rc, 2, f"옵션을 붙여 쓴 형식을 검사하지 않았다: {cmd}")
+        rc, err = run_hook('git commit -qam "docs(log): 결과를 남긴다"')
+        self.assertEqual(rc, 0, err)
+
+    def test_file_from_stdin_heredoc_is_checked(self):
+        bad = "git commit -q -F - <<'EOF'\nfixed stuff\n\n본문\nEOF"
+        good = "git commit -q -F - <<'EOF'\nfix(hooks): 형식을 지킨 제목\n\n본문\nEOF"
+        unquoted = "git commit -F - <<EOF\nfixed stuff\nEOF"
+        self.assertEqual(run_hook(bad)[0], 2, "-F - heredoc 의 틀린 제목을 통과시켰다")
+        self.assertEqual(run_hook(unquoted)[0], 2, "따옴표 없는 heredoc 구분자를 놓쳤다")
+        rc, err = run_hook(good)
+        self.assertEqual(rc, 0, err)
+
+    def test_message_file_is_checked(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "msg.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("fixed stuff\n\n본문\n")
+            self.assertEqual(run_hook(f"git commit -F {path}")[0], 2, "-F <파일> 의 틀린 제목을 통과시켰다")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("feat(skills): 형식을 지킨 제목\n")
+            rc, err = run_hook(f"git commit --file={path}")
+            self.assertEqual(rc, 0, err)
+
+    def test_commit_text_inside_data_is_not_a_commit(self):
+        """명령 위치가 아닌 곳(파이썬 문자열·echo 인자)의 `git commit …` 은 커밋이 아니다 — 가드 시험을 쓰는 명령에서 오탐이 났다."""
+        cmd = ("python3 - <<'PY'\n"
+               "good = \"git commit -q -F - <<'EOF'\\nfixed stuff\\nEOF\"\n"
+               "bad = 'git commit -m \"fixed stuff\"'\n"
+               "PY")
+        rc, err = run_hook(cmd)
+        self.assertEqual(rc, 0, f"명령 위치가 아닌 커밋 문구를 막았다: {err}")
+        q3 = "'" * 3
+        edit = ("python3 - <<'EOF'\np='x.py'; s=open(p).read()\n"
+                "R=[(" + q3 + "# git commit -m \"fixed\"" + q3 + ", '')]\n"
+                "t = \"run_hook('cd repo && git commit -qam \\\"fixed stuff\\\"')\"\nEOF")
+        rc, err = run_hook(edit)
+        self.assertEqual(rc, 0, f"파이썬 heredoc 본문 안의 커밋 문구를 막았다: {err}")
+        rc, _ = run_hook('GIT_AUTHOR_NAME=x git commit -m "fixed stuff"')
+        self.assertEqual(rc, 2, "환경변수를 앞에 붙인 실제 커밋을 놓쳤다")
+        rc, _ = run_hook('cd repo && git commit -qam "fixed stuff"')
+        self.assertEqual(rc, 2, "&& 뒤의 실제 커밋을 놓쳤다")
 
     def test_unparsable_message_passes(self):
         """메시지를 못 뽑으면 통과 — 추출 실패로 막으면 오탐이 된다."""
