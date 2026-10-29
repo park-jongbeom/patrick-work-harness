@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-29
+
 ### Added
 
 - **사용 보고서 「문맥 비용」 절** (`hooks/harness_report.py`) — 세션마다 응답 수, 첫 응답 문맥(시스템 프롬프트·도구·CLAUDE.md·
