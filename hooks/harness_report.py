@@ -391,6 +391,7 @@ METRICS = [
     ("제품 저장소의 실제 과거 작업 재생", None, None, "계약을 문장에 적지 않은 재생 실험"),
     ("Gate E 가드가 이 대화에서 Gate D", _guard("gate-e-sync-guard.py", "block"), 10, "Gate E 가드 차단 수(사유는 메시지 — 오탐은 사람이 판정)"),
     ("제품 저장소 재생 2차", None, None, "범위 가드 절차를 고칠지의 사용자 결정"),
+    ("범위 가드 확인 실험", None, None, "일괄 중 FIX-B 이월·Gate B 전 일괄 승인 처리의 사용자 결정"),
 ]
 
 
