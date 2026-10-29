@@ -348,6 +348,23 @@ def _guard(name, field):
     return lambda rows: sum(r["guards"].get(name, {}).get(field, 0) for r in rows)
 
 
+def _a_to_c(rows):
+    """Gate A 다음 Gate B 없이 Gate C 로 간 세션 수 — skill_usage_aggregator 의 「이해도 생략(a→c)」과 같은 기준.
+    Gate 순서는 스킬 호출만 센다 — 일괄 중 스킬을 부르지 않고 진행한 Gate 는 보이지 않는다(하한)."""
+    count = 0
+    for r in rows:
+        after_a = False
+        for g in (r.get("gates") or "").split():
+            if g == "a":
+                after_a = True
+            elif g == "b":
+                after_a = False
+            elif g == "c" and after_a:
+                count += 1
+                break
+    return count
+
+
 def _skill(name):
     return lambda rows: sum(r["skills"].get(name, 0) for r in rows)
 
@@ -392,6 +409,7 @@ METRICS = [
     ("Gate E 가드가 이 대화에서 Gate D", _guard("gate-e-sync-guard.py", "block"), 10, "Gate E 가드 차단 수(사유는 메시지 — 오탐은 사람이 판정)"),
     ("제품 저장소 재생 2차", None, None, "범위 가드 절차를 고칠지의 사용자 결정"),
     ("범위 가드 확인 실험", None, None, "일괄 중 FIX-B 이월·Gate B 전 일괄 승인 처리의 사용자 결정"),
+    ("일괄 승인이 Gate B 전에 와도", _a_to_c, None, "Gate A 다음 Gate B 없이 Gate C 로 간 세션 수(스킬 호출 기준, 하한) — 확인 시점 R0 뒤 한 달"),
 ]
 
 

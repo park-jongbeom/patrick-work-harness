@@ -11,6 +11,9 @@
 
 ### Changed
 
+- **Gate B 전에 받은 일괄 승인은 Gate B 를 건너뛰지 않는다** (gate-c §Batch runs) — Gate A 단계에서 범위 답·계획 승인과 함께
+  「C~E 일괄」(또는 「다 진행해」)이 와도 Gate B 를 먼저 거치고 일괄은 Gate C 부터 시작한다. 「가드 우회 진행」은 Gate A 의 파일 수
+  한도만 푼다. 대조 실험에서 Gate B 전에 일괄 승인을 받은 3회가 모두 Gate B 를 건너뛰었다.
 - **Gate D 기록 없이 ✅E 로 끝나면 되돌려 보낸다** (`gate-e-sync-guard.py`) — 이 대화가 `CURRENT_SESSION.md` 나 `SESSION_INDEX.md` 에
   ✅E 를 써 넣었는데 Gate D 표지(`self-debug N회`·`FIX-B N건`)가 세션 문서에도, 이 대화가 쓴 문서(아카이브 포함)에도 없으면 응답 종료를
   막고 「/gate-d 로 검증·기록한 뒤 끝내라」고 알린다(연속 3회 뒤 해제). 이전 세션이 ✅E 로 남아 있는 것만으로는 막지 않고, 이 대화가

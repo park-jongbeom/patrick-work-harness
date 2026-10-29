@@ -261,6 +261,14 @@ class TestContextCost(ReportCase):
         self.assertIn("| proj-a | `s1` | 2 | 30000 | 34000 | gate-b 4000 | 6% | 0 |", md)
 
 
+class TestComprehensionSkipped(ReportCase):
+
+    def test_a_then_c_without_b_is_counted_per_session(self):
+        """Gate A 다음 Gate B 없이 Gate C — 사용 집계기의 「이해도 생략(a→c)」과 같은 기준으로 센다 (2026-10-29)."""
+        rows = [{"gates": "a c d e"}, {"gates": "a b c d e"}, {"gates": "a b c a c"}, {"gates": ""}, {"gates": "b c"}]
+        self.assertEqual(hr._a_to_c(rows), 2)
+
+
 class TestPredictionsAndOutput(ReportCase):
 
     DECISION_LOG = """# 결정 기록
