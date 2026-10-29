@@ -57,6 +57,8 @@ def parse_args() -> argparse.Namespace:
                         help="윈도우 일수 (기본=30)")
     parser.add_argument("--projects-dir", type=Path, default=DEFAULT_PROJECTS_DIR,
                         help="Claude Code projects 디렉토리 경로")
+    parser.add_argument("--include-tmp", action="store_true",
+                        help="-tmp- 로 시작하는 시험용 프로젝트도 센다(기본은 뺀다)")
     return parser.parse_args()
 
 
@@ -71,6 +73,14 @@ def _parse_ts(ts_raw):
 
 
 _COMMAND_TAG_RE = re.compile(r"<command-name>\s*/?([\w:.-]+)\s*</command-name>")
+
+
+def _skill_name(name):
+    """플러그인 설치의 `patrick-work-harness:gate-a` → `gate-a` (접두어를 뗀 스킬 이름).
+
+    2026-10-29 대조 검증에서 발견: 이름을 그대로 비교해 플러그인 기록의 9스킬을 모두 0회로 셌다.
+    harness_report·gate_transcript 도 같은 방식(`split(":")[-1]`)으로 읽는다."""
+    return name.split(":")[-1] if isinstance(name, str) else name
 
 
 def _collect_invocation(entry: dict, invocations: dict) -> None:
@@ -95,7 +105,7 @@ def _collect_invocation(entry: dict, invocations: dict) -> None:
             if (isinstance(block, dict) and block.get("type") == "tool_use"
                     and block.get("name") == "Skill"):
                 inp = block.get("input") or {}
-                skill = inp.get("skill")
+                skill = _skill_name(inp.get("skill"))
                 tool_id = block.get("id")
                 if skill and tool_id:
                     invocations[tool_id] = (skill, ts, session_id)
@@ -103,7 +113,7 @@ def _collect_invocation(entry: dict, invocations: dict) -> None:
     # 소스 2: commandName 결과 (Skill 마커 없는 호출만 — 방어 폴백)
     tool_result = entry.get("toolUseResult")
     if isinstance(tool_result, dict):
-        command_name = tool_result.get("commandName")
+        command_name = _skill_name(tool_result.get("commandName"))
         if command_name:
             tool_id = None
             if isinstance(content, list):
@@ -131,13 +141,13 @@ def _collect_invocation(entry: dict, invocations: dict) -> None:
         else:
             text = ""
         for m in _COMMAND_TAG_RE.finditer(text):
-            name = m.group(1)
+            name = _skill_name(m.group(1))
             if name in NINE_SKILLS:
                 key = f"tag:{entry.get('uuid') or ts.isoformat()}:{name}"
                 invocations.setdefault(key, (name, ts, session_id))
 
 
-def iter_skill_invocations(projects_dir: Path):
+def iter_skill_invocations(projects_dir: Path, include_tmp: bool = False):
     """모든 JSONL을 순회하며 스킬 호출을 (project, skill, ts, session_id)로 yield.
 
     Skill tool_use + commandName 두 마커 소스를 파일 단위 id 키로 union·dedup한다
@@ -147,7 +157,10 @@ def iter_skill_invocations(projects_dir: Path):
     for project_dir in sorted(projects_dir.iterdir()):
         if not project_dir.is_dir():
             continue
-        project_name = project_dir.name.lstrip("-").replace("media-ubuntu-data120g-", "")
+        # 시험용 임시 프로젝트(-tmp-…)는 빼고 센다 — harness_report 와 같은 규칙. 넣으려면 --include-tmp (2026-10-29)
+        if project_dir.name.startswith("-tmp-") and not include_tmp:
+            continue
+        project_name = project_dir.name.lstrip("-")
         for jsonl_path in sorted(project_dir.glob("*.jsonl")):
             invocations: dict = {}  # tool_use_id → (skill, ts, session_id)
             try:
@@ -248,7 +261,7 @@ def build_recommendations(result: dict) -> list:
     return recs
 
 
-def aggregate(projects_dir: Path, window_start: datetime):
+def aggregate(projects_dir: Path, window_start: datetime, include_tmp: bool = False):
     """전체 집계 + 30일 윈도우 집계 + "언제" 차원(시간대·세션 시퀀스)을 반환."""
     total_by_project_skill: dict[tuple[str, str], int] = Counter()
     window_by_project_skill: dict[tuple[str, str], int] = Counter()
@@ -261,7 +274,7 @@ def aggregate(projects_dir: Path, window_start: datetime):
     transcript_count = 0
     event_count = 0
 
-    for project_name, command_name, ts, session_id in iter_skill_invocations(projects_dir):
+    for project_name, command_name, ts, session_id in iter_skill_invocations(projects_dir, include_tmp):
         projects_seen.add(project_name)
         event_count += 1
         if command_name in NINE_SKILLS:
@@ -466,7 +479,7 @@ def main() -> int:
         print(f"projects 디렉토리 없음: {args.projects_dir}", file=sys.stderr)
         return 1
 
-    result = aggregate(args.projects_dir, window_start)
+    result = aggregate(args.projects_dir, window_start, args.include_tmp)
     month_label = args.month or window_end.strftime("%Y-%m")
     dashboard = format_dashboard(result, month_label, window_start, window_end)
 

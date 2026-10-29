@@ -128,7 +128,7 @@ def _resolve_ledger_path():
 
     HARNESS-LEDGER-PATH-1 (2026-08-07): 종전에는 `Path(_proj).parent / "plans"` 로
     워크스페이스 형제 배치를 코드에 가정하고, env 부재 시 사설 절대경로
-    (/media/ubuntu/...)로 폴백했다. 배치 가정은 learning_path 설정값으로,
+    (작업 서버의 절대경로)로 폴백했다. 배치 가정은 learning_path 설정값으로,
     사설 절대경로는 cwd 폴백으로 각각 이관해 이식성을 확보한다.
     """
     override = os.environ.get("COMPREHENSION_LEDGER_PATH")

@@ -102,6 +102,11 @@ class EngineLint(unittest.TestCase):
         found = hits(pattern)
         self.assertEqual(found, [], "소스 저장소 전용 이름이 배포 파일에 남아 있음:\n" + "\n".join(found))
 
+    def test_no_private_server_paths_in_shipped_files(self):
+        """작업 서버의 디스크·계정 경로가 배포 파일에 박히지 않는다 (2026-10-29 대조 검증에서 집계기 코드에서 발견)."""
+        found = hits(r"/(?:media|mnt|srv)/[\w.-]+/|/home/[\w.-]+/|(?<![\w/])media-\w+-\w+")
+        self.assertEqual(found, [], "작업 서버 경로가 배포 파일에 남아 있음:\n" + "\n".join(found))
+
     def test_no_retired_skill_references(self):
         found = hits(r"/(?:%s)\b" % "|".join(map(re.escape, RETIRED_SKILLS)))
         self.assertEqual(found, [], "은퇴한 스킬을 가리킴:\n" + "\n".join(found))

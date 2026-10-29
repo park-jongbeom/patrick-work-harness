@@ -118,6 +118,43 @@ class TestTypedSlashCommand(AggregatorTestBase):
         self.assertEqual(self.invocations(), [])
 
 
+class TestPluginNamespace(AggregatorTestBase):
+    """플러그인으로 설치하면 스킬 이름에 `patrick-work-harness:` 접두어가 붙는다 (2026-10-29 대조 검증에서 발견:
+    플러그인 기록 18개에서 슬래시 명령 56건을 읽고도 9스킬을 모두 「0회 — 폐기 후보」로 냈다)."""
+
+    def test_typed_plugin_command_is_counted_by_skill_name(self):
+        now = datetime.now(timezone.utc)
+        self.write([TestTypedSlashCommand.typed("patrick-work-harness:gate-a", now, "u1")])
+        self.assertEqual([s for _, s, _, _ in sua.iter_skill_invocations(self.root)], ["gate-a"])
+
+    def test_plugin_skill_tool_use_is_counted(self):
+        now = datetime.now(timezone.utc)
+        self.write([skill_entry("patrick-work-harness:gate-e", now, tool_id="t1")])
+        self.assertEqual([s for _, s, _, _ in sua.iter_skill_invocations(self.root)], ["gate-e"])
+
+    def test_anomaly_rules_see_plugin_sessions(self):
+        now = datetime.now(timezone.utc)
+        self.write([skill_entry("patrick-work-harness:gate-a", now, tool_id="t1"),
+                    skill_entry("patrick-work-harness:gate-c", now + timedelta(minutes=5), tool_id="t2")])
+        r = sua.aggregate(self.root, now - timedelta(days=30))
+        self.assertEqual(r["total_by_skill"].get("gate-a"), 1)
+        self.assertEqual(r["anomalies"]["comprehension_skipped"]["sessions"], 1)
+
+
+class TestTmpProjects(AggregatorTestBase):
+    """시험용 임시 프로젝트(-tmp-…)는 기본으로 빼고 센다 — harness_report 와 같은 규칙 (2026-10-29)."""
+
+    def test_tmp_projects_are_excluded_unless_asked(self):
+        now = datetime.now(timezone.utc)
+        self.write([skill_entry("gate-a", now, tool_id="t1")])
+        tmp = self.root / "-tmp-live-check"
+        tmp.mkdir()
+        with open(tmp / "s.jsonl", "w", encoding="utf-8") as f:
+            f.write(json.dumps(skill_entry("gate-a", now, tool_id="t2")) + "\n")
+        self.assertEqual(sua.aggregate(self.root, now - timedelta(days=30))["total_by_skill"].get("gate-a"), 1)
+        self.assertEqual(sua.aggregate(self.root, now - timedelta(days=30), include_tmp=True)["total_by_skill"].get("gate-a"), 2)
+
+
 class TestDashboardOutput(AggregatorTestBase):
 
     def test_writes_markdown_with_all_nine_skills(self):
