@@ -150,6 +150,10 @@ Same check as `/init` Step 6: `ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard
   `hooks/` folder (`/init` Step 6 JSON shape), `session-dashboard-sync.py` first; prepend only the missing ones and keep existing
   entries.
 
+- **In both cases**, remove every hook entry in the project's `.claude/settings.json` whose script is a retired hook —
+  `comprehension-ledger-stale-guard.py` or `claude-gate-guard.py` — and list them in the Step 4 approval. Leave every other
+  entry untouched.
+
 Never write `${CLAUDE_PLUGIN_ROOT}` into a settings file.
 
 ### Axis C — Generate session-dashboard.html

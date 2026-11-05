@@ -43,6 +43,9 @@
  22. Gate B 의 발동 판정은 스크립트가 낸다 — gate-a·gate-b 가 `gate_b_trigger.py` 를 부르고, 옛 3단계 위험 분류를 쓰지 않는다 (2026-11-05 —
      표에 migration 이 있어도 모델이 운영 마이그레이션을 「일반」으로 판정했다).
 
+ 23. 은퇴한 훅은 돌아오지 않는다 — 파일·hooks.json·NEW_HOOKS 에 없고, install.sh 가 남은 배선을 지우고, sync-from-source.sh 가 원본에서 다시 들여오지
+     않고, /harness-update 가 프로젝트 배선을 지운다 (2026-11-05). 스킬은 은퇴한 훅을 쓰는 것처럼 말하지 않는다.
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -82,6 +85,7 @@ def hits(pattern, files=None):
 
 
 GATE_B = ROOT / "skills" / "gate-b" / "SKILL.md"
+RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py")
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
 AUTONOMOUS_HEADING = "## Autonomous lane (자율 레인)"
@@ -291,6 +295,26 @@ class EngineLint(unittest.TestCase):
         found = hits(r"Large blast radius|General risk|general risk or large|AI self-explains|폭발반경 大→|Pass after retry\s*/",
                      files=list((ROOT / "skills").rglob("*.md")))
         self.assertEqual(found, [], "옛 위험 분류:\n" + "\n".join(found))
+
+    def test_retired_hooks_stay_retired(self):
+        install = (ROOT / "install.sh").read_text(encoding="utf-8")
+        sync = (ROOT / "sync-from-source.sh").read_text(encoding="utf-8")
+        wired = (ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8")
+        update = (ROOT / "skills" / "harness-update" / "SKILL.md").read_text(encoding="utf-8")
+        listed = re.search(r"^RETIRED_HOOKS = \((.*?)\)", install, re.M | re.S)
+        self.assertTrue(listed, "install.sh 에 은퇴 목록이 없음")
+        for name in RETIRED_HOOKS:
+            self.assertFalse((ROOT / "hooks" / name).exists(), name)
+            self.assertNotIn(name, wired, name)
+            self.assertNotIn("{hooks_dir}/" + name, install, name)
+            self.assertIn(f'"{name}"', listed.group(1), name)
+            self.assertIn(f'--exclude="{name}"', sync, name)
+            self.assertIn(name, update, name)
+
+    def test_skills_do_not_talk_as_if_retired_mechanisms_run(self):
+        skills = [f for f in (ROOT / "skills").rglob("*.md") if f.parent.name != "harness-update"]
+        found = hits(r"comprehension-ledger-stale|SM-2|double the previous", files=skills)
+        self.assertEqual(found, [], "은퇴한 장치를 말함:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

@@ -97,7 +97,6 @@ Hooks run automatically around each Claude Code response and tool call (Stop, Pr
 | `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E, and sends the session back when this conversation wrote ✅E without a Gate D record |
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
-| `comprehension-ledger-stale-guard.py` | Stop | Detects expired comprehension-gate (Gate B) evidence ledger entries |
 | `session-dashboard-sync.py` | PostToolUse | Auto-regenerates `session-dashboard.html` after each Edit/Write |
 | `skill-usage-auto.py` | Stop | Auto-records skill usage history markers |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
@@ -398,7 +397,6 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지, 이 대화가 Gate D 기록 없이 ✅E 를 쓰면 되돌려 보냄 |
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
-| `comprehension-ledger-stale-guard.py` | Stop | 이해도 게이트(Gate B) 증적 원장 만료 감지 |
 | `session-dashboard-sync.py` | PostToolUse | Edit·Write 뒤 `session-dashboard.html` 자동 재생성 |
 | `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |

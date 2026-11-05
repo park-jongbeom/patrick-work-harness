@@ -38,8 +38,6 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_
   - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
   - **No record** → proceed with new verification
 
-> Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end — **only when that hook is actually wired in your Claude Code settings**. If it is not wired, this Step's manual lookup is the sole detection path. Either way, this Step's direct lookup is the first-pass verdict.
-
 ## Step 2. One question
 
 **Ban "know/don't-know" Y/N self-report.** Confidence in being able to explain is unreliable, and expertise raises that confidence without grounds (illusion of explanatory depth; Fisher & Keil 2016). Require an actual answer.
@@ -82,7 +80,6 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 
 > Pass-through sessions: skip this Step.
 > **Expiry default (first pass)**: the earlier of `3개월` or `해당 scope 파일 실질변경 시`.
-> **Expiry on re-verification pass (adaptive, SM-2-lite)**: when Step 1 found a matching `tech_tags` row that had expired and this session's re-verification **passes again**, set the new `exp` to roughly **double the previous row's exp value** (e.g. 3개월→6개월, 1개월→2개월), capped at `12개월`. No new column — parse the previous exp text, double the numeric part, write it into the new row. On a **failed** re-verification (retry needed or user-delegated), reset `exp` back to the first-pass default instead of doubling.
 
 ## Step 5. Update the plan document(s) (status: `B (확인 대기)`) — **run the file-editing tool**
 

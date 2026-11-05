@@ -78,10 +78,6 @@
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/comprehension-ledger-stale-guard.py\""
-          },
-          {
-            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-usage-auto.py\""
           }
         ]

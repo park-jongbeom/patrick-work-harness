@@ -158,6 +158,46 @@ class TestInstallWithoutRsync(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.hooks_dir, ".harness-owned")))
         self.assertTrue(os.path.exists(os.path.join(self.hooks_dir, "plugin.json")))
 
+    # 훅 파일은 복사의 삭제 단계로 사라지는데 배선이 남으면, Stop 은 응답마다 훅 오류를 남기고 PreToolUse 는 막는다.
+    def prepare(self):
+        hooks_dir = self.hooks_dir
+        self.settings = os.path.join(self.home, ".claude", "settings.json")
+        self.retired = f"python3 {hooks_dir}/comprehension-ledger-stale-guard.py"
+        self.other_copy = "python3 /w/plans/hooks/comprehension-ledger-stale-guard.py"
+        self.mine = "python3 /w/my-hook.py"
+        old_guard = f"python3 {hooks_dir}/claude-gate-guard.py"
+        os.makedirs(os.path.dirname(self.settings), exist_ok=True)
+        with open(self.settings, "w", encoding="utf-8") as f:
+            json.dump({"theme": "dark", "hooks": {
+                "Stop": [{"hooks": [{"type": "command", "command": self.retired}, {"type": "command", "command": self.mine}]},
+                         {"hooks": [{"type": "command", "command": self.other_copy}]}],
+                "PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": old_guard}]}],
+            }}, f)
+
+    def commands(self):
+        with open(self.settings, encoding="utf-8") as f:
+            cfg = json.load(f)
+        return cfg, [h["command"] for groups in cfg["hooks"].values() for g in groups for h in g["hooks"]]
+
+    def test_reinstall_removes_only_the_wiring_of_this_install(self):
+        self.prepare()
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        cfg, commands = self.commands()
+        self.assertEqual(cfg["theme"], "dark")
+        self.assertNotIn(self.retired, commands)
+        self.assertFalse([c for c in commands if "claude-gate-guard" in c])
+        self.assertIn(self.mine, commands, "같은 항목에 있던 사용자 훅이 함께 지워짐")
+        self.assertIn(self.other_copy, commands, "다른 사본을 가리키는 배선은 이 설치의 몫이 아님")
+
+    def test_removal_is_backed_up_and_reported(self):
+        self.prepare()
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("은퇴한 훅 배선 제거", out)
+        names = os.listdir(os.path.dirname(self.settings))
+        self.assertTrue([n for n in names if n.startswith("settings.json.bak-")], names)
+
 
 class TestUnknownSourceFails(unittest.TestCase):
 

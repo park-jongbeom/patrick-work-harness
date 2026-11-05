@@ -87,7 +87,6 @@ def _resolve_process_evolution_dir():
     ③ 기본값 "plans/process_evolution" (필드 부재 시 하위 호환)
 
     ②③ 의 상대경로는 CLAUDE_PROJECT_DIR(부재 시 cwd) 기준으로 해석한다.
-    comprehension-ledger-stale-guard.py 의 learning_path 해석과 동형(정본 재사용).
 
     HARNESS-SYNC-RECONCILE-2-b (2026-08-07): 종전에는 `Path(_proj).parent / "plans"` 로
     워크스페이스 형제 배치를 코드에 가정하고, env 부재 시 사설 절대경로로 폴백했다.
@@ -157,8 +156,7 @@ def main() -> int:
         # P0-2 는 「exit 0 훅의 경고가 Claude 에게 안 간다」인데, 이 출력은
         # **Claude 가 알아야 할 경고가 아니라 집계 건너뜀 로그**다. 사용자
         # 작업과 무관하고, systemMessage 로 띄우면 매 응답에 잡음만 는다.
-        # 전달 경로를 고치는 대상은 `comprehension-ledger-stale-guard` 의
-        # notify() 처럼 **사용자 행동을 요구하는 경고**로 한정한다.
+        # 전달 경로를 고치는 대상은 **사용자 행동을 요구하는 경고**로 한정한다.
         print(f"skill-usage-auto skip: {exc}", file=sys.stderr)
     return 0
 

@@ -430,10 +430,6 @@ NEW_HOOKS = {
         },
         {
             "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/comprehension-ledger-stale-guard.py"}]
-        },
-        {
-            "matcher": ".*",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/skill-usage-auto.py"}]
         },
     ],
@@ -457,7 +453,33 @@ def cmd_exists(hook_list, cmd, matcher=None):
 def script_of(cmd):
     return cmd.split()[-1].strip('"')
 
+# 은퇴한 훅의 배선을 지운다 (2026-11-05). 훅 파일은 위 복사의 삭제 단계로 사라지는데 배선이 남으면, Stop 에서는 응답마다
+# 훅 오류가 남고 PreToolUse 에서는 막힌다. 이 설치 폴더를 가리키는 배선만 지운다 — 다른 사본을 가리키는 배선과 같은 항목의
+# 사용자 훅은 사용자 것이다.
+RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py")
+retired_scripts = {f"{hooks_dir}/{name}" for name in RETIRED_HOOKS}
+
+def is_retired(hook):
+    parts = str(hook.get("command", "")).split()
+    return bool(parts) and parts[-1].strip('"') in retired_scripts
+
 changed = False
+for event in list(hooks):
+    kept = []
+    for entry in hooks[event]:
+        left = [h for h in entry.get("hooks", []) if not is_retired(h)]
+        removed = len(entry.get("hooks", [])) - len(left)
+        if removed:
+            changed = True
+            print(f"      은퇴한 훅 배선 제거: {event} {removed}건")
+            entry = dict(entry, hooks=left)
+        if left or not removed:
+            kept.append(entry)
+    if kept:
+        hooks[event] = kept
+    else:
+        del hooks[event]
+
 for event, entries in NEW_HOOKS.items():
     existing = hooks.setdefault(event, [])
     for entry in entries:

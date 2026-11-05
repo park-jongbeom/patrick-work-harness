@@ -127,7 +127,10 @@ if [[ -d "$HOOKS_SRC" ]]; then
   stage_dir "$HOOKS_SRC" hooks \
     --exclude="fixtures" \
     --exclude="progress-report-stale-guard.py" \
-    --exclude="test_progress_report_stale_guard.py"
+    --exclude="test_progress_report_stale_guard.py" \
+    --exclude="claude-gate-guard.py" \
+    --exclude="comprehension-ledger-stale-guard.py" \
+    --exclude="test_comprehension_ledger_stale_guard.py"
   # Sanitize: replace absolute paths in staged hook files
   # NOTE: the two rules below only match the exact-quoted forms. Sub-path literals
   # (e.g. ".../plans/process_evolution", ".../plans" as a default arg) slipped past them

@@ -58,7 +58,6 @@ patrick-work-harness/
 | Hook | Role |
 |------|------|
 | `commit-msg-guard.py` | 커밋 메시지 형식 검사 |
-| `comprehension-ledger-stale-guard.py` | 이해도 원장 만료 탐지 |
 | `docker-command-guard.py` | 잘못된 docker 명령 차단 |
 | `error-topics-guard.py` | 오류 주제 파일 동기화 |
 | `gate-a-sync-guard.py` | Gate A 승인 대기 일관성 |

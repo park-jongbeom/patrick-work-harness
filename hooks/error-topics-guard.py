@@ -382,7 +382,7 @@ def main():
         if not os.path.exists(notice):
             write_counter(notice, 1)
             # exit 0 훅의 stderr 는 사용자·Claude 어디에도 안 보인다 — stdout 의
-            # systemMessage JSON 으로 낸다(comprehension-ledger-stale-guard 와 같은 경로).
+            # systemMessage JSON 으로 낸다.
             notice_text = (
                 f"[ERROR-TOPICS] 세션 '{sid}' 는 오류 흔적이 있으나 검사 위치를 "
                 f"알 수 없어 검사하지 않았습니다.\n"
