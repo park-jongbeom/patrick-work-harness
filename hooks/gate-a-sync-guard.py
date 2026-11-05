@@ -205,12 +205,12 @@ def main():
     attempts = read_counter(cpath) + 1
     write_counter(cpath, attempts)
 
-    if attempts > MAX_BLOCKS:
-        notify(
-            f"[GATE-A-SYNC] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
-            f"  CURRENT_SESSION.md 대시보드 필수 필드를 수동으로 채우세요."
-        )
-        clear_counter(cpath)
+    if attempts > MAX_BLOCKS:      # 카운터를 지우면 다시 3회 막는다 — 조건이 풀릴 때 위에서 지운다
+        if attempts == MAX_BLOCKS + 1:
+            notify(
+                f"[GATE-A-SYNC] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
+                f"  CURRENT_SESSION.md 대시보드 필수 필드를 수동으로 채우세요."
+            )
         allow()
 
     block(

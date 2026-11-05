@@ -95,7 +95,7 @@ Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ 
 | # | Axis | Check | Needs update condition |
 |---|------|-------|------------------------|
 | A | **HARNESS zone** | `CLAUDE.md` contains `<!-- HARNESS:START v{latest} -->` | Version tag differs from `latest` |
-| B | **Hook wiring** | Plugin or `install.sh` install (`${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py` exists): the project's `.claude/settings.json` has no entry containing `${CLAUDE_PLUGIN_ROOT}`. Source copy: the Stop array has `session-dashboard-sync.py` (first), `gate-e-sync-guard.py`, `error-topics-guard.py` with absolute paths (`error-topics-guard.py` optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path`) | A `${CLAUDE_PLUGIN_ROOT}` entry exists in the project settings, or a source copy is missing a required guard |
+| B | **Hook wiring** | Plugin or `install.sh` install (`${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py` exists): the project's `.claude/settings.json` has no entry containing `${CLAUDE_PLUGIN_ROOT}`. Source copy: the Stop array has `session-dashboard-sync.py` (first), `gate-e-sync-guard.py`, `error-topics-guard.py` with absolute paths (`error-topics-guard.py` optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path`) | A `${CLAUDE_PLUGIN_ROOT}` entry exists in the project settings, a source copy is missing a required guard, or `.claude/settings.json` or `.claude/settings.local.json` wires a retired hook (listed below) |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
 | E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
@@ -132,6 +132,7 @@ Execute only the axes marked ❌ in Step 3. Axes already ✅ are skipped silentl
 
 Reconcile the HARNESS zone:
 - Locate `<!-- HARNESS:START` … `<!-- HARNESS:END -->` sentinels in `CLAUDE.md`
+- If the zone holds a `## Build · Test` section (an older `/init` put it there), move it verbatim to right below `<!-- PROJECT-OWNED below -->` first. Those are the project's own commands, and Gate D copies them
 - Overwrite the zone wholesale with the current engine template, substituting `project_repo` from `harness-answers.yml`
 - Update version tag to `<!-- HARNESS:START v{latest} -->`
 - Everything after `<!-- PROJECT-OWNED below -->` is never touched
@@ -150,7 +151,7 @@ Same check as `/init` Step 6: `ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard
   `hooks/` folder (`/init` Step 6 JSON shape), `session-dashboard-sync.py` first; prepend only the missing ones and keep existing
   entries.
 
-- **In both cases**, remove every hook entry in the project's `.claude/settings.json` whose script is a retired hook —
+- **In both cases**, remove every hook entry in the project's `.claude/settings.json` and `.claude/settings.local.json` whose script is a retired hook —
   `comprehension-ledger-stale-guard.py` or `claude-gate-guard.py` — and list them in the Step 4 approval. Leave every other
   entry untouched.
 

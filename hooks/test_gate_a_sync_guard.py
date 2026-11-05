@@ -173,6 +173,15 @@ def test_malformed_allows():
     print("  PASS: 구조 미탐지 → fail-open")
 
 
+def test_loop_guard_stays_released_after_max():
+    clear_counter("t-cycle")
+    cur = current_md("SESS-1", "A (승인 대기)", "A (승인 대기)", intent=None)
+    codes = [run_hook(cur, session_id="t-cycle")[0] for _ in range(MAX_BLOCKS + 5)]
+    assert codes == [2] * MAX_BLOCKS + [0] * 5, codes
+    clear_counter("t-cycle")
+    print("  PASS: 한도 뒤 다시 막지 않는다")
+
+
 def test_loop_guard_releases_after_max():
     """연속 차단 한도 초과 시 fail-open (무한 루프 방지)."""
     clear_counter("t-loop")
@@ -210,6 +219,7 @@ if __name__ == "__main__":
         test_missing_file_allows,
         test_malformed_allows,
         test_loop_guard_releases_after_max,
+        test_loop_guard_stays_released_after_max,
         test_stop_hook_active_allows,
     ]
     print(f"gate-a-sync-guard.py 테스트 ({len(tests)}건)")

@@ -46,6 +46,11 @@
  23. 은퇴한 훅은 돌아오지 않는다 — 파일·hooks.json·NEW_HOOKS 에 없고, install.sh 가 남은 배선을 지우고, sync-from-source.sh 가 원본에서 다시 들여오지
      않고, /harness-update 가 프로젝트 배선을 지운다 (2026-11-05). 스킬은 은퇴한 훅을 쓰는 것처럼 말하지 않는다.
 
+ 24. 스킬은 `git restore .` 를 지시하지 않는다 — Gate C 의 구현은 커밋 전이라 함께 사라진다 (2026-11-05).
+ 25. 프로젝트가 채우는 Build · Test 표는 /harness-update 가 덮어쓰는 HARNESS 구역 밖에 있고, 옛 구역의 표는 덮어쓰기 전에 옮긴다 (2026-11-05).
+ 26. 공개 스크립트에 작업 서버의 절대경로를 박지 않는다 — install.sh·sync-from-source.sh 는 배포되지 않아 규칙 2 가 보지 않는다 (2026-11-05).
+ 27. gate-b 는 미발동이면 멈추지 않고 gate-c 로 이어 간다. 미발동이 대부분이라 빈 정지가 회차마다 말 한마디를 쓴다 (2026-11-05).
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -310,11 +315,32 @@ class EngineLint(unittest.TestCase):
             self.assertIn(f'"{name}"', listed.group(1), name)
             self.assertIn(f'--exclude="{name}"', sync, name)
             self.assertIn(name, update, name)
+        self.assertRegex(update, r"\| B \| \*\*Hook wiring.*retired hook", "Axis B 의 판정이 은퇴 훅을 보지 않으면 절차에 들어가지 않는다")
 
     def test_skills_do_not_talk_as_if_retired_mechanisms_run(self):
         skills = [f for f in (ROOT / "skills").rglob("*.md") if f.parent.name != "harness-update"]
         found = hits(r"comprehension-ledger-stale|SM-2|double the previous", files=skills)
         self.assertEqual(found, [], "은퇴한 장치를 말함:\n" + "\n".join(found))
+
+    def test_skills_do_not_order_a_destructive_restore(self):
+        found = hits(r"git restore \.", files=list((ROOT / "skills").rglob("*.md")))
+        self.assertEqual(found, [], "커밋 전 구현을 지우는 지시:\n" + "\n".join(found))
+
+    def test_build_test_table_is_project_owned(self):
+        init = (ROOT / "skills" / "init" / "SKILL.md").read_text(encoding="utf-8")
+        zone = re.search(r"<!-- HARNESS:START v<_engine_version> -->(.*?)<!-- HARNESS:END -->", init, re.S).group(1)
+        self.assertNotIn("Build · Test", zone, "HARNESS 구역 안이면 /harness-update 가 덮어쓴다")
+        update = (ROOT / "skills" / "harness-update" / "SKILL.md").read_text(encoding="utf-8")
+        axis_a = re.search(r"^### Axis A.*?(?=^### Axis B)", update, re.S | re.M).group(0)
+        self.assertIn("Build · Test", axis_a, "옛 구역의 표를 옮기는 단계가 없음")
+
+    def test_public_scripts_carry_no_server_paths(self):
+        found = hits(r"/(?:media|mnt|srv)/\w[\w.-]*/\w", files=[ROOT / "install.sh", ROOT / "sync-from-source.sh"])
+        self.assertEqual(found, [], "작업 서버 경로:\n" + "\n".join(found))
+
+    def test_gate_b_pass_through_continues_to_gate_c(self):
+        step5 = re.search(r"^## Step 5\..*?(?=^---)", GATE_B.read_text(encoding="utf-8"), re.S | re.M).group(0)
+        self.assertRegex(step5, r"미발동.*invoke `/gate-c`", "미발동 회차가 멈춘다")
 
 
 if __name__ == "__main__":

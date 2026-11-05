@@ -111,6 +111,9 @@ def autonomous_approved(transcript_path):
 
 
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit"}
+#: Bash 명령이 파일을 쓰는 표지. 읽기만 한 `grep "✅E" CURRENT_SESSION.md` 를 쓴 것으로 보면 ✅E 없이 끝낸 대화처럼
+#: 잡힌다(2026-11-05 재현). `2>/dev/null`·`2>&1` 은 쓰기가 아니다.
+SHELL_WRITE = re.compile(r"""(?<![0-9&])>>?\s*(?![&\s]|/dev/null)|\btee\b|\bsed\s+-i|<<|\.write\(|write_text\(|open\([^)\n]*['"][wa]""")
 
 
 def _written_texts(name, inp):
@@ -120,7 +123,7 @@ def _written_texts(name, inp):
         return inp.get("file_path") or "", [t for t in texts if isinstance(t, str)]
     if name == "Bash":
         cmd = inp.get("command") if isinstance(inp.get("command"), str) else ""
-        return cmd, [cmd]
+        return (cmd, [cmd]) if SHELL_WRITE.search(cmd) else ("", [])
     return "", []
 
 

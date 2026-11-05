@@ -43,6 +43,11 @@ if [[ ! -d "$SOURCE" ]]; then
   exit 1
 fi
 
+# The source workspace's location comes from the argument, so this public script names no server path.
+SOURCE="$(cd "$SOURCE" && pwd)"
+SOURCE_NAME="$(basename "$SOURCE")"
+ROOT_RE="$(dirname "$SOURCE" | sed 's/[][\.*^$|]/\\&/g')"
+
 SKILLS_SRC="$SOURCE/.claude/skills"
 HOOKS_SRC="${HOOKS_SOURCE_DIR:-$SOURCE/../plans/hooks}"
 STAGE="$(mktemp -d)"
@@ -51,7 +56,7 @@ STAGE="$(mktemp -d)"
 # public script does not itself disclose the layout it guards against.
 #   1. /media/<name>/<something> · /home/<name>/<something> — the source workspace on a Linux host
 #   2. <drive>:\Users\<name>...                             — the same workspace on a Windows host
-# Elided forms such as "/media/ubuntu/..." inside a comment are deliberately not matched.
+# Elided forms such as "/media/<name>/..." inside a comment are deliberately not matched.
 LEAK_PATTERN='/(media|home)/[A-Za-z0-9_.-]+/[A-Za-z0-9_]|[A-Za-z]:[\\/]+Users[\\/]+[A-Za-z0-9_.-]+'
 
 echo "=== patrick-work-harness sync ==="
@@ -82,10 +87,10 @@ if [[ -d "$SKILLS_SRC" ]]; then
   stage_dir "$SKILLS_SRC" skills
   # Sanitize: replace absolute paths in staged skill files
   find "$STAGE/skills" -name "*.md" | xargs sed -i \
-    -e 's|/media/ubuntu/data120g/ai-consulting-plans|\${CLAUDE_PROJECT_DIR}|g' \
-    -e 's|/media/ubuntu/data120g/plans|\${HARNESS_PLANS_DIR}|g' \
-    -e 's|/media/ubuntu/data120g/ga-api-platform|\${GA_API_PLATFORM_DIR}|g' \
-    -e 's|/media/ubuntu/data120g/react-web-ga|\${REACT_WEB_DIR}|g' \
+    -e "s|${ROOT_RE}/${SOURCE_NAME}|\${CLAUDE_PROJECT_DIR}|g" \
+    -e "s|${ROOT_RE}/plans|\${HARNESS_PLANS_DIR}|g" \
+    -e "s|${ROOT_RE}/ga-api-platform|\${GA_API_PLATFORM_DIR}|g" \
+    -e "s|${ROOT_RE}/react-web-ga|\${REACT_WEB_DIR}|g" \
     -e 's|go-almond-harness|patrick-work-harness|g'
   # Sanitize: source repo's SSOT doc names → generic placeholders (safe — plain filename swaps,
   # no 2-tier/threshold logic attached). ai-consulting-plans/ prefix already stripped above.
@@ -139,9 +144,9 @@ if [[ -d "$HOOKS_SRC" ]]; then
   # A failing sed is no longer silenced: a substitution that cannot run must surface here,
   # not ship a private path downstream.
   find "$STAGE/hooks" -name "*.py" | xargs sed -i \
-    -e 's|"/media/ubuntu/data120g/ai-consulting-plans"|os.environ.get("CLAUDE_PROJECT_DIR", ".")|g' \
-    -e 's|"/media/ubuntu/data120g"|os.environ.get("HARNESS_ROOT_DIR", ".")|g'
-  # Catch-all: any remaining "/media/ubuntu/data120g/plans<sub-path>" literal → env-based fallback.
+    -e "s|\"${ROOT_RE}/${SOURCE_NAME}\"|os.environ.get(\"CLAUDE_PROJECT_DIR\", \".\")|g" \
+    -e "s|\"${ROOT_RE}\"|os.environ.get(\"HARNESS_ROOT_DIR\", \".\")|g"
+  # Catch-all: any remaining "<source root>/plans<sub-path>" literal → env-based fallback.
   # Keeps the string a valid Python expression (os.path.join) so the hook still parses.
   #
   # Order matters (recurrence guard, HARNESS-SYNC-RECONCILE-2-a Gate D):
@@ -150,9 +155,9 @@ if [[ -d "$HOOKS_SRC" ]]; then
   #   produced nested `get("X", os.environ.get("X", "."))`. So collapse that case
   #   FIRST to a plain "." default, then handle the remaining standalone literals.
   find "$STAGE/hooks" -name "*.py" | xargs sed -i \
-    -e 's|os\.environ\.get(\("[A-Z_]*"\), "/media/ubuntu/data120g/plans")|os.environ.get(\1, ".")|g' \
-    -e 's|"/media/ubuntu/data120g/plans/\([A-Za-z0-9_/]*\)"|os.path.join(os.environ.get("HARNESS_PLANS_DIR", "."), "\1")|g' \
-    -e 's|"/media/ubuntu/data120g/plans"|os.environ.get("HARNESS_PLANS_DIR", ".")|g'
+    -e "s|os\.environ\.get(\(\"[A-Z_]*\"\), \"${ROOT_RE}/plans\")|os.environ.get(\1, \".\")|g" \
+    -e "s|\"${ROOT_RE}/plans/\([A-Za-z0-9_/]*\)\"|os.path.join(os.environ.get(\"HARNESS_PLANS_DIR\", \".\"), \"\1\")|g" \
+    -e "s|\"${ROOT_RE}/plans\"|os.environ.get(\"HARNESS_PLANS_DIR\", \".\")|g"
   echo "      Done."
 else
   echo "[WARN] Hooks source not found: $HOOKS_SRC — skipped."

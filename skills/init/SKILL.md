@@ -153,18 +153,18 @@ Each Gate is performed via /gate-a ~ /gate-e Skill commands.
 | Gate | Skill | Deliverable | Stop point |
 |------|-------|-------------|------------|
 | A | /gate-a | Per-file detailed change plan | Await user approval |
-| B | /gate-b | Comprehension check | Await user confirmation |
+| B | /gate-b | Comprehension check | Await the answer when a question fires |
 | C | /gate-c | Code implementation | Await user confirmation |
 | D | /gate-d | Verification (plan + execution) | Await user confirmation |
 | E | /gate-e | WORKLOG · archive | — |
-
-## Build · Test
-[Fill in per-repo test commands after /init]
 
 ## Archive Canonical Paths
 See `.claude/harness-answers.yml` → `archive_path` / `worklog_path` (SSOT).
 <!-- HARNESS:END -->
 <!-- PROJECT-OWNED below -->
+
+## Build · Test
+[Fill in per-repo test commands after /init]
 
 ## Project Overview
 [Fill in: project goal, stack, team context]

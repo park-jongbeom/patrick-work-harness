@@ -163,6 +163,16 @@ def test_status_multi_session_ids_uses_first():
     print("  PASS: status 다중 세션 ID → 첫 토큰만 비교, 일치 시 허용")
 
 
+def test_loop_guard_stays_released_after_max():
+    clear_counter("t-cycle")
+    idx = current_md("HARNESS-STALE-GUARD-1")
+    plan = master_plan_md("PLAN-SYNC-13")
+    codes = [run_hook(idx, plan, session_id="t-cycle")[0] for _ in range(MAX_BLOCKS + 5)]
+    assert codes == [2] * MAX_BLOCKS + [0] * 5, codes
+    clear_counter("t-cycle")
+    print("  PASS: 한도 뒤 다시 막지 않는다")
+
+
 def test_loop_guard_releases_after_max():
     """연속 차단 한도 초과 시 fail-open (무한 루프 방지)."""
     clear_counter("t-loop")
@@ -238,6 +248,7 @@ if __name__ == "__main__":
         test_malformed_plan_allows,
         test_status_multi_session_ids_uses_first,
         test_loop_guard_releases_after_max,
+        test_loop_guard_stays_released_after_max,
         test_session_topic_field_fallback_allows,
         test_body_heading_no_longer_misparsed,
         test_stop_hook_active_allows,

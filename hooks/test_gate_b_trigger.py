@@ -94,6 +94,14 @@ class TestVerdict(unittest.TestCase):
         v = t.verdict(plan(["src/a.py", "src/b.py"]))
         self.assertEqual((v["state"], v["files"]), ("미발동", 2))
 
+    def test_unreadable_file_list_is_not_a_quiet_plan(self):
+        """백틱 없는 목록을 「미발동 — 0개」로 내면 마이그레이션 계획이 조용히 통과한다."""
+        doc = plan().replace("### 변경 파일\n", "### 변경 파일\n1. db/migrations/1.sql — 백틱 없음\n")
+        self.assertEqual(t.verdict(doc)["state"], "판정 불가")
+
+    def test_rollback_word_still_fires_without_a_file_list(self):
+        self.assertEqual(t.verdict(plan((), "운영 DB 의 칸은 남는다."))["state"], "발동")
+
     def test_files_listed_in_a_table_are_read(self):
         doc = plan().replace("### 변경 파일\n", "### 변경 파일\n| 파일 | 내용 |\n|---|---|\n| `db/migrations/1.sql` | 추가 |\n")
         self.assertEqual(t.verdict(doc)["state"], "발동")

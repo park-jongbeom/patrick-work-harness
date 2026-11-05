@@ -344,6 +344,16 @@ def test_unlogged_selfdebug_blocks():
     print("  PASS: self-debug 1회 미적재 → 차단(exit 2)")
 
 
+def test_loop_guard_stays_released_after_max():
+    clear_counter("t-cycle")
+    cur = current_md("FIX-B-LOOP-1")
+    topics = {"my-api": {"testing.md": "무관\n"}}
+    codes = [run_hook(cur, session_id="t-cycle", topics=topics)[0] for _ in range(MAX_BLOCKS + 5)]
+    assert codes == [2] * MAX_BLOCKS + [0] * 5, codes
+    clear_counter("t-cycle")
+    print("  PASS: 한도 뒤 다시 막지 않는다")
+
+
 def test_loop_guard_releases_after_max():
     """연속 차단 한도 초과 시 fail-open (무한 루프 방지)."""
     clear_counter("t-loop")
@@ -453,6 +463,7 @@ if __name__ == "__main__":
         test_unlogged_fixb_prefix_blocks,
         test_unlogged_selfdebug_blocks,
         test_loop_guard_releases_after_max,
+        test_loop_guard_stays_released_after_max,
         test_stop_hook_active_allows,
         test_custom_path_blocks_without_code_repos,
         test_custom_path_logged_allows,

@@ -185,6 +185,16 @@ def test_malformed_current_allows():
     print("  PASS: 대시보드 미탐지 → fail-open")
 
 
+def test_loop_guard_stays_released_after_max():
+    clear_counter("t-cycle")
+    idx = index_yaml("SESS-1", "✅E (2026-05-18, PASS)")
+    cur = current_md("SESS-1", "D (확인 대기)", "D (확인 대기)")
+    codes = [run_hook(idx, cur, session_id="t-cycle")[0] for _ in range(MAX_BLOCKS + 5)]
+    assert codes == [2] * MAX_BLOCKS + [0] * 5, codes
+    clear_counter("t-cycle")
+    print("  PASS: 한도 뒤 다시 막지 않는다")
+
+
 def test_loop_guard_releases_after_max():
     """연속 차단 한도 초과 시 fail-open (무한 루프 방지)."""
     clear_counter("t-loop")
@@ -253,6 +263,41 @@ def test_e_written_by_bash_heredoc_blocks():
     assert code == 2, f"expected 2, got {code}"
     clear_counter("t-bash")
     print("  PASS: Bash 로 ✅E 를 쓴 것도 본다 → 차단")
+
+
+def test_reading_the_session_file_is_not_writing_e():
+    """gate-e Step 5 와 같은 읽기 명령만 돌린 대화가 ✅E 를 썼다고 잡혀 막혔다(2026-11-05 재현)."""
+    args = (index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"))
+    for i, cmd in enumerate(('grep -c "✅E" CURRENT_SESSION.md', 'grep "✅E" CURRENT_SESSION.md 2>/dev/null | head -3',
+                             'cat CURRENT_SESSION.md | grep -n "✅ E" 2>&1')):
+        clear_counter(f"t-read{i}")
+        code, _ = run_hook(*args, session_id=f"t-read{i}", transcript=[wrote("Bash", command=cmd)])
+        assert code == 0, f"{cmd!r}: expected 0, got {code}"
+        clear_counter(f"t-read{i}")
+    print("  PASS: 세션 문서를 읽기만 한 명령 → 허용")
+
+
+def test_shell_writes_still_count_as_writing_e():
+    args = (index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"))
+    for i, cmd in enumerate(("sed -i 's/D (확인 대기)/✅E 완료/' CURRENT_SESSION.md", "echo '✅E 완료' > CURRENT_SESSION.md",
+                             "echo '✅E' | tee -a CURRENT_SESSION.md",
+                             "python3 - <<'EOF'\np='CURRENT_SESSION.md'\nopen(p,'w').write('✅E')\nEOF")):
+        clear_counter(f"t-write{i}")
+        code, _ = run_hook(*args, session_id=f"t-write{i}", transcript=[wrote("Bash", command=cmd)])
+        assert code == 2, f"{cmd!r}: expected 2, got {code}"
+        clear_counter(f"t-write{i}")
+    print("  PASS: 셸로 실제로 쓴 것은 계속 잡는다")
+
+
+def test_gate_d_block_stays_released_after_max():
+    """해제 때 카운터를 지우면 2 2 2 0 2 2 2 0 으로 되풀이한다(2026-11-05 재현)."""
+    clear_counter("t-dcycle")
+    args = (index_yaml("SESS-1", "✅E"), current_md("SESS-1", "✅E 완료", "✅E 완료"))
+    runs = [run_hook(*args, session_id="t-dcycle", transcript=[wrote_e()]) for _ in range(MAX_BLOCKS + 5)]
+    assert [c for c, _ in runs] == [2] * MAX_BLOCKS + [0] * 5, [c for c, _ in runs]
+    assert sum("강제" in out or "미해소" in out for _, out in runs[MAX_BLOCKS:]) <= 1, "해제 알림은 한 번만"
+    clear_counter("t-dcycle")
+    print("  PASS: Gate D 차단은 풀린 뒤 다시 막지 않고 알림도 한 번")
 
 
 def test_gate_d_block_releases_after_max():
@@ -328,6 +373,7 @@ if __name__ == "__main__":
         test_missing_index_allows,
         test_malformed_current_allows,
         test_loop_guard_releases_after_max,
+        test_loop_guard_stays_released_after_max,
         test_stop_hook_active_allows,
         # Gate D 기록 없이 ✅E (2026-10-28)
         test_e_without_gate_d_written_this_session_blocks,
@@ -335,6 +381,9 @@ if __name__ == "__main__":
         test_e_from_earlier_session_allows,
         test_e_written_by_bash_heredoc_blocks,
         test_gate_d_block_releases_after_max,
+        test_gate_d_block_stays_released_after_max,
+        test_reading_the_session_file_is_not_writing_e,
+        test_shell_writes_still_count_as_writing_e,
         test_gate_d_marker_needs_both_counts,
         test_e_in_index_only_without_session_doc_blocks,
         test_gate_d_markers_moved_to_archive_allows,

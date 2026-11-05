@@ -72,9 +72,9 @@ def verdict(content):
         rollback = dict(parse_comprehension(content or "")["briefing"]).get("되돌리는 법", "")
     except Exception:
         return unreadable
-    if not files and not rollback:
-        return unreadable
     reasons = classify(files, rollback)["reasons"]
+    if not reasons and not files:       # 목록을 못 읽은 것을 「걸릴 파일 없음」으로 내면 조용히 통과한다
+        return unreadable
     return {"state": "발동" if reasons else "미발동", "reasons": reasons, "files": len(files)}
 
 
@@ -92,7 +92,7 @@ def main(argv=None):
     elif result["state"] == "미발동":
         print(f"미발동 — 변경 파일 {result['files']}개, 해당 없음")
     else:
-        print("판정 불가 — 변경 파일과 「되돌리는 법」을 찾지 못함")
+        print("판정 불가 — 변경 파일 목록을 읽지 못함")
     return 0
 
 

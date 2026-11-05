@@ -109,7 +109,7 @@ During Gate C execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): syntax·API reference lookup (Grep/WebFetch suffices)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① `git restore .` (or `git stash`) to revert to the last clean state ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
+**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① `git stash push -u -m "gate-c rollback" -- <this plan's changed files>` to set this plan's work aside — never discard it ② report to the user — the stash name, which files were set aside, what was attempted, and why it failed → request a new Gate A re-plan.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation** (a project file — skip if your project has none)
 

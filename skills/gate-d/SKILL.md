@@ -40,7 +40,7 @@ effort: high
 - **★ reward-hacking guard (R-2-G)**: During the loop, **test files·test commands·CI config are read-only** (no modification) — disabling verification via `@Disabled`·`assert true`·tampering with expected values to force a pass is a PROC violation. After the loop ends, check the `tests/` diff, and **if there is a test change, treat the gate as failed** (a legitimate test reinforcement is a Gate C-stage deliverable, not this loop's deliverable — separate it as FIX-B). See CLAUDE.md 「검증 루프 중 통과 목적의 테스트 수정 금지」.
 - **Spec–test conflict path**: if the only way to pass is to change a test because the spec and the test actually disagree, do **not** edit it — stop the loop and report 「명세·시험 충돌」 with the failing test, the spec line it contradicts, and the change you would make; the user decides. Repeated feedback rounds raise test-cheating rates (ImpossibleBench, arXiv:2510.20270), so this is also the exit when the upper bound is reached. The `test-write-guard` hook enforces the read-only rule when installed: during Gate D any Edit/Write to a test path asks the user first.
 - **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output. Write the repeat count as `self-debug N회` (`self-debug 0회` when no loop ran) in the Gate D block of ${CURRENT_SESSION_FILE} — `error-topics-guard.py` reads this exact marker at Gate E to decide whether an error case must be recorded.
-- **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git restore .` (or `git stash`) to revert to the last clean state ③ verify the repo compiles/runs clean ④ report to the user: which files were reverted + why the fix could not proceed → request a new Gate A re-plan.
+- **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git stash push -u -m "gate-d rollback" -- <this plan's changed files>` to set this plan's work aside ③ verify the repo compiles/runs clean ④ report to the user: the stash name, which files were set aside, why the fix could not proceed → request a new Gate A re-plan. The user decides whether to pop or drop it. Never discard: Gate C's work is uncommitted here, and naming the plan's files keeps the session documents and the user's unrelated edits in place.
 
 > Detail → `plans/agents_instructions/gate-c-instruction.md` (3-iteration protocol · reward-hacking 4 patterns)
 
@@ -175,7 +175,7 @@ During Gate D execution, if the situation below applies, you may make a **single
 
 **Call prohibited** (resolve directly): errors already in the standard failure·error taxonomy (PROC/ENV/TYPE/LOGIC/VERIFY/SEC/API)
 
-**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above (git restore to last clean state) ② report to the user — which files were reverted, what was attempted, and why it failed → request a new Gate A re-plan.
+**Session-cumulative max_uses**: 3 times. On exceeding → **escalate**: ① run the rollback guide above ② report to the user — the stash name, which files were set aside, what was attempted, and why it failed → request a new Gate A re-plan.
 
 Detailed call template·recording method·guardrails → **CLAUDE_DETAIL.md §Advisor Escalation** (a project file — skip if your project has none)
 

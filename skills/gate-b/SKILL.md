@@ -59,7 +59,7 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_
 Compare the answer with the plan and reply in 1~2 lines: what matched, what the plan actually says where it differs, and whether the answer exposes a gap in the plan. Give that feedback even when the answer is thin. **Do not re-ask and do not add a second question.** Correcting a wrong answer is where the value is; repeating the question is what made rounds take 7~23 minutes.
 
 - **The answer exposes a real gap** → fix the plan, or list the gap for the user if the fix is a decision.
-- **Then** write the 평가 (`답함 — <1-line feedback>`), record Step 4 and pass the gate → proceed to gate-c.
+- **Then** write the 평가 (`답함 — <1-line feedback>`), record Step 4 and pass the gate. Stop at Step 5 so the user can read the feedback.
 - **Record whether the answer changed the plan** — under the 평가 add one line: `- **계획 변경**: 있음 — <what changed>` or `- **계획 변경**: 없음`. A skipped question gets no such line. The usage report counts these: they are the data for deciding whether this gate earns its cost.
 
 ## Step 4. Evidence record (expiring, answered questions only)
@@ -89,7 +89,7 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
   - The Gate B block keeps every asked question with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
 > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
-6. STOP — await user document review·confirmation
+6. STOP — await user document review·confirmation. **A 미발동 pass-through does not stop**: invoke `/gate-c` in this same response — the user has already approved the plan and there is nothing to read or answer (9 of 12 past rounds would have cost one more 「구현」 for nothing). Stop only if the session's 「Gate별 권장 모델」 table recommends a different model for Gate C than the one running now; switching model is the one thing this stop is for.
 
 ---
 
@@ -105,7 +105,9 @@ Omitting it or replacing it with other content is a **PROC violation**.
 **다음 단계**: 위 질문에 답해 주세요. 답하지 않고 넘어가려면 「스킵」이라고 명시해 주세요 — 「구현」「진행」만으로는 넘어가지 않습니다.
 ```
 
-**Gate passed, pass-through, or explicitly skipped**:
+**미발동 pass-through continuing to gate-c**: no block — gate-c's final output ends the response.
+
+**Gate passed, explicitly skipped, or pass-through stopping for a model change**:
 
 ```
 ---
