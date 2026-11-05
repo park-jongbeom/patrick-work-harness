@@ -35,6 +35,11 @@
      settings.json 의 훅에서 이 변수를 거부한다: 「only available in hooks defined in a plugin's hooks/hooks.json file」. `/init` 이
      그렇게 배선한 훅은 한 번도 돌지 않고 응답마다 훅 오류만 남겼다).
 
+ 20. gate-b 는 스킵을 증거로 쓰지 않는다 — Step 1 은 스킵 행을 No record 로 보고, Step 4 는 행을 남기지 않는다 (2026-11-05 — 스킵 행이
+     26분 뒤 「유효」로 읽혀 큰 폭발반경 변경이 질문 없이 통과했다).
+ 21. gate-b 의 근거 문구는 독자가 따라갈 수 있고 효과를 부풀리지 않는다 — 없는 내부 노트를 가리키거나, 계획을 펴 둔 질문을 인출 연습이라고
+     말하지 않는다 (2026-11-05).
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -73,6 +78,7 @@ def hits(pattern, files=None):
     return out
 
 
+GATE_B = ROOT / "skills" / "gate-b" / "SKILL.md"
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
 AUTONOMOUS_HEADING = "## Autonomous lane (자율 레인)"
@@ -263,6 +269,17 @@ class EngineLint(unittest.TestCase):
         # 값 안의 이스케이프된 따옴표(\\")를 건너뛴다 — 예시가 `python3 \\"${…}/hooks/x.py\\"` 꼴이다
         found = hits(r'"command":\s*"(?:[^"\\\n]|\\.)*\$\{CLAUDE_PLUGIN_ROOT\}', files=list((ROOT / "skills").rglob("*.md")))
         self.assertEqual(found, [], "settings.json 훅 예시에 ${CLAUDE_PLUGIN_ROOT} — Claude Code 가 실행을 거부한다:\n" + "\n".join(found))
+
+    def test_gate_b_skip_is_not_evidence(self):
+        text = GATE_B.read_text(encoding="utf-8")
+        step1 = re.search(r"^## Step 1\..*?(?=^## )", text, re.S | re.M).group(0)
+        step4 = re.search(r"^## Step 4\..*?(?=^## )", text, re.S | re.M).group(0)
+        self.assertRegex(step1, r"미답 — 사용자 스킵.*\*\*No record\*\*", "Step 1 이 스킵 행을 증거에서 빼지 않음")
+        self.assertRegex(step4, r"\*\*Skipped gate → no row", "Step 4 가 스킵의 기록 방식을 정하지 않음")
+
+    def test_gate_b_basis_is_followable_and_not_overstated(self):
+        found = hits(r"MIT 2025|internal research note|Dunlosky|[Ff]orce (?:actual )?retrieval|forced through", files=[GATE_B])
+        self.assertEqual(found, [], "gate-b 근거 문구:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

@@ -51,6 +51,15 @@ SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehensi
 #: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
 HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
+#: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
+#: v1.7.0 전 회차에는 둘 다 없어 응답의 「질문 N」도 본다(실제 기록 12회에서 질문 회차와 정확히 일치했다).
+GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]")
+GATE_B_PLACEHOLDER = re.compile(r"\*\*평가\*\*\s*[:：]\s*\(\s*(?:답변\s*후\s*기록|평가\s*전|filled after the answer)\s*\)")
+GATE_B_SKIP = re.compile(r"스킵|스킴|skip", re.I)       # 「스킴」은 실제 기록의 오타
+GATE_B_SKIP_MAX = 40                                    # 긴 글 안의 「스킵」은 답이다(실제 스킵은 7~9자였다)
+GATE_B_GO = re.compile(r"(?:(?:계획대로 )?구현|진행|계속|gate[ -]?c(?: 시작)?)(?:해라|해)?[.!]?", re.I)
+GATE_B_PLAN = re.compile(r"\*\*계획 변경\*\*\s*[:：]\s*(있음|없음)")
+GATE_B_ASKED = ("answered", "partial", "skipped", "unanswered")
 
 
 def as_text(value):
@@ -140,6 +149,92 @@ def _is_typed_prompt(event):
 
 def _new_guard():
     return collections.Counter()
+
+
+def gate_b_rounds(path):
+    """Gate B 회차마다 사람이 질문에 어떻게 응답했는지 센다. 반환: 0 이 아닌 칸만 담은 dict.
+
+    왜: Gate 순서만 보면 9초 만의 스킵도 정상 `gate-b→gate-c` 다 — 질문 회차가 스킵으로 끝나던 2026-10 을 사용 집계기는
+    「이상 패턴 없음」으로 냈다. 회차는 Gate 호출로 열리고, 스킵·다음 Gate 호출·기록 끝, 또는 모델이 다시 묻지 않고
+    넘어간 뒤의 사람 입력에서 닫힌다 — Gate C 호출 없이 구현으로 넘어가는 대화가 있어 호출만 기다리면 회차가 끝나지 않는다.
+
+    칸: none 질문 없음 · answered 답함 · partial 일부 답 뒤 스킵 · skipped 답 없이 스킵 · unanswered 답도 스킵도 없이 끝남,
+    plan_changed·plan_same 평가 아래 적은 「계획 변경」(있음이 하나라도 있으면 있음).
+
+    한계: Skill·슬래시 호출 없이 진행한 회차는 못 본다(하한). 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한).
+    """
+    from gate_transcript import GATE_COMMAND, GATE_SKILL, WRITE_TOOLS, _written_texts
+
+    counts = collections.Counter()
+    current = None
+
+    def close():
+        nonlocal current
+        if current is None:
+            return
+        if not current["asked"]:
+            counts["none"] += 1
+        elif current["skipped"]:
+            counts["partial" if current["answers"] else "skipped"] += 1
+        else:
+            counts["answered" if current["answers"] else "unanswered"] += 1
+        if current["plan"]:
+            counts["plan_changed" if "있음" in current["plan"] else "plan_same"] += 1
+        current = None
+
+    def called(letter):
+        nonlocal current
+        close()
+        if letter == "b":
+            current = {"asked": False, "waiting": False, "answers": 0, "skipped": False, "plan": set()}
+
+    def waiting():
+        current["asked"] = current["waiting"] = True
+
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict) or event.get("isSidechain"):
+                continue
+            content = (event.get("message") or {}).get("content")
+            if event.get("type") == "assistant" and isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") == "text" and current and GATE_B_WAITING.search(as_text(block.get("text"))):
+                        waiting()
+                    elif block.get("type") == "tool_use":
+                        inp = block.get("input") or {}
+                        m = GATE_SKILL.search(str(inp.get("skill", ""))) if block.get("name") == "Skill" else None
+                        if m:
+                            called(m.group(1))
+                        elif current:
+                            for text in _written_texts(block.get("name"), inp)[1]:
+                                # Bash 명령에는 지울 옛 글자도 들어 있다 — 자리표시는 쓴 글자만 보이는 도구에서 읽는다
+                                if block.get("name") in WRITE_TOOLS and GATE_B_PLACEHOLDER.search(text):
+                                    waiting()
+                                current["plan"].update(GATE_B_PLAN.findall(text))
+            elif _is_typed_prompt(event):
+                text = " ".join(_texts(content)).strip()
+                letters = GATE_COMMAND.findall(text)
+                for letter in letters:
+                    called(letter)
+                if letters or not current or text.startswith("<"):       # `<task-notification>` 등은 사람 답이 아니다
+                    continue
+                if not current["waiting"]:
+                    close()
+                    continue
+                current["waiting"] = False         # 다시 물으면 위 표지가 도로 켠다 — 맨 「구현」 뒤의 지시는 답이 아니다
+                if GATE_B_SKIP.search(text) and len(text) <= GATE_B_SKIP_MAX:
+                    current["skipped"] = True
+                    close()
+                elif not GATE_B_GO.fullmatch(text):
+                    current["answers"] += 1
+    close()
+    return dict(counts)
 
 
 def read_session(path):
@@ -286,6 +381,7 @@ def read_session(path):
     seq = gate_sequence(path) or []
     row["gates"] = " ".join(seq)
     row["c_to_e"] = sum(1 for a, b in zip(seq, seq[1:]) if (a, b) == ("c", "e"))
+    row["gate_b"] = gate_b_rounds(path) if "b" in seq else {}
     row["engine_source"] = sorted(sources)
     out_guards = {}
     for name, counter in guards.items():
@@ -377,6 +473,10 @@ def _gate_a(rows):
     return sum(r["gates"].split().count("a") for r in rows)
 
 
+def _gate_b_asked(rows):
+    return sum((r.get("gate_b") or {}).get(k, 0) for r in rows for k in GATE_B_ASKED)
+
+
 METRICS = [
     ("Gate A 가 과거 교훈을", _gate_a, 20, "Gate A 실행 수. 「교훈 조회」 절 유무는 아카이브에서 본다"),
     ("「교훈 조회」 절을 Stop 훅으로", _gate_a, 20, "Gate A 실행 수(위 항목과 같은 자료)"),
@@ -412,6 +512,7 @@ METRICS = [
     ("일괄 승인이 Gate B 전에 와도", _a_to_c, None, "Gate A 다음 Gate B 없이 Gate C 로 간 세션 수(스킬 호출 기준, 하한) — 확인 시점 R0 뒤 한 달"),
     ("사용 집계기가 플러그인 스킬 이름을", None, None, "다음 월간 집계(skill_usage_aggregator)와 다음 동기화의 린트"),
     ("커밋 메시지 가드가 -am", None, 3, "엔진 저장소 릴리스 — 정당한 커밋이 막힌 경우"),
+    ("Gate B 스킵은 증거가 아니다", _gate_b_asked, 20, "Gate B 질문 회차 수 — 결과는 「Gate B 질문 결과」 표, 스킵 행 통과는 대화 기록"),
 ]
 
 
@@ -511,6 +612,23 @@ def render(data, progress, projects_dir, since):
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates']} | {r['c_to_e']} |")
+    lines += ["", "## Gate B 질문 결과 (회차별 사람의 응답)", "",
+              "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
+              "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",
+              "- 스킵 수 하나로 판단하지 않는다 — 낮아도 의례일 수 있고 높아도 정당할 수 있다. 계획 변경 칸은 gate-b Step 3 이 적기 시작한 뒤 회차부터 쌓인다.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | 질문 없음 | 답함 | 일부 답 뒤 스킵 | 스킵 | 답 없음 | 계획 변경 있음/없음 |",
+              "|---|---|---|---|---|---|---|---|---|"]
+    gate_b_cols = ("none", "answered", "partial", "skipped", "unanswered")
+    gate_b_total = collections.Counter()
+    for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
+        g = r.get("gate_b") or {}
+        if g:
+            gate_b_total.update(g)
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | "
+                         + " | ".join(str(g.get(k, 0)) for k in gate_b_cols)
+                         + f" | {g.get('plan_changed', 0)}/{g.get('plan_same', 0)} |")
+    lines.append("| 합계 | | | " + " | ".join(str(gate_b_total[k]) for k in gate_b_cols)
+                 + f" | {gate_b_total['plan_changed']}/{gate_b_total['plan_same']} |")
     if progress is not None:
         lines += ["", "## DECISION_LOG 대기 예측의 진행", "",
                   "| 결정일 | 결정 | 지금 | 확인 시점 목표 | 자료 |", "|---|---|---|---|---|"]

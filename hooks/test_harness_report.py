@@ -49,6 +49,15 @@ def ask(reason="보호 경로"):
                                               "permissionDecisionReason": reason}}, ensure_ascii=False)
 
 
+def said(text):
+    return {"type": "assistant", "timestamp": "2026-10-23T10:00:01Z",
+            "message": {"model": "claude-sonnet-5-5", "content": [{"type": "text", "text": text}]}}
+
+
+def gate(letter):
+    return assistant(tools=[("g" + letter, "Skill", {"skill": "gate-" + letter})])
+
+
 class ReportCase(unittest.TestCase):
 
     def setUp(self):
@@ -313,6 +322,135 @@ class TestPredictionsAndOutput(ReportCase):
         hr.main(["--projects-dir", self.root, "--out", out])
         rows = [json.loads(l) for l in open(os.path.join(out, "sessions.jsonl"), encoding="utf-8")]
         self.assertEqual(len(rows), 1)
+
+
+class TestGateBRounds(ReportCase):
+    """호출 순서가 아니라 사람의 응답을 센다 — 2026-10 의 집계기는 스킵이 이어진 달을 「이상 패턴 없음」으로 냈다."""
+
+    ASKED = "**다음 단계**: 위 질문에 답해 주세요. 답하지 않고 넘어가려면 「스킵」이라고 명시해 주세요"
+    PASSED = "**다음 단계**: Gate B 확인 후 「Gate C 시작」또는 「구현」으로 응답하면 `/gate-c` 가 시작됩니다."
+
+    def rounds(self, lines):
+        self.session(lines)
+        return self.rows()["s1"]["gate_b"]
+
+    def test_skip_is_counted_though_the_gate_order_looks_normal(self):
+        for reply in ("스킵하고 구현해라", "스킴하고 구현해라", "skip"):      # 「스킴」은 실제 기록의 오타
+            self.assertEqual(self.rounds([gate("b"), said(self.ASKED), user(reply), gate("c")]), {"skipped": 1}, reply)
+
+    def test_answer_closes_as_answered(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("훅 파일끼리 import 가 되어 일부만 옮기면 깨진다"),
+                         said(self.PASSED), user("구현"), gate("c")])
+        self.assertEqual(r, {"answered": 1})
+
+    def test_answer_then_skip_on_the_next_question_is_partial(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("훅 파일끼리 import 가 되어 일부만 옮기면 깨진다"),
+                         said(self.ASKED), user("스킵하고 구현해라"), gate("c")])
+        self.assertEqual(r, {"partial": 1})
+
+    def test_round_without_a_question(self):
+        self.assertEqual(self.rounds([gate("b"), said(self.PASSED), user("구현"), gate("c")]), {"none": 1})
+
+    def test_bare_go_word_is_not_an_answer(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("구현"), said(self.ASKED), user("진행"), gate("c")])
+        self.assertEqual(r, {"unanswered": 1})
+        for reply in ("구현해라", "계획대로 구현", "계획대로 구현해라", "Gate C 시작"):     # gate-b·gate-c 가 받는 문구
+            self.assertEqual(self.rounds([gate("b"), said(self.ASKED), user(reply), gate("c")]), {"unanswered": 1}, reply)
+
+    def test_question_written_to_the_session_document_counts_as_asked(self):
+        """v1.7.0 전 문구에는 「위 질문에 답해」가 없다 — 평가 자리표시로 본다."""
+        written = assistant(tools=[("e1", "Edit", {"file_path": "/w/CURRENT_SESSION.md", "old_string": "x",
+                                                   "new_string": "### 질문 1\n무엇?\n- **평가**: (답변 후 기록)\n"})])
+        self.assertEqual(self.rounds([gate("b"), written, said(self.PASSED), user("구현"), gate("c")]), {"unanswered": 1})
+
+    def test_question_only_in_the_reply_counts_as_asked(self):
+        """v1.7.0 전에는 질문을 대화에만 적은 회차가 있다 — 실제 기록 대조에서 3회가 「질문 없음」으로 잡혔다."""
+        r = self.rounds([gate("b"), said("질문 1 — 왜 바꾸나요? 답을 받으면 평가합니다."), user("계획이 틀렸다고 본 이유는 옛 행 때문이다"),
+                         said(self.PASSED), gate("c")])
+        self.assertEqual(r, {"answered": 1})
+        self.assertEqual(self.rounds([gate("b"), said("이해도 질문 없이 통과합니다. 질문 0건."), user("구현"), gate("c")]), {"none": 1})
+
+    def test_later_instruction_after_a_silent_pass_is_not_an_answer(self):
+        """맨 「구현」으로 넘어간 뒤의 지시를 답으로 세면 무언 통과가 「답함」이 된다 — 실제 기록 대조에서 나왔다."""
+        r = self.rounds([gate("b"), said("질문 1 — 왜 바꾸나요?"), user("구현"), said("구현을 시작합니다."),
+                         user("시험도 같이 돌리고 실패하면 고친 뒤 결과를 알려줘"), gate("c")])
+        self.assertEqual(r, {"unanswered": 1})
+
+    def test_round_ends_when_the_model_moves_on_without_gate_c(self):
+        """Gate C 호출 없이 구현으로 넘어간 회차가 열려 있으면 몇 시간 뒤의 「질문 1」 언급이 대기를 다시 켠다 — 실제 기록 대조."""
+        r = self.rounds([gate("b"), said("질문 1 — 왜 바꾸나요?"), user("구현"), said("구현을 시작합니다."), user("검증"),
+                         said("Gate B 질문 1 문구를 고쳤습니다."), user("좋다, 그 부분은 그대로 두고 다음 작업으로 넘어가라")])
+        self.assertEqual(r, {"unanswered": 1})
+
+    def test_mention_after_a_skip_does_not_turn_it_into_an_answer(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("스킵하고 구현해라"), said("질문 1 은 미답으로 기록했습니다."),
+                         user("시험도 같이 돌리고 실패하면 고친 뒤 결과를 알려줘")])
+        self.assertEqual(r, {"skipped": 1})
+
+    def test_background_notice_is_not_a_reply(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("<task-notification><task-id>x</task-id></task-notification>"),
+                         user("스킵하고 구현해라"), gate("c")])
+        self.assertEqual(r, {"skipped": 1})
+
+    def test_script_removing_the_placeholder_does_not_reopen_the_question(self):
+        """Bash 스크립트에는 지울 옛 글자도 들어 있다 — 그 자리표시를 새 질문으로 읽으면 다음 입력이 답이 된다(실제 기록 대조)."""
+        script = assistant(tools=[("b1", "Bash", {"command": "python3 - <<'EOF'\np='CURRENT_SESSION.md'\n"
+                                                             "s=s.replace('- **평가**: (답변 후 기록)','- **평가**: 미답')\nEOF"})])
+        r = self.rounds([gate("b"), said("질문 1 — 왜 바꾸나요?"), user("구현"), script, user("검증")])
+        self.assertEqual(r, {"unanswered": 1})
+
+    def test_filling_the_evaluation_does_not_reopen_the_question(self):
+        filled = assistant(tools=[("e1", "Edit", {"file_path": "/w/CURRENT_SESSION.md", "old_string": "- **평가**: (답변 후 기록)",
+                                                  "new_string": "- **평가**: 통과 — 파일을 짚어 답함"})])
+        r = self.rounds([gate("b"), said(self.ASKED), user("훅 파일끼리 import 가 되어 일부만 옮기면 깨진다"), filled,
+                         said(self.PASSED), user("이제 구현으로 넘어가도 좋고 시험도 같이 돌려라"), gate("c")])
+        self.assertEqual(r, {"answered": 1})
+
+    def test_long_answer_mentioning_skip_is_an_answer(self):
+        answer = "이 계획은 원장의 스킵 행을 증거로 읽어서, 만료 전이면 큰 폭발반경 변경도 질문 없이 통과하는 것이 가장 깨지기 쉬운 곳이다"
+        self.assertEqual(self.rounds([gate("b"), said(self.ASKED), user(answer), said(self.PASSED), gate("c")]), {"answered": 1})
+
+    def test_typed_gate_command_is_not_an_answer(self):
+        r = self.rounds([user("<command-name>/gate-b</command-name>"), said(self.ASKED),
+                         user("<command-name>/gate-c</command-name>")])
+        self.assertEqual(r, {"unanswered": 1})
+
+    def test_each_call_is_its_own_round(self):
+        r = self.rounds([gate("b"), said(self.ASKED), user("스킵"), gate("c"), gate("a"),
+                         gate("b"), said(self.PASSED), gate("c")])
+        self.assertEqual(r, {"skipped": 1, "none": 1})
+
+    def test_session_ending_on_a_pending_question(self):
+        self.assertEqual(self.rounds([gate("b"), said(self.ASKED)]), {"unanswered": 1})
+
+    def test_subagent_lines_are_not_the_round(self):
+        side = said(self.ASKED)
+        side["isSidechain"] = True
+        self.assertEqual(self.rounds([gate("b"), side, said(self.PASSED), user("구현"), gate("c")]), {"none": 1})
+
+    def test_plan_change_is_read_from_the_evaluation(self):
+        def filled(value):
+            return assistant(tools=[("e1", "Edit", {"file_path": "/w/CURRENT_SESSION.md", "old_string": "x",
+                                                    "new_string": f"- **평가**: 통과\n- **계획 변경**: {value}\n"})])
+        r = self.rounds([gate("b"), said(self.ASKED), user("훅 파일끼리 import 가 되어 일부만 옮기면 깨진다"),
+                         filled("있음 — 위험 서술을 고침"), gate("c"),
+                         gate("b"), said(self.ASKED), user("훅 파일끼리 import 가 되어 일부만 옮기면 깨진다"),
+                         filled("없음"), gate("c")])
+        self.assertEqual(r, {"answered": 2, "plan_changed": 1, "plan_same": 1})
+
+    def test_session_without_gate_b_has_no_rounds(self):
+        self.assertEqual(self.rounds([gate("a"), gate("c")]), {})
+
+    def test_report_shows_responses_next_to_gate_order(self):
+        self.session([gate("b"), said(self.ASKED), user("스킵하고 구현해라"), gate("c")])
+        data = hr.collect(self.root)
+        md = hr.render(data, None, self.root, None)
+        self.assertIn("## Gate B 질문 결과", md)
+        self.assertRegex(md, r"\| 합계 \|.*\| 0 \| 0 \| 0 \| 1 \| 0 \| 0/0 \|")
+
+    def test_question_rounds_feed_the_pending_prediction(self):
+        self.assertEqual(hr._gate_b_asked([{"gate_b": {"none": 3, "answered": 1, "partial": 1, "skipped": 2, "unanswered": 1}},
+                                           {"gate_b": {}}, {}]), 5)
 
 
 if __name__ == "__main__":

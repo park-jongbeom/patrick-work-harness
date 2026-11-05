@@ -6,7 +6,7 @@ effort: low
 
 # Gate B Procedure — Comprehension Gate (follow order strictly)
 
-> **Purpose**: Structural comprehension check between Gate A approval → Gate C implementation. Before AI-written code runs, verify "how it flows end to end" via retrieval forced through guided questioning. Defense against AI-era cognitive debt (MIT 2025). Canonical: (internal research note, if your project maintains one) (original design) + (internal research note, if your project maintains one) (guided-questioning redesign, 2026-07-06).
+> **Purpose**: Check between Gate A approval → Gate C implementation: before AI-written code runs, can the user say how this change flows end to end? This is a **pre-implementation check on this plan, not skill training**. The plan stays open while the user answers, so a question works as open-book guided re-reading: it shows the plan was read and can expose a gap in it. We found no study showing that answering here carries over to debugging or catching AI mistakes, so do not claim it builds or keeps skill. Why the check exists: taking AI output directly lowers what people learn from new material (Shen & Tamkin 2026, arXiv:2601.20245: N=52, d=0.738 on an immediate quiz; Bastani et al. 2025, PNAS: ~1,000 students, −17% once the AI was removed). Whether experienced developers lose skill they already have has not been measured.
 > **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
 ## Step 0. 3-way risk classification
@@ -28,6 +28,7 @@ Classify the Gate A plan by risk level and determine the path:
 **Before** requiring an explanation, look up entries in the comprehension ledger (`comprehension_ledger.md` — see `.claude/harness-answers.yml` → `learning_path` (SSOT); absent field means `plans/learning`) by `tech_tags` match first, then fall back to `scope` text match:
 
 - **tech_tags matching (primary)**: if any tag in the ledger row's `tech_tags` column overlaps with this Gate A plan's technology area → apply expiry check
+- **Only a 결과 of Pass or Pass after retry is evidence.** A row with any other 결과 (「미답 — 사용자 스킵」, User-delegated, 「힌트 후 통과」) counts as **No record**, however recent it is. Why: on 2026-10-29 a row recording a skip was read as 「유효」 about 26 minutes later, and a large-blast-radius change passed with no question.
 - **Expiry verdict**:
   - **Not expired** (within exp AND no material change to scope files) → skip (pass the gate, record 1-line reason)
   - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
@@ -35,12 +36,12 @@ Classify the Gate A plan by risk level and determine the path:
 
 > Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end — **only when that hook is actually wired in your Claude Code settings**. If it is not wired, this Step's manual lookup is the sole detection path. Either way, this Step's direct lookup is the first-pass verdict.
 
-## Step 2. Force retrieval via guided questioning (non-trivial paths only)
+## Step 2. Guided questions (non-trivial paths only)
 
-**Ban "know/don't-know" Y/N self-report** (IOED·Dunning-Kruger). Force actual retrieval — the active ingredient is retrieval, not the dialogue format itself (Dunlosky 2013 meta-review: retrieval/spaced practice = high utility, free self-explanation = only moderate utility). Basis and evidence-strength ratings → (internal research note, if your project maintains one).
+**Ban "know/don't-know" Y/N self-report.** Confidence in being able to explain is unreliable, and expertise raises that confidence without grounds (illusion of explanatory depth; Fisher & Keil 2016). Require an actual answer.
 
 - **Large blast radius**: AI asks **2~4 questions, one at a time** (do not reveal the next question until the current one is answered — prevents reading-ahead gaming), **before the user sees AI-written code**. Question template: ①why is this change needed ②what is the core mechanism ③what is the most fragile break point ④(if relevant) how to roll it back. AI only evaluates — it does not answer for the user.
-- **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing — zero user retrieval. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
+- **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing, so the user answered nothing. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
 - **Question source**: draw every question from **one item of the Gate A plan's `### 이해 브리핑`** — ①why → 「왜 바꾸나」, ②mechanism → 「어떻게 동작하나」, ③break point → 「가장 깨지기 쉬운 곳」, ④rollback → 「되돌리는 법」. A question must be answerable from the plan alone. If the plan has no briefing, write it into the Gate A block first (4 items, `gate-a/SKILL.md §Step 1`), then ask.
 - **Record each question when you ask it** — append it to the Gate B block of `${CURRENT_SESSION_FILE}` in the same response, so the dashboard (regenerated on Stop) already shows it when the user opens it to answer:
 
@@ -61,8 +62,11 @@ Evaluate **each question's answer independently** (not one holistic free-form pa
 
 - **All questions answered concretely** → record Step 4 evidence then pass the gate → proceed to gate-c
 - **Gap found in ≥1 question** → **do not block**. Give one hint, re-ask that question once. If a gap remains after retry, delegate decision to user (proceed/further learning). Record which question(s) needed a retry in the evidence row's 설명요약.
+- **Record whether the answer changed the plan** — under each 평가 add one line: `- **계획 변경**: 있음 — <what changed>` or `- **계획 변경**: 없음`. A skipped question gets no such line. The usage report counts these: they are the data for deciding whether this gate earns its cost.
 
 ## Step 4. Evidence record (expiring, non-trivial paths only)
+
+> **Skipped gate → no row.** If the gate ended on 「스킵」, even after some answers, write nothing to the ledger: the 평가 「미답 — 사용자 스킵」 in the Gate B block is the whole record. The ledger holds only what the user actually answered.
 
 Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning_path` — see Step 1):
 

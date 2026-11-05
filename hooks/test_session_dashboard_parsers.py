@@ -153,6 +153,13 @@ class TestParsersFromReview(unittest.TestCase):
             doc = f"## Gate B — 이해도\n\n### 질문 1\n무엇?\n- **평가**: {ph}\n"
             self.assertFalse(sdp.parse_comprehension(doc)["questions"][0]["evaluated"], ph)
 
+    def test_plan_change_line_leaves_the_question_as_it_was(self):
+        """gate-b Step 3 가 평가 아래에 적는 「계획 변경」은 질문 본문·평가 판정을 바꾸지 않는다."""
+        doc = ("## Gate B — 이해도\n\n### 질문 1\n무엇?\n- **읽을 곳**: 이해 브리핑 「왜 바꾸나」\n"
+               "- **평가**: (답변 후 기록)\n- **계획 변경**: 없음\n")
+        q = sdp.parse_comprehension(doc)["questions"][0]
+        self.assertEqual((q["text"], q["where"], q["evaluated"]), ("무엇?", "이해 브리핑 「왜 바꾸나」", False))
+
     def test_colon_inside_bold_label(self):
         self.assertEqual(sdp._labeled_items("- **왜 바꾸나:** 이유"), [("왜 바꾸나", "이유")])
 
