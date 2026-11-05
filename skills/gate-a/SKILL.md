@@ -51,11 +51,11 @@ Before session start (before any code change):
 >
 > **Single-canonical declaration**: This Step 0-A "Gate A scoring table" (0-A-a) + "tier verdict" (0-A-b) is the **Gate A-specific canonical**. Gate A uses this table for two things: verifying its own progress model and producing the recommended models for follow-up Gates B/C/D/E (see Step 1's "per-Gate recommended model·effort table").
 >
-> **Model detection·STOP format**: cite `audit/SKILL.md §Step 0-c/0-d` directly (single canonical). (The audit skill body is not auto-loaded — if that procedure is needed, load it directly via the `Skill` tool.)
+> **Model detection·STOP format**: cite `audit/SKILL.md §Step 0-c/0-d` directly (single canonical). (`Read` that file for the format — do not start the audit skill.)
 
 ### Step 0-A-a. Gate A 3-axis classification (R / V / D)
 
-> Philosophy, sources, estimation guide, R-13 guard, and Effort/Thinking rule → `SKILL_DETAIL.md §Model Rubric Common` (not auto-loaded — load via `Read` when needed).
+> Philosophy, sources, estimation guide and R-13 guard → `SKILL_DETAIL.md §Model Rubric Common` (not auto-loaded — load via `Read` when needed).
 
 #### R (Reasoning Depth) — Opus promotion gate
 
@@ -88,7 +88,6 @@ Before session start (before any code change):
 | D3 | Many regression guards (e.g. obligation to keep 285+ tests PASS) | +1 |
 
 > **D total ≥ 2** → Sonnet forced (Opus promotion blocked). Sonnet's instruction-following advantage·overengineering avoidance fits deterministic work. Opus tends to be "warmer/longer/over-elaborate" and conflicts with smallest diff.
-> **D-axis direction caution (technique-5 review result, 2026-05-25)**: This D-axis uses determinism as an 'Opus blocking gate' (Sonnet's instruction-following advantage fits deterministic formats). The direction differing from the industry routing convention 'determinism = easy work → weak model (Haiku downgrade)' is intentional design — D is not a Haiku-downgrade signal but an Opus-promotion-blocking signal.
 
 ### Step 0-A-b. Per-Gate model decision rule
 
@@ -97,25 +96,23 @@ Before session start (before any code change):
 | **A** (plan) | (1) R ≥ 6 → Opus 5.5 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 5.5 (3) otherwise → **Sonnet 5.5 (default)** |
 | **B** (comprehension) | (1) gate fires (`gate-b/SKILL.md §Step 0`) → **Sonnet 5.5** — drafting the question from the plan's briefing and giving feedback on the answer (2) pass-through → — (no model needed) |
 | **C** (implement) | (1) **default Sonnet 5.5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to C (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
-| **D** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5.5 (2) Simple regression re-confirm (already PASS) → Haiku 5.5 (3) D's conditional refactor of architecture-redesign class (R ≥ 6) → Opus 5.5 |
+| **D** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5.5 (2) Simple regression re-confirm (already PASS) → Haiku 5.5 |
 | **E** (cleanup) | always Haiku 5.5 |
 
 > **Per-Gate independent application**: Even if Gate A is Opus, Gate C (implement) is default Sonnet (Anthropic official pattern). Each Gate is scored independently — no inheritance. *(Why the old inheritance rule was dropped → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.)*
 >
-> **Fable 5.1 (exception escalation only)**: not a regular tier in the table above — Fable 5.1 is Anthropic's most capable widely-released model (Mythos-class) listed in the official selection matrix for hours-long agent sessions and multistep deep research, priced at **2.5× Opus 5.5** ($10/$50 vs $4/$20, verified 2026-10-15). Anthropic's own rule is to move to it only when Opus 5.5 at `xhigh`/`max` effort still falls short ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)). Consider it only for large-scale migration·multi-day full-autonomy sessions, and only with the user's explicit approval stated in a sentence (e.g. 「Fable 5.1로 진행 승인」). It does not participate in the R≥6 Opus-promotion comparison above. Basis·pricing → `SKILL_DETAIL.md §Fable 5.1`.
+> **Fable 5.1**: not a regular tier. Exception only, with the user's explicit approval in a sentence → `SKILL_DETAIL.md §Fable 5.1`.
 
-> **Meaning of self-verification**: Gate A is "deciding the whole session's direction", so Opus promotion only when an R item (architecture decision·new algorithm, etc.) explicitly arises. Even with many changed files·repos, if R = 0, Sonnet suffices — for multi-file handling, Anthropic's official recommended "Sonnet orchestrator + Haiku worker parallel" pattern is more cost-efficient than a single Opus.
+### Step 0-A-b'. R-13 cost-justification guard
 
-### Step 0-A-b'. R-13 cost-justification guard + Step 0-A-b''. Effort·Thinking decision rule
-
-> R-13 guard (Opus output format·auto-downgrade conditions·STOP format) and Effort/Thinking rule (per-Gate table) → `SKILL_DETAIL.md §3` and `§4` (not auto-loaded — load via `Read` when needed).
+> R-13 guard (Opus output format·auto-downgrade conditions·STOP format) → `SKILL_DETAIL.md §3` (not auto-loaded — load via `Read` when needed).
 
 ### Step 0-A-c. Current-model detection + Step 0-A-d. STOP verdict
 
 Apply the **same procedure** as `audit/SKILL.md` Step 0-c / Step 0-d (single canonical). Format·bypass handling·detection-failure handling are all identical.
 
 Summary:
-- Current tier ≥ recommended → proceed normally (to Step 0 Pre-Plan investigation). Output 1 line at the start of this response: 「✅ 모델 검증: 현재 {모델} ≥ 권장 {권장} (R/V/D 분해, {등급})」.
+- Current tier ≥ recommended → proceed normally (to Step 0 Pre-Plan investigation). Output 1 line at the start of this response: 「✅ 모델 검증: 현재 {모델} ≥ 권장 {권장} (R/V/D 분해)」.
 - Current tier < recommended → STOP. Use the audit STOP format, stating the score breakdown.
 
 > **Decomposition output obligation**: Output the **R/V/D 3-axis decomposition** in the first line of this response (e.g. `현재 Sonnet ≥ 권장 Sonnet (R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1 → Sonnet 디폴트)`). Omitting the decomposition·showing only the total is a **PROC violation**. When producing Opus, the R-13 cost-justification 1 line is also mandatory (Step 0-A-b' format).
@@ -132,7 +129,7 @@ Summary:
 - `Grep` / `Glob` — search for similar features·same naming·already-existing helpers
 - If needed, `gh search code` or external-library documentation check
 
-Purpose: avoid writing a duplicate implementation, and pass existing patterns to Gate B as reuse candidates.
+Purpose: avoid writing a duplicate implementation, and pass existing patterns to Gate C.
 
 > **💡 Multi-repo exploration subagent delegation (HARNESS-DELEGATE-1)**: When investigating 2+ repositories and raw output is expected to accumulate heavily in main ("intermediate output ≫ conclusion"), delegate the exploration to the `Explore` subagent and **retrieve only the conclusion** — crawler↔API schema comparison, front↔back API contract checks, etc. **For single-file·small exploration, inline is better due to spawn overhead** (no delegation when the verdict gate is unmet). Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines` (a project file — skip if your project has none).
 
@@ -143,37 +140,12 @@ Purpose: avoid writing a duplicate implementation, and pass existing patterns to
 > |---|---|
 > | (before them) duplicate-avoidance | **Internal reuse** only |
 > | `0-Fitness` | **Internal consistency** — plan vs system direction |
-> | `0-OSS` | **External complement** — is there OSS for this |
 > | `0-Ladder` | **Minimality** — the least code that works |
 > | `0-Claim` | **Epistemic status** — measured (ⓐⓑ) vs inferred (ⓒ) |
 
 #### 0-Fitness. System fitness check (HARNESS-PLAN-AUGMENT-1, 2026-06-09)
 
-> Pulls part of `/audit` (a post-check) forward to the Gate A point.
-
-After reading all related files, self-check the 3 axes below in 1 line each and record the result in the required output item "시스템 적합성 점검":
-
-- **Architecture consistency**: does the change not conflict with the existing stack·layer·canonical pattern (when introducing a new pattern, cite 1 existing canonical)
-- **Phase guardrail**: is it not a Phase regression of `CLAUDE.md §MVP 데모 로드맵 가드레일` (not bringing a lower Phase to Gate A before a higher one)
-- **Prohibited patterns**: no violation of per-repo core prohibitions (during MVP)·common prohibitions (smallest diff·YAGNI·key hardcoding)
-
-Verdict: if all 3 axes are consistent, 「적합성 ✅ (아키텍처/Phase/금지 정합)」 1 line. If there is a violating·suspect axis, state that axis + response (scope adjustment or user query `AskUserQuestion`).
-
-#### 0-OSS. OSS catalog reference check (HARNESS-PLAN-AUGMENT-2, 2026-06-10)
-
-> Self-judge, then **ask the user** (user request 2026-06-09: "depending on task complexity, self-judge whether to complement the plan by referencing open source, then ask"). Reference-catalog canonical = (internal research note, if your project maintains one) §4 (OSS-SCAN-1 output).
-
-After reading all related files, check the trigger table below. **If any applies**, propose a §4 candidate as a 1-line complement and ask whether to adopt via `AskUserQuestion` (not forced adoption — user decides):
-
-| Trigger (this plan's task character) | OSS candidate (§4) | Complement effect |
-|--------------------------------------|--------------------|-------------------|
-| External-library version change·DEP-BUMP·new-library introduction·framework migration | **Context7 MCP** (P0) | Inject per-version latest docs → prevent stale-API inference |
-| Front-end UI/flow change + E2E verification needed (e.g. a React repo) | **Playwright MCP** (P1) | Fill the E2E gap of unit-tests-only |
-| Long Gate C verification·large test logs·multi-repo simultaneous verification | **Context Engineering / 5 coordination patterns** (P1/P2) | tool-result-clearing·delegation for token saving |
-
-`AskUserQuestion` options: ① register as a separate `OSS-ADOPT-*` track / ② incorporate into this session's scope / ③ no adoption (reference only).
-
-Verdict: if no trigger applies, 「OSS 참조 N/A (트리거 미해당)」 1 line (natural skip for simple doc·cleanup work). If applicable, record the proposed candidate + the user-decision result in the required output item "OSS 카탈로그 참조 점검".
+After reading all related files, check that the change does not conflict with the existing stack·layer·canonical pattern, does not regress a Phase (`CLAUDE.md §MVP 데모 로드맵 가드레일`), and breaks no prohibition (smallest diff·YAGNI·key hardcoding). Consistent → write nothing. A violating or suspect axis → state it with the response (scope adjustment or `AskUserQuestion`).
 
 #### 0-Ladder. Minimalism ladder check (R-4-6, 2026-06-23 · ponytail OSS)
 
@@ -213,42 +185,13 @@ For **each factual claim** in the plan — file/line counts, existing behavior, 
 
 **Promotion**: for each ⓒ, run the command or open the file **now**, then re-tag. If the claim **cannot** be promoted (external condition·future event·another team's state), do not delete it — **state it in the risk table** with the reason it is unverifiable.
 
-Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (same natural-skip pattern as 0-OSS 「N/A」 — cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
+Verdict: record in the required output item "주장-근거 대조 점검". **If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line** (cost is incurred only when inference is actually present). If any claim stays unverifiable, list it as `{주장} — 승격 불가: {사유}` and confirm it also appears in the risk table.
 
 #### 0-Lane. Lane decision (review · autonomous)
 
 > **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) `lane-scope-guard` is wired — `grep -l lane-scope-guard` finds it in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` (plugin), `~/.claude/settings.json` (`install.sh`) or `.claude/settings.json`. Otherwise every plan takes the review lane (A→B→C→D→E).
 
-A plan goes to the **autonomous lane** only when **no row below applies**. **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」. The user may always move a plan up to review; a plan with a trigger is never moved down to autonomous.
-
-| Hard trigger (→ review) | Look for |
-|---|---|
-| Security · auth · permissions · crypto · secrets | auth/session/token code, `.env*`, any R5 item |
-| Schema · migration · stored data · serialization format | migrations, DDL, files other programs read back |
-| Destructive · irreversible · operational | deploys, data deletion, external side effects, push/publish |
-| More than one repository or top-level module | |
-| Dependency manifest or lock file | `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, lock files |
-| Verification apparatus | existing tests and fixtures, CI, hooks, settings, Gate skills, `.claude/` |
-| Public contract | API endpoints, CLI flags, hook input/output |
-| Any R item (R1–R5) | architecture, concurrency, algorithm, math, security policy |
-| Ambiguity | any open question or undecided point in this plan |
-| No acceptance command | no command whose output decides pass/fail |
-| Size or protected path | over `max_files` changed files (new test files excluded) or `max_lines` estimated lines; any `protected_paths` match |
-| Not a git repository | |
-
-Limits, default protected paths and the evidence for each row → `SKILL_DETAIL.md §Lane Routing`.
-
-Write the result as the section right after `### 이해 브리핑`, in exactly this form (the lane guard reads it with `parse_lane_decision`; a blank or malformed field reads as review):
-
-```markdown
-### 레인 판정
-- **레인**: 자율
-- **걸린 트리거**: 없음
-- **기준 커밋**: `3bb3b42`
-- **수락 명령**: `python3 -m pytest tests/test_slug.py -q`
-```
-
-`기준 커밋` is `git rev-parse --short HEAD` at planning time. Put each acceptance command in backticks. Files come from `### 변경 파일`, so every entry there needs a `` `path` ``. For the review lane write `- **레인**: 검토` and `- **걸린 트리거**: {row} — {where}`; the other two fields may be left out.
+When both hold, `Read` `SKILL_DETAIL.md §Lane Routing` and apply its trigger table and block format. Write `### 레인 판정` right after `### 이해 브리핑`. A missing or malformed block reads as review.
 
 1. **After reading all related files**, output the Gate A content as text
    - **이해 브리핑** (HARNESS-DASH-LEARN-1-b, mandatory) — write it as the **first `###` section of the Gate A block**, heading exactly `### 이해 브리핑`, with exactly these 4 bold-label bullets in this order:
@@ -261,50 +204,29 @@ Write the result as the section right after `### 이해 브리핑`, in exactly t
      | `- **되돌리는 법**:` | What exactly to revert, what state/data is left behind, and anything that cannot be undone |
 
      Write for a reader who has **not** read the rest of the plan: plain Korean, 2~4 sentences per item. **No** session IDs, rule numbers (R-12 etc.), claim tags (ⓐⓑⓒ), or bare `파일:줄` lists — name a file only when the reader needs it, and say what it does. Empty phrases (「안정성을 높인다」「구조를 개선한다」) do not count; each item must contain something a person could check. Trivial plans (docs·config) may use 1 sentence per item but must not omit the section.
-     Why: this section is the **source of Gate B's questions** (`gate-b/SKILL.md §Step 2`) and what a reader should see first on the session dashboard (rendered as its top card from HARNESS-DASH-LEARN-1-b-2). The sections below it are its evidence. Without it, the dashboard's summary shows only the plan's flow (files·order·risk counts), and the full-text panel shows every section at equal weight, so a reader looking for "why" or "how" has to dig through process records (HARNESS-DASH-LEARN-1-a: the summary carried 26 of the plan's 135 lines/cells, and none of the 3 sentences needed to answer that session's comprehension question).
+     Why: this section is the source of Gate B's questions and what the reader sees first — the top card of the session dashboard.
    - **레인 판정** — the 0-Lane result, right after the briefing (only when the lane is enabled; see 0-Lane)
    - Changed-file list (number·path·change type)
    - Per-file detailed change content: current code structure → post-change structure, key decisions
    - **기존 구현 참조 경로** (Pre-Plan investigation result; "없음" if none)
-   - External-dependency mapping (design tokens·API·library versions, etc.)
    - Execution order (based on dependencies)
    - Risks and responses (concrete cause + response method)
-   - **시스템 적합성 점검** (architecture·Phase·prohibited-pattern 3 axes, 1 line; the "0-Fitness" result above — HARNESS-PLAN-AUGMENT-1)
    - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — once `### 변경 파일` and `### 이해 브리핑` are written, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_FILE}"` and copy its one line (「발동 — …」 or 「미발동 — …」). On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
-   - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **주장-근거 대조 점검** (HARNESS-CLAIM-EVIDENCE-1) — the "0-Claim" result above. If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line; otherwise list each unpromotable claim as `{주장} — 승격 불가: {사유}` (each must also appear in the risk table)
-   - **Gate D refactor expectation and basis** (Gate D's conditional refactor — needed/not needed + 1-line reason)
-   - **Per-Gate recommended model table** — produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (no inheritance from Gate A):
-
-     **Mapping rule (single canonical, PROC-MODEL-RUBRIC-1 revision)** — re-score the Step 0-A-a R/V/D classification per each Gate's task character:
-
-     | Gate | Mapping procedure | Output model |
-     |------|-------------------|--------------|
-     | **B** (comprehension) | from this plan's comprehension-gate verdict: fires → Sonnet 5.5 · pass-through → — | Sonnet 5.5 or — |
-     | **C** (implement) | **default Sonnet 5.5**. Opus promotion = only when a Gate A unresolved R decision is delegated to C (1-line reason mandatory). Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis). No auto-inheritance even if Gate A is Opus | decision-rule result |
-     | **D** (verify) | API/DB/SEC coupling or self-debug branch → Sonnet 5.5. Simple regression re-confirm (already PASS) → Haiku 5.5. If the plan expects D's conditional refactor of architecture-redesign class (R≥6) → Opus 5.5 | decision-rule result |
-     | **E** (cleanup) | always Haiku 5.5 | Haiku 5.5 |
-
-     > **Fable 5.1 exception row**: not part of the regular B/C/D/E mapping — add a manual row only when the user explicitly approves a large-scale migration·multi-day full-autonomy session escalation (see Step 0-A-b's Fable 5.1 note above).
+   - **`### Gate D 예상`** — 1 line: what check will show this works (the dashboard shows it as 검증 계획)
+   - **Per-Gate recommended model table** — apply the Step 0-A-b rule **independently to each Gate** (no inheritance from Gate A):
 
      **Output format**:
 
-     | Gate | 권장 모델 | Effort | 분해 (R / V / D) | 비용 정당화 (Opus 한정, R-13) |
-     |------|----------|--------|-----------------|----------------------|
-     | B | {Sonnet 5.5 / —} | {medium / —} | 이해도 게이트 발동 판정(발동·미발동) | — |
-     | C | {Opus 5.5 / Sonnet 5.5 / Haiku 5.5} | {low·medium·high·xhigh·max} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
-     | D | {…} | {medium·low} | R={API/DB/SEC 결합 여부 · 리팩터 깊이 R≥6 여부} / V=— / D={회귀 가드 多 여부} | … |
-     | E | Haiku 5.5 | low | — | — |
+     | Gate | 권장 모델 | 분해 (R / V / D) | 비용 정당화 (Opus 한정, R-13) |
+     |------|----------|-----------------|----------------------|
+     | B | {Sonnet 5.5 / —} | 이해도 게이트 발동 판정(발동·미발동) | — |
+     | C | {Opus 5.5 / Sonnet 5.5 / Haiku 5.5} | R={항목 1줄 또는 0} / V={점수 분해} / D={항목 1줄 또는 0} | (Opus면) "R{N}건 — {항목 나열}" / (그 외) — |
+     | D | {…} | R={API/DB/SEC 결합 여부} / V=— / D={회귀 가드 多 여부} | … |
+     | E | Haiku 5.5 | — | — |
 
-     > **모델 라인업 기준일: 2026-10-15** (출처: [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview) 조회).
-     > 현행은 **Fable 5.1 · Opus 5.5 · Sonnet 5.5 · Haiku 5.5** 이고(Sonnet 5·Haiku 4.5 는 레거시),
-     > 기본 effort 는 Fable 5.1 `high` · Opus 5.5 `medium` · Sonnet 5.5 `high` · Haiku 5.5 `medium` 이다.
-     > 현행 모델은 모두 adaptive thinking 이라 **thinking 을 끄는 설정이 없다**(Opus 5.5·Fable 5.1 은
-     > `disabled` 가 400 오류 — [Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)). 그래서 이 표는 effort 만 적는다.
-     > 🔴 **이 표는 낡는다.** 모델명을 사전지식으로 단정하지 말고, 기준일이 오래됐으면
-     > `https://platform.claude.com/docs/en/about-claude/models/overview` 를 **조회해서**
-     > 확인한 뒤 고친다 — 이전 판은 `Opus 4.8`·`Fable 5`(둘 다 레거시)에 두 세대 머물러 있었다.
+     > Model names go stale — check the date in `SKILL_DETAIL.md §5` before writing them.
 
      > **No natural-language prose**: instead of natural-language reasons like 「표준 구현 — Opus 불필요」, cite the **Step 0-A-a R/V/D decomposition** directly. That way, follow-up Gates can verify consistency using the same metadata during model verification.
      > **R-13 guard**: an Opus-produced row must have the R items in 1 line in the cost-justification column. If unmet, auto-downgrade to Sonnet (Step 0-A-b' format).
@@ -337,25 +259,12 @@ Write the result as the section right after `### 이해 브리핑`, in exactly t
      - When proceeding, record 1 line at the end of the Gate A response: `> ⚠️ R-12 가드 우회: 사용자 명시 승인 (변경 파일 N개 / Step M개)`
      - Ambiguous responses like 「진행」「ok」「계속」 are not recognized as a bypass (same as the Gate A approval interpretation rule)
 
-     **Self-contradiction avoidance**: This guard applies **from the next Gate A call** after R-12 introduction. The R-12 introduction itself (HARNESS-OPTIMIZE-1-b-1) proceeds under the pre-change SKILL, but pre-satisfies the post-change guard via the user decision to split 1-b whole (8+ files) → 1-b-1/1-b-2.
-
 2. Update the plan document(s) (status: `A (승인 대기)`, write the Gate A block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` dashboard + the full Gate A block content (no writing a summary table only)
      - **Intent-field obligation (DASHBOARD-INTENT-1)**: in the header, write 2 lines in plain Korean — `> **세션 주제**: <평이 한 줄>` (banner title)·`> **작업 의도**: <무엇을 왜, 1~2문장>` (banner body). No jargon·filename dumps — the banner 「🎯 지금 하는 작업」 displays these 2 lines as-is (falls back to work_topic·priority_note if absent).
-   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
-
-   > **Human-review panel (DASHBOARD-PLAN-VIZ-1, 2026-09-25)**: the dashboard renders your
-   > `## Gate A 계획` block as a review panel — counts first (changed files · Steps · risks ·
-   > unpromoted ⓒ claims), then the R-12 scope guard, files, execution order, and the risk table.
-   > **The `.md` stays canonical**; the panel is a read-only summary and carries no approval button
-   > (Anthropic telemetry: users approve ~93% of permission prompts, and *"the more approvals a user
-   > sees, the less attention they pay to each"* — adding buttons would buy rubber-stamping, not
-   > review). Approval is still the sentence in chat, per §Gate A Approval Interpretation.
-   >
-   > **Write these headings so the panel can read them** (the parser matches loosely, and silently
-   > omits what it cannot find — a missing risk section reads to a human as *"no risks"*):
+   > **The dashboard's plan panel reads these headings** (the parser matches loosely and silently omits what it cannot find — a missing risk section reads to a human as *"no risks"*):
    >
    > | Section | Write it as | Shape that parses best |
    > |---|---|---|
@@ -372,19 +281,9 @@ Write the result as the section right after `### 이해 브리핑`, in exactly t
 
 3. STOP — await user document review·approval
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
+### Layer 2 documents
 
-If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or changes a feature**:
-- Fill `## Overview` (what the feature is, in 2–3 lines) and `## Acceptance Criteria`
-  (the observable conditions that decide "done") from the plan you just produced
-- Update `DOC_INDEX.md`: `FEATURE_SPEC.md` row `Status` → `Partial`
-- **Pure refactor·infra·doc sessions → leave it untouched and say so in one line.** A skeleton that
-  stays a skeleton is the correct outcome when there is no feature; do not invent one to fill it.
-
-> Added 2026-09-24 (HARNESS-DOC-GATE-SCHEME-2). `/init` assigned `FEATURE_SPEC.md` to Gate A from the
-> start, but **no gate skill actually wrote it** — the same gap `API_SPEC.md` had. Acceptance criteria
-> are decided while planning, so the work belongs here.
-
+If `FEATURE_SPEC.md` exists at the target repo root → `SKILL_DETAIL.md §Layer 2 Documents`.
 
 ## Gate A Approval Interpretation
 
@@ -397,14 +296,7 @@ If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or c
 At every Gate transition, the items below must be updated:
 - `| 현재 Gate |`, `| Gate 진행 |` (✅⏸☐), next action — keep these Korean labels; the guards and the dashboard parse them literally
 - **R/V/D decomposition** — Step 0-A-a 3-axis scoring result (e.g. `R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1`)
-- **Per-Gate recommended model** (B/C/D/E each, the result of applying the Step 0-A-b + 0-A-b'' decision rule — e.g. `B: Sonnet 5.5 (medium) / C: Haiku 5.5 (low) / D: Sonnet 5.5 (medium) / E: Haiku 5.5 (low)`)
-  - Format: `{모델} ({effort})` — writing both items is mandatory (model only is a PROC violation). Thinking is not written: current models have no off switch
-
-> **Revision reason (PROC-MODEL-RUBRIC-2)** → `SKILL_DETAIL.md §Why the Old Model-Routing Rules Were Abolished`.
-
-## Model Selection Criteria (reference summary)
-
-> **Model Selection Criteria (reference summary)** → `SKILL_DETAIL.md §5` (not auto-loaded — load via `Read` when needed). Exact scoring: Step 0-A-a R/V/D classification + Step 0-A-b decision rule.
+- **Per-Gate recommended model** (B/C/D/E each, the Step 0-A-b result — e.g. `B: Sonnet 5.5 / C: Haiku 5.5 / D: Sonnet 5.5 / E: Haiku 5.5`)
 
 ---
 

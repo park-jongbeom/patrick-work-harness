@@ -17,35 +17,14 @@ effort: medium
    - The actual changed-file list (state the reason if it differs from the Gate A plan)
    - Per-file key implementation summary (design decisions·core before→after difference)
    - Differences from the Gate A plan and their reasons (if none, "계획 그대로 구현")
-   - **ReAct deliverable guard (R-3)**: For each changed file, output one pair of 「Reasoning(왜 이 변경) → Action(실제 diff 요약)」.
-     No listing diffs without reasons — Gate D cannot trace change intent otherwise.
-     Compress each pair to within 3 lines (no verbose reasoning).
+### Layer 2 documents
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
-
-If `TEST_PLAN.md` exists at the target repo root:
-- Fill `## Test Cases` section: list happy/edge/error cases per changed unit (per `/init` Step 10-b table format)
-- Leave `## Verification Checklist` marker (`<!-- Gate D에서 채워짐 -->`) untouched — Gate D fills it.
-- Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
-- If `TEST_PLAN.md` does not exist: skip silently.
-
-If `API_SPEC.md` exists **and this session changed an endpoint contract**:
-- Fill `## Endpoints` and `## Request / Response Shapes` for the changed endpoints only
-- Update `DOC_INDEX.md`: `API_SPEC.md` row `Status` → `Partial` (or `Complete` if every endpoint this
-  session touches is now documented)
-- **No API change → leave it untouched and say so in one line.** A skeleton that stays a skeleton is
-  the correct outcome for a session with no endpoint work; do not invent contracts to fill it.
-
-> Added 2026-09-24 (HARNESS-DOC-GATE-SCHEME-2). `/init` has always assigned `API_SPEC.md` to a gate,
-> but **no gate skill actually wrote it** — the assignment pointed at Gate B, which is the
-> comprehension gate under the current scheme. Endpoint contracts are produced while implementing,
-> so the work belongs here.
+If `TEST_PLAN.md` or `API_SPEC.md` exists at the target repo root → `SKILL_DETAIL.md §Layer 2 Documents`.
 
 3. Update the plan document(s) (status: `C (확인 대기)`, write the Gate C block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` dashboard + Gate C block
-   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 4. STOP — await user document review·confirmation (unless a batch run was authorized — see §Batch runs)
 

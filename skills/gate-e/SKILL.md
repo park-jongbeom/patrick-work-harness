@@ -24,11 +24,8 @@ effort: low
    **변경 파일**: - `경로/파일.tsx` — 이유
    **핵심 변경**: 무엇을 왜 어떻게
    **검증 방법**: docker exec ... npm test
-   **재사용 후보**: 이번 세션에서 반복된 시행착오·결정 중 다음 세션이 재활용할 만한 것을 1~2줄로 추출. 없으면 "없음".
    ```
 
-   > The "재사용 후보" block is the ECC pattern-extraction (L1) deliverable. Prefer "없음" over meaningless repetitive entries.
-   >
    > **Counts in the WORKLOG (and CHANGELOG) are copied from the facts block** that Gate D pasted (`hooks/report_facts.py`), or from a fresh run of it — never re-counted from memory. Write N/M instead of 「모두·전부」.
 
 2. **Long-form archive** — **newly create (copy)** the session Gate A~E body to `${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_날짜_세션ID.md`.
@@ -39,14 +36,9 @@ effort: low
    > - **Reason**: Right after Gate E, the user must be able to review the Gate A~E flow as-is in ${CURRENT_SESSION_FILE}. If the body disappears, the misunderstanding 「Gate E가 안 됐나?」 arises (reflecting 2026-04-27 user feedback).
    > - **User guidance**: After the Step 5 update, the archive path·WORKLOG path must be noted in this response's final output (securing location traceability).
 
-### 2-B. Layer 2 document status finalization (if `--docs=full` was used at `/init`)
+### 2-B. Layer 2 documents
 
-If `DOC_INDEX.md` exists at the target repo root:
-- Review each Layer 2 row's `Status`:
-  - If a document was expected to be filled by this session's gates but remains `Skeleton` → mark `Partial` with a note `(not filled — no applicable content this session)`
-  - If all gates for this session have filled their sections → mark `Complete`
-- This is the final DOC_INDEX.md touch for this session — subsequent sessions start fresh from the current status.
-- If `DOC_INDEX.md` does not exist: skip silently.
+If `DOC_INDEX.md` exists at the target repo root → `SKILL_DETAIL.md §Layer 2 Documents`.
 
 3. **Error-case storage** (conditional) — perform the procedure below directly in this turn.
 
@@ -145,10 +137,8 @@ If `DOC_INDEX.md` exists at the target repo root:
    - ② Dashboard table `| 현재 Gate |` → `✅E 완료`
    - ③ Dashboard table `| Gate 진행 |` row → the last `E☐`/`E⏳` to `E✅`
 
-   **Self-verification (mandatory)**: Right after the update, run `grep -c "✅E" ${CURRENT_SESSION_FILE}` → confirm result ≥ 2 (header + dashboard). If less, re-check ②③.
-   > **session-dashboard.html update**: a hook regenerates the HTML automatically from the ✅E `${CURRENT_SESSION_FILE}`·`${SESSION_INDEX_FILE}` written in Step 5 — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed. Separation of responsibility: the Stop hook `gate-e-sync-guard.py` is the ✅E consistency guard, `session-dashboard-sync.py` is the HTML-deliverable sync — separate responsibilities, and dashboard-sync is fail-open so it does not affect the guard behavior.
 
-> **Enforcement device**: Omitting this Step 5(c) is detected by `plans/hooks/gate-e-sync-guard.py` (Claude Code `Stop` hook) as a SESSION_INDEX ↔ CURRENT_SESSION ✅E mismatch, blocking response termination (GATE-E-ENFORCE-1).
+> **Enforcement device**: Omitting this Step 5(c) is detected by `gate-e-sync-guard.py` (Claude Code `Stop` hook) as a SESSION_INDEX ↔ CURRENT_SESSION ✅E mismatch, blocking response termination (GATE-E-ENFORCE-1).
 > Splitting content output and document update across different turns is a PROC violation.
 
 ---
@@ -173,7 +163,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
 
 > Explicitly stating that the ${CURRENT_SESSION_FILE} body is preserved makes the user aware that 「Gate E 결과를 그대로 검토 가능」.
 
-**② Document status summary** — Right after Gate E completion, measure the applicable plan-doc line counts (row set per `harness-answers.yml → plan_tier`, see `doc-cleanup/SKILL.md §Step 0-B`) and apply doc-cleanup Step 0-A 「공유 산정 표」 directly to the current-point metadata to compute the score·grade·recommended model. Output in the format below:
+**② Document status summary** — Right after Gate E completion, measure the applicable plan-doc line counts (row set per `harness-answers.yml → plan_tier`, see `doc-cleanup/SKILL.md §Step 0-B`). Output in the format below:
 
 ```
 ── 문서 상태 ──────────────────────────────
@@ -186,16 +176,9 @@ Omitting it or replacing it with other content is a **PROC violation**.
   <single_plan_file>          : N줄  (임계값 <single_plan_threshold>줄) ✅ / ⚠️ 초과
 ────────────────────────────────────────────
   ⚠️ 초과 항목 있음 → `/doc-cleanup` 실행을 권장합니다.
-     권장 모델: {Haiku/Sonnet/Opus} ({등급})
-     R/V/D 분해: V-D1 문서초과 +N / V-D2 §5 항목 N건 +N / V-D3 계획문서 임계초과 개수(1→+1/2→+2) +N / D-D 정형 슬림화 +N
   (또는 모두 이하) → 문서 상태 정상
 ────────────────────────────────────────────
 ```
-
-> **Recommended-model computation (forced procedure)** → `SKILL_DETAIL.md §Recommended-Model Computation`
-> (4 mandatory steps; not auto-loaded — `Read` it if the obligations are in question).
-> **This call site's specifics**: target = `doc-cleanup/SKILL.md` §Step 0-A-a table (including the
-> double-add rule) + §0-A-b grade judgment; measurement = its **4 Bash commands** (wc + 3× awk|grep).
 
 **③ audit recommendation judgment** (SESSION_INDEX YAML single source):
 
@@ -207,19 +190,7 @@ Judge based on the `sessions_since_audit` field of the `${SESSION_INDEX_FILE}` Y
 When recommending:
 ```
 ⚡ 직전 /audit 이후 {sessions_since_audit}개 세션 완료 — `/audit` (방향성 점검) 호출을 권장합니다.
-   권장 모델: {Haiku/Sonnet/Opus} ({등급})
-   R/V/D 분해: §5 즉시 N건 +N / DEP 재검증 N건 +N / 체인 전환 +N / sessions_since_audit N +N
-   {현재 모델이 권장보다 낮으면}: ⚠️ 현재 {현재모델} < 권장 {권장모델} — `/model {권장}` 전환 후 `/audit` 호출하세요.
-   {현재 모델이 권장 이상이면}: ✅ 현재 {현재모델} ≥ 권장 — 바로 `/audit` 호출 가능
 ```
-
-> **Recommended-model computation (forced procedure)** → `SKILL_DETAIL.md §Recommended-Model Computation`
-> (4 mandatory steps; not auto-loaded — `Read` it if the obligations are in question).
-> **This call site's specifics**: target = `audit/SKILL.md` §Step 0-a table (audit-specific) + §0-b
-> grade judgment; measurement = its **5 commands** (grep + 2× awk|grep + operator judgment).
-> 🔴 **audit only — current-model detection obligation**: from the system context
-> (`You are powered by the model named {모델명}`), extract the model-family keyword and use it as the
-> current model. Do not infer it from anything else.
 
 If not applicable, omit this block.
 

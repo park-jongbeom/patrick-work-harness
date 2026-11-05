@@ -51,6 +51,10 @@
  26. 공개 스크립트에 작업 서버의 절대경로를 박지 않는다 — install.sh·sync-from-source.sh 는 배포되지 않아 규칙 2 가 보지 않는다 (2026-11-05).
  27. gate-b 는 미발동이면 멈추지 않고 gate-c 로 이어 간다. 미발동이 대부분이라 빈 정지가 회차마다 말 한마디를 쓴다 (2026-11-05).
 
+ 28. Gate 산출물은 대시보드 위쪽이 보이거나, 훅·파서가 읽거나, 다음 Gate 가 쓸 때만 둔다 — 읽는 곳 없다고 확인한 항목이 돌아오지 않는다 (2026-11-05, 사용자는
+     대시보드 맨 위로 판단한다).
+ 29. Gate 스킬 다섯 개의 합이 예산을 넘지 않는다. 스킬 본문은 부를 때마다 문맥에 실린다 — 늘리려면 하나를 빼거나 SKILL_DETAIL 로 옮긴다 (2026-11-05).
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -90,6 +94,8 @@ def hits(pattern, files=None):
 
 
 GATE_B = ROOT / "skills" / "gate-b" / "SKILL.md"
+#: Gate A~E 본문 바이트 합의 상한. 2026-11-05 축소 뒤 값에 여유를 조금 둔 것이다.
+GATE_SKILLS_BUDGET = 79_000
 RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py", "skill-usage-auto.py")
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
@@ -230,9 +236,9 @@ class EngineLint(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("sdp_lint", ROOT / "hooks" / "session_dashboard_parsers.py")
         sdp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sdp)
-        gate_a = (ROOT / "skills" / "gate-a" / "SKILL.md").read_text(encoding="utf-8")
-        examples = [b for b in re.findall(r"```markdown\n(.*?)```", gate_a, re.S) if "### 레인 판정" in b]
-        self.assertEqual(len(examples), 1, "gate-a 에 `### 레인 판정` 예시 블록이 정확히 하나 있어야 함")
+        detail = (ROOT / "skills" / "SKILL_DETAIL.md").read_text(encoding="utf-8")
+        examples = [b for b in re.findall(r"```markdown\n(.*?)```", detail, re.S) if "### 레인 판정" in b]
+        self.assertEqual(len(examples), 1, "SKILL_DETAIL 에 `### 레인 판정` 예시 블록이 정확히 하나 있어야 함")
         for label in sdp.LANE_LABELS:
             self.assertIn(f"- **{label}**:", examples[0], f"예시에 파서 라벨 「{label}」 이 없음")
         doc = "## Gate A 계획\n\n" + examples[0] + "\n### 변경 파일 (1개)\n\n1. `src/x.py` (수정)\n"
@@ -341,6 +347,23 @@ class EngineLint(unittest.TestCase):
     def test_gate_b_pass_through_continues_to_gate_c(self):
         step5 = re.search(r"^## Step 5\..*?(?=^---)", GATE_B.read_text(encoding="utf-8"), re.S | re.M).group(0)
         self.assertRegex(step5, r"미발동.*invoke `/gate-c`", "미발동 회차가 멈춘다")
+
+    def test_gate_outputs_without_a_reader_stay_out(self):
+        gone = (r"OSS 카탈로그|0-OSS|External-dependency mapping|재사용 후보|refactor expectation|시스템 적합성 점검|"
+                r"\| Effort \||Recommended-Model Computation|ReAct deliverable|session-dashboard\.html update")
+        found = hits(gone, files=list((ROOT / "skills").rglob("*.md")))
+        self.assertEqual(found, [], "읽는 곳 없는 산출물:\n" + "\n".join(found))
+
+    def test_dashboard_top_inputs_stay_required(self):
+        """사용자는 대시보드 맨 위로 판단한다 — 그 입력을 지시하는 문구가 사라지면 화면이 빈다."""
+        gate_a = (ROOT / "skills" / "gate-a" / "SKILL.md").read_text(encoding="utf-8")
+        for needle in ("**세션 주제**", "**작업 의도**", "### 이해 브리핑", "### 변경 파일", "### 실행 순서", "### 리스크 및 대응",
+                       "### Gate A 범위 점검", "### Gate D 예상"):
+            self.assertIn(needle, gate_a, needle)
+
+    def test_gate_skills_stay_within_budget(self):
+        total = sum((ROOT / "skills" / f"gate-{g}" / "SKILL.md").stat().st_size for g in "abcde")
+        self.assertLessEqual(total, GATE_SKILLS_BUDGET, "Gate 스킬 본문이 예산을 넘었다 — 빼거나 SKILL_DETAIL 로 옮긴다")
 
 
 if __name__ == "__main__":

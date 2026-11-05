@@ -743,7 +743,7 @@ def _parse_comprehension(content, out):
     return out
 
 
-#: 레인 판정 블록의 라벨 (S6, 2026-10-22). gate-a/SKILL.md §0-Lane 의 예시와 같아야 한다
+#: 레인 판정 블록의 라벨 (S6, 2026-10-22). SKILL_DETAIL.md §Lane Routing 의 예시와 같아야 한다
 #: — 엔진 린트가 그 예시를 이 함수로 읽어 확인한다.
 LANE_LABELS = ("레인", "걸린 트리거", "기준 커밋", "수락 명령")
 

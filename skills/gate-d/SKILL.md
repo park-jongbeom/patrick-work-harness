@@ -14,10 +14,6 @@ effort: high
 
 ## 3-A. Test Plan·Execution·Failure Classification
 
-> Header added 2026-09-24 (HARNESS-CONTEXT-DIET-1). Steps 1–3 below used to sit **under the DEP-ledger
-> heading with no heading of their own**, so the ledger lookup (3 lines) and Gate D's main procedure
-> (~5,000 chars) measured as one 5,042-char section. Same content, correct boundary.
-
 1. **After reading all files changed in Gate C**, output the test plan as text — the items below are mandatory:
    - Test file list (new/modified distinction, paths)
    - Per-file test cases: state input·condition·expected result at the `describe` / `it` unit
@@ -42,7 +38,6 @@ effort: high
 - **Loop result** (repeat count·stop reason [convergence/no-progress/classification entry]·`tests/` diff presence) must be recorded in 1 line in the Gate D output. Write the repeat count as `self-debug N회` (`self-debug 0회` when no loop ran) in the Gate D block of ${CURRENT_SESSION_FILE} — `error-topics-guard.py` reads this exact marker at Gate E to decide whether an error case must be recorded.
 - **Rollback guide (on no-progress stop)**: Before entering FIX-B/DEP classification, restore the working state — ① `git diff` to confirm what changed ② `git stash push -u -m "gate-d rollback" -- <this plan's changed files>` to set this plan's work aside ③ verify the repo compiles/runs clean ④ report to the user: the stash name, which files were set aside, why the fix could not proceed → request a new Gate A re-plan. The user decides whether to pop or drop it. Never discard: Gate C's work is uncommitted here, and naming the plan's files keeps the session documents and the user's unrelated edits in place.
 
-> Detail → `plans/agents_instructions/gate-c-instruction.md` (3-iteration protocol · reward-hacking 4 patterns)
 
 3. **Analyze the execution result** and classify the failed items by the criteria below
 
@@ -100,7 +95,7 @@ effort: high
 5. **Conditional Refactor** — perform only when at least one of the following applies:
    - The user explicitly requests refactoring
    - §3-B code review found **3+ issues** (1~2 issues are handled by a Gate C follow-up inline fix or §5 handoff registration)
-   - Gate A estimated **grade H (R/V/D basis)** + 1+ §3-B issues
+   - Gate A's R total ≥ 6 + 1+ §3-B issues
    - Performance optimization is explicitly required
 
    If none apply, skip refactor and proceed to Step 6.
@@ -111,31 +106,14 @@ effort: high
    - Perform the refactoring — no additional feature changes beyond the Gate A plan scope
    - Re-verify — re-run the existing tests with the same Docker command
 
-### Layer 2 document update (if `--docs=full` was used at `/init`)
+### Layer 2 documents
 
-Fill the following if the respective files exist at the target repo root:
-
-**TEST_PLAN.md** — `## Verification Checklist` section:
-- Fill after Gate D run completes: list happy/error test PASS results, regression count
-- Update `DOC_INDEX.md` `TEST_PLAN.md` row → `Complete` (both Gate C and D sections now filled)
-
-**ERROR_HANDLING.md** — `## Failure Paths` + `## Recovery Strategies`:
-- Fill only if Gate D found failures or documented error paths (FIX-B/DEP items qualify)
-- If Gate D found no failures → leave marker in place (correct empty state — do not write "N/A")
-- Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
-
-**DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
-- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Evidence / Consequences, plus Prediction / check by when the decision is expected to change behavior (per `/init` Step 10-b format). If an earlier entry's check date has passed, fill its Outcome line in the same pass
-- If no non-obvious decision → leave marker in place
-- Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
-
-If none of the above files exist: skip silently.
+If `TEST_PLAN.md`, `ERROR_HANDLING.md` or `DECISION_LOG.md` exists at the target repo root → `SKILL_DETAIL.md §Layer 2 Documents`.
 
 6. Update the plan document(s) (status: `D (확인 대기)`, write the Gate D block) — **run the file-editing tool**
    - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
    - `${SESSION_INDEX_FILE}` YAML
    - `${CURRENT_SESSION_FILE}` — record the full test plan + execution result + FIX-B·DEP items
-   > **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 7. STOP — await user document review·confirmation. **Batch exception** (`gate-c/SKILL.md` §Batch runs): if the user authorized 「C~E 일괄」 or 「D~E 일괄」, the session is not high-risk, and this Gate ended with every test and build passing and no FIX-B/DEP item, continue to `/gate-e` instead of stopping. Any failure → STOP and report; never run Gate E on a failing verification
 

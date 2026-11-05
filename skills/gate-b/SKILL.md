@@ -87,7 +87,6 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 - `${SESSION_INDEX_FILE}` YAML
 - `${CURRENT_SESSION_FILE}` dashboard + Gate B block
   - The Gate B block keeps every asked question with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
-> **session-dashboard.html update**: a hook regenerates the HTML automatically — `session-dashboard-sync.py` runs on `PostToolUse` (Edit|Write) in plugin and install.sh installs, and as the first `Stop` entry in projects wired by `/init` (HARNESS-STALE-GUARD-3). No skill Bash Step needed.
 
 6. STOP — await user document review·confirmation. **A 미발동 pass-through does not stop**: invoke `/gate-c` in this same response — the user has already approved the plan and there is nothing to read or answer (9 of 12 past rounds would have cost one more 「구현」 for nothing). Stop only if the session's 「Gate별 권장 모델」 table recommends a different model for Gate C than the one running now; switching model is the one thing this stop is for.
 

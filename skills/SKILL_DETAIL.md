@@ -1,11 +1,11 @@
 ---
 name: SKILL_DETAIL
-description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, Effort/Thinking rule, tier-aware plan-doc update wording, or the lane-routing limits and evidence (§Lane Routing) are needed."
+description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, tier-aware plan-doc update wording, or the lane-routing limits and evidence (§Lane Routing) are needed."
 ---
 
 # Skill Common Model Rubric Detail
 
-> **Load-on-demand** — this file is NOT auto-loaded. Load it explicitly via `Read` when the R-13 cost-justification guard, Effort/Thinking rule, PROC-MODEL-RUBRIC rationale, or the tier-aware plan-doc update pattern is needed during a Gate response.
+> **Load-on-demand** — this file is NOT auto-loaded. Load it explicitly via `Read` when the R-13 cost-justification guard, PROC-MODEL-RUBRIC rationale, or the tier-aware plan-doc update pattern is needed during a Gate response.
 > **Canonical home**: this file is the single source for the shared sections below. Skill-specific R/V/D item tables and model decision rules remain inline in each skill.
 
 ---
@@ -71,32 +71,6 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
    조치: 자동 Sonnet 다운그레이드. /model sonnet 후 재진입 권고.
 ```
 
-### §4. Effort Decision Rule (PROC-MODEL-EFFORT-1)
-
-> **Purpose**: Specify per-Gate the effort level independently of model selection.
-> **Basis** (2026-10-15): every current model uses adaptive thinking steered by effort, and Opus 5.5 / Fable 5.1 reject
-> `thinking: disabled` with a 400 error ([Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)) — so the old Thinking column (auto/off) no longer maps to a
-> setting and is removed. Anthropic: "Tuning effort is often a better lever than switching models" ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)).
-
-| Gate | Task character | Effort |
-|------|----------------|--------|
-| **A** (plan) | R≥2 new architecture decision | high |
-| **A** (plan) | R=0 standard plan | medium |
-| **B** (comprehension) | gate fires (question drafting·answer judging) | medium |
-| **C** (implement) | D≥1 deterministic output (smallest diff·format) | medium |
-| **C** (implement) | R≥2 unresolved-decision delegation | high |
-| **D** (verify) | API/DB/SEC coupling·self-debug | medium |
-| **D** (verify) | Simple regression re-confirm | low |
-| **E** (cleanup) | always | low |
-
-> **When an R≥2 item must be resolved**: raise effort (`high`, then `xhigh`) rather than asking for visible reasoning.
-> **Dashboard notation**: `C: Sonnet 5.5 (medium)` — model and effort written together.
->
-> 🔴 **Defaults are per model** (2026-10-15, verified against the official Models overview): Fable 5.1 `high` ·
-> Opus 5.5 `medium` · Sonnet 5.5 `high` · Haiku 5.5 `medium`. All four accept effort (the legacy Haiku 4.5 did not).
-> **Re-check by fetching the docs — do not assert from memory.** The previous table stayed two generations behind
-> twice (Opus 4.8·Fable 5, then Sonnet 5·Haiku 4.5).
-
 ### §5. Model Selection Criteria (reference summary, PROC-MODEL-RUBRIC-1 revision)
 
 > The exact production uses **Step 0-A-a R/V/D 3-axis classification** + **Step 0-A-b per-Gate decision rule** + **Step 0-A-b' R-13 cost-justification guard**. This table is a summary for intuitive understanding of the result, not the scoring canonical.
@@ -110,6 +84,15 @@ Do not assert a fixed document count ("3 documents", "4 documents") in prose —
 > Switch command: `/model opus` · `/model sonnet` · `/model haiku`
 > Fast mode: `/fast` (same model, faster output) — usable alongside Haiku work
 > **Multi-model patterns** (official): an executor that escalates hard decisions to an advisor, or an orchestrator that delegates bulk work to lower-cost workers ([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) → Combine models). When the work is one dependent chain, "the orchestrator's model alone at lower effort came out ahead in every case measured" — "tune one model before you add a second" ([Optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence)).
+
+> **모델 라인업 기준일: 2026-10-15** (출처: [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview) 조회).
+> 현행은 **Fable 5.1 · Opus 5.5 · Sonnet 5.5 · Haiku 5.5** 이고(Sonnet 5·Haiku 4.5 는 레거시),
+> 기본 effort 는 Fable 5.1 `high` · Opus 5.5 `medium` · Sonnet 5.5 `high` · Haiku 5.5 `medium` 이다.
+> 현행 모델은 모두 adaptive thinking 이라 **thinking 을 끄는 설정이 없다**(Opus 5.5·Fable 5.1 은
+> `disabled` 가 400 오류 — [Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)). 그래서 이 표는 effort 만 적는다.
+> 🔴 **이 표는 낡는다.** 모델명을 사전지식으로 단정하지 말고, 기준일이 오래됐으면
+> `https://platform.claude.com/docs/en/about-claude/models/overview` 를 **조회해서**
+> 확인한 뒤 고친다 — 이전 판은 `Opus 4.8`·`Fable 5`(둘 다 레거시)에 두 세대 머물러 있었다.
 
 ### §Fable 5.1 (exception escalation only, HARNESS-MODEL-ROUTING-1, 2026-07-06)
 
@@ -151,31 +134,6 @@ containing 1 ⓒ (an insertion point written from structural inference without o
 specified it). The `파일:줄` test is what caught it — which is both the evidence that the criterion
 works and the reason the criterion must stay falsifiable.
 
-## §Recommended-Model Computation (forced procedure, shared by gate-e → doc-cleanup / audit)
-
-> Moved out of `gate-e/SKILL.md` on 2026-09-24 (HARNESS-CONTEXT-DIET-1). gate-e carried this
-> 4–5 step procedure **twice** — once for doc-cleanup and once for audit — differing only in which
-> skill's scoring table to apply. The shared steps live here; gate-e keeps the per-target differences.
-
-When Gate E produces a recommended model for a follow-up skill, all of the following are mandatory:
-
-1. **Shared scoring table** — apply the *target skill's* scoring table and grade-judgment table
-   **directly to the current-point metadata**. This is not "delegation": it is **executing the shared
-   canonical inside this response**.
-2. **Measurement commands** — run the target skill's measurement commands directly in this response
-   to secure the metadata. **No estimation, no omission.**
-3. **R/V/D decomposition output obligation** — the 「R/V/D 분해: …」 line **must not show a total
-   score** (R/V/D 3-axis independent decomposition obligation). Omitting the breakdown is a
-   **PROC violation**.
-4. **Sync guarantee** — the recommended model **must be re-computed with the same metadata and the
-   same table when the target skill actually runs right after Gate E, and must yield the same
-   result**. A mismatch means operator measurement error; the explicit score breakdown is what makes
-   both responses traceable.
-
-**Per-target differences** (stated at each call site in gate-e, not here):
-the table section id, the command count/kind, and — for `audit` only — the current-model detection
-obligation from the system context.
-
 ## §Why the Old Model-Routing Rules Were Abolished (PROC-MODEL-RUBRIC-1/2)
 
 > Moved out of `gate-a/SKILL.md` on 2026-09-24 (HARNESS-CONTEXT-DIET-1). These explain **why the
@@ -195,11 +153,40 @@ obligation from the system context.
 
 ## §Lane Routing (review · autonomous)
 
-> Canonical detail for `gate-a/SKILL.md §0-Lane` (added 2026-10-22). The trigger table and the
-> block format stay in gate-a; the settings, defaults and evidence live here.
+> Canonical detail for `gate-a/SKILL.md §0-Lane` (added 2026-10-22). gate-a keeps only the entry
+> condition; the trigger table, block format, settings, defaults and evidence live here.
 >
 > **Status**: the lane-scope guard and the autonomous-lane procedure ship in v1.11.0. Until a
 > project wires that guard, 0-Lane's entry condition (2) fails and every plan takes the review lane.
+
+A plan goes to the **autonomous lane** only when **no row below applies**. **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」. The user may always move a plan up to review; a plan with a trigger is never moved down to autonomous.
+
+| Hard trigger (→ review) | Look for |
+|---|---|
+| Security · auth · permissions · crypto · secrets | auth/session/token code, `.env*`, any R5 item |
+| Schema · migration · stored data · serialization format | migrations, DDL, files other programs read back |
+| Destructive · irreversible · operational | deploys, data deletion, external side effects, push/publish |
+| More than one repository or top-level module | |
+| Dependency manifest or lock file | `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, lock files |
+| Verification apparatus | existing tests and fixtures, CI, hooks, settings, Gate skills, `.claude/` |
+| Public contract | API endpoints, CLI flags, hook input/output |
+| Any R item (R1–R5) | architecture, concurrency, algorithm, math, security policy |
+| Ambiguity | any open question or undecided point in this plan |
+| No acceptance command | no command whose output decides pass/fail |
+| Size or protected path | over `max_files` changed files (new test files excluded) or `max_lines` estimated lines; any `protected_paths` match |
+| Not a git repository | |
+
+Write the result as the section right after `### 이해 브리핑`, in exactly this form (the lane guard reads it with `parse_lane_decision`; a blank or malformed field reads as review):
+
+```markdown
+### 레인 판정
+- **레인**: 자율
+- **걸린 트리거**: 없음
+- **기준 커밋**: `3bb3b42`
+- **수락 명령**: `python3 -m pytest tests/test_slug.py -q`
+```
+
+`기준 커밋` is `git rev-parse --short HEAD` at planning time. Put each acceptance command in backticks. Files come from `### 변경 파일`, so every entry there needs a `` `path` ``. For the review lane write `- **레인**: 검토` and `- **걸린 트리거**: {row} — {where}`; the other two fields may be left out.
 
 **Settings** — `.claude/harness-answers.yml`, read at the base commit (`git show HEAD:…`), never from
 the working tree, so a running session cannot loosen its own policy (the same principle as a
@@ -244,3 +231,60 @@ lean the other way, or ambiguous work drifts into the autonomous lane.
 section, a blank field, a lane value other than 자율, any trigger, a non-hash base commit, no
 backticked acceptance command, or a file entry without a `` `path` ``. Every other parser in the
 dashboard fails open; this one decides whether the autonomous lane opens, so it must not.
+
+## §Layer 2 Documents (if `--docs=full` was used at `/init`)
+
+Moved out of the Gate skills on 2026-11-05: a project without these files never needs this text. Each file is filled by the Gate named below.
+
+### Gate A
+
+If `FEATURE_SPEC.md` exists at the target repo root **and this session adds or changes a feature**:
+- Fill `## Overview` (what the feature is, in 2–3 lines) and `## Acceptance Criteria`
+  (the observable conditions that decide "done") from the plan you just produced
+- Update `DOC_INDEX.md`: `FEATURE_SPEC.md` row `Status` → `Partial`
+- **Pure refactor·infra·doc sessions → leave it untouched and say so in one line.** A skeleton that
+  stays a skeleton is the correct outcome when there is no feature; do not invent one to fill it.
+
+### Gate C
+
+If `TEST_PLAN.md` exists at the target repo root:
+- Fill `## Test Cases` section: list happy/edge/error cases per changed unit (per `/init` Step 10-b table format)
+- Leave `## Verification Checklist` marker (`<!-- Gate D에서 채워짐 -->`) untouched — Gate D fills it.
+- Update `DOC_INDEX.md`: change `TEST_PLAN.md` row `Status` → `Partial`.
+- If `TEST_PLAN.md` does not exist: skip silently.
+
+If `API_SPEC.md` exists **and this session changed an endpoint contract**:
+- Fill `## Endpoints` and `## Request / Response Shapes` for the changed endpoints only
+- Update `DOC_INDEX.md`: `API_SPEC.md` row `Status` → `Partial` (or `Complete` if every endpoint this
+  session touches is now documented)
+- **No API change → leave it untouched and say so in one line.** A skeleton that stays a skeleton is
+  the correct outcome for a session with no endpoint work; do not invent contracts to fill it.
+
+### Gate D
+
+Fill the following if the respective files exist at the target repo root:
+
+**TEST_PLAN.md** — `## Verification Checklist` section:
+- Fill after Gate D run completes: list happy/error test PASS results, regression count
+- Update `DOC_INDEX.md` `TEST_PLAN.md` row → `Complete` (both Gate C and D sections now filled)
+
+**ERROR_HANDLING.md** — `## Failure Paths` + `## Recovery Strategies`:
+- Fill only if Gate D found failures or documented error paths (FIX-B/DEP items qualify)
+- If Gate D found no failures → leave marker in place (correct empty state — do not write "N/A")
+- Update `DOC_INDEX.md` `ERROR_HANDLING.md` row → `Partial` or `Complete`
+
+**DECISION_LOG.md** — append one ADR entry per non-obvious architectural decision made in this session:
+- Format: `### [YYYY-MM-DD] <Decision title>` + Context / Decision / Evidence / Consequences, plus Prediction / check by when the decision is expected to change behavior (per `/init` Step 10-b format). If an earlier entry's check date has passed, fill its Outcome line in the same pass
+- If no non-obvious decision → leave marker in place
+- Update `DOC_INDEX.md` `DECISION_LOG.md` row → `Partial` or `Complete`
+
+If none of the above files exist: skip silently.
+
+### Gate E
+
+If `DOC_INDEX.md` exists at the target repo root:
+- Review each Layer 2 row's `Status`:
+  - If a document was expected to be filled by this session's gates but remains `Skeleton` → mark `Partial` with a note `(not filled — no applicable content this session)`
+  - If all gates for this session have filled their sections → mark `Complete`
+- This is the final DOC_INDEX.md touch for this session — subsequent sessions start fresh from the current status.
+- If `DOC_INDEX.md` does not exist: skip silently.
