@@ -305,6 +305,20 @@ def test_doc_cleanup_in_this_conversation_allows():
     print("  PASS: 이 대화가 doc-cleanup 을 부름(본문이 옮겨짐) → 허용")
 
 
+def test_mention_of_previous_e_in_new_session_allows():
+    """새 세션(A)을 열며 「직전 세션: … ✅E」만 썼다 → 이 대화가 세션을 닫은 것이 아니다 → 허용 (2026-10-29 실사용 오탐)."""
+    clear_counter("t-mention")
+    cur = wrote("Write", file_path="/w/CURRENT_SESSION.md",
+                content="> **현재 상태**: A (승인 대기)\n> **직전 세션**: SESS-0 ✅E (2026-10-29)\n")
+    idx = wrote("Edit", file_path="/w/SESSION_INDEX.md", old_string='gate: "✅E"',
+                new_string='gate: "A (승인 대기) — 직전 SESS-0 ✅E"')
+    code, err = run_hook(index_yaml("SESS-1", "A (승인 대기)"), current_md("SESS-1", "A (승인 대기)", "A (승인 대기)"),
+                         session_id="t-mention", transcript=[cur, idx])
+    assert code == 0, f"expected 0, got {code}: {err}"
+    clear_counter("t-mention")
+    print("  PASS: 새 세션에서 직전 세션 ✅E 언급만 → 허용")
+
+
 if __name__ == "__main__":
     tests = [
         test_active_session_allows,
@@ -325,6 +339,7 @@ if __name__ == "__main__":
         test_e_in_index_only_without_session_doc_blocks,
         test_gate_d_markers_moved_to_archive_allows,
         test_doc_cleanup_in_this_conversation_allows,
+        test_mention_of_previous_e_in_new_session_allows,
     ]
     print(f"gate-e-sync-guard.py 테스트 ({len(tests)}건)")
     print("=" * 50)

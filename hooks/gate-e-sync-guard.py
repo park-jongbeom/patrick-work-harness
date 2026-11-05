@@ -171,7 +171,11 @@ def check_gate_d(payload, cur_text, cur_id):
     비워 둔 채 SESSION_INDEX.md 에만 ✅E 를 쓴 경우가 있었다).
     기록으로 보는 것: 세션 문서의 D 표지, 또는 이 대화가 어느 .md 에든 쓴 D 표지(doc-cleanup·아카이브로 옮긴 경우).
     이 대화가 doc-cleanup 을 불렀으면 본문이 옮겨졌을 수 있어 보지 않는다. 판정할 수 없으면(기록 없음·예외) 통과.
+    지금 세션이 ✅E 가 아니면 보지 않는다 — 새 세션을 열며 쓴 「직전 세션: … ✅E」도 ✅E 쓰기로 잡혔다(2026-10-29).
     """
+    _, cur_is_e = current_session_state(cur_text)
+    if cur_id and cur_is_e is False:
+        return
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from gate_transcript import invoked, wrote_to
