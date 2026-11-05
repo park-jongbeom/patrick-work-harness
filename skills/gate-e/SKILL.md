@@ -17,7 +17,7 @@ effort: low
    - Record the answer before anything else: `lane_card.py verdict --verdict 승인` (or `경미`/`심각` with `--note "내용"`).
      Then continue with step 1. A 심각 finding goes into the WORKLOG line and the archive as well.
 
-1. **WORKLOG record** — add to the top of `${HARNESS_PLANS_DIR}/tasks/worklog/YYYY-Www.md` in the format below:
+1. **WORKLOG record** — add to the top of `<worklog_path>/YYYY-Www.md` (`worklog_path` from `.claude/harness-answers.yml`) in the format below:
    ```
    ## YYYY-MM-DD | Claude | 작업 한줄 요약
    **요청 내용**: ...
@@ -28,7 +28,7 @@ effort: low
 
    > **Counts in the WORKLOG (and CHANGELOG) are copied from the facts block** that Gate D pasted (`hooks/report_facts.py`), or from a fresh run of it — never re-counted from memory. Write N/M instead of 「모두·전부」.
 
-2. **Long-form archive** — **newly create (copy)** the session Gate A~E body to `${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_날짜_세션ID.md`.
+2. **Long-form archive** — **newly create (copy)** the session Gate A~E body to `<archive_path>/ARCHIVE_날짜_세션ID.md` (`archive_path` from `.claude/harness-answers.yml` — the archive files go directly in it). Make the first line `final_status: ✅E (YYYY-MM-DD)`: gate-a and doc-cleanup read it, and it is the last record of completion once doc-cleanup removes the session's ✅E row from the index.
 
    > **Separation of responsibility (SRP)**:
    > - **Gate E's responsibility**: create the new archive file + update the plan document(s) (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) + SESSION_INDEX + CURRENT_SESSION dashboard.
@@ -154,8 +154,8 @@ Omitting it or replacing it with other content is a **PROC violation**.
 
 ```
 ── Gate E 산출물 위치 ──────────────────────
-  archive (장문 본문) : ${HARNESS_PLANS_DIR}/current_work/archive/session_history/ARCHIVE_YYYY-MM-DD_{세션ID}.md
-  WORKLOG            : ${HARNESS_PLANS_DIR}/tasks/worklog/YYYY-Www.md (line N~M)
+  archive (장문 본문) : <archive_path>/ARCHIVE_YYYY-MM-DD_{세션ID}.md
+  WORKLOG            : <worklog_path>/YYYY-Www.md (line N~M)
   문서 갱신 (✅E)     : ${SESSION_INDEX_FILE} · ${CURRENT_SESSION_FILE} 대시보드 · {plan_tier: "2"인 경우 detail_plan_file §7 / plan_tier: "1"인 경우 single_plan_file 해당 Phase}
   ${CURRENT_SESSION_FILE} : 본문(Gate A~D 블록) 보존됨 — 슬림화는 별도 /doc-cleanup 호출 시 수행
 ────────────────────────────────────────────

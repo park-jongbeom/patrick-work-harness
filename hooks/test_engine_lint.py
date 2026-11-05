@@ -55,6 +55,12 @@
      대시보드 맨 위로 판단한다).
  29. Gate 스킬 다섯 개의 합이 예산을 넘지 않는다. 스킬 본문은 부를 때마다 문맥에 실린다 — 늘리려면 하나를 빼거나 SKILL_DETAIL 로 옮긴다 (2026-11-05).
 
+ 30. 스킬은 정의되지 않은 `${HARNESS_PLANS_DIR}` 를 쓰지 않고 `archive_path`·`worklog_path` 를 쓴다 — 실제 설정에서 두 값은 그 경로와 같았고,
+     엔진 실행에서는 변수 해석이 갈려 아카이브가 한 단계 더 들어갔다 (2026-11-05).
+ 31. Gate E 는 아카이브 첫 줄에 `final_status:` 를 쓴다 — gate-a·doc-cleanup 이 읽는데 쓰는 지시가 없었고, doc-cleanup 은 인덱스의 ✅E 행을
+     먼저 지워 이 필드가 마지막 근거다 (2026-11-05).
+ 32. gate-a 의 R/V/D 예시는 V 표와 맞는다 (2026-11-05).
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -364,6 +370,25 @@ class EngineLint(unittest.TestCase):
     def test_gate_skills_stay_within_budget(self):
         total = sum((ROOT / "skills" / f"gate-{g}" / "SKILL.md").stat().st_size for g in "abcde")
         self.assertLessEqual(total, GATE_SKILLS_BUDGET, "Gate 스킬 본문이 예산을 넘었다 — 빼거나 SKILL_DETAIL 로 옮긴다")
+
+    def test_skills_use_configured_doc_paths(self):
+        found = hits(r"HARNESS_PLANS_DIR|plans/current_work/archive", files=list((ROOT / "skills").rglob("*.md")))
+        self.assertEqual(found, [], "설정 대신 고정·미정의 경로:\n" + "\n".join(found))
+        gate_e = (ROOT / "skills" / "gate-e" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("<archive_path>/ARCHIVE_", gate_e)
+        self.assertIn("<worklog_path>/", gate_e)
+
+    def test_gate_e_writes_the_status_line_others_read(self):
+        readers = hits(r"\^final_status:|final_status: ✅", files=list((ROOT / "skills").rglob("*.md")))
+        gate_e = (ROOT / "skills" / "gate-e" / "SKILL.md").read_text(encoding="utf-8")
+        if readers:
+            self.assertRegex(gate_e, r"first line[^\n]*`final_status: ✅E", "읽는 곳은 있는데 쓰는 지시가 없음")
+
+    def test_rvd_examples_match_the_volume_table(self):
+        gate_a = (ROOT / "skills" / "gate-a" / "SKILL.md").read_text(encoding="utf-8")
+        for m in re.finditer(r"변경파일 (\d+) \+(\d)", gate_a):
+            files, score = int(m.group(1)), int(m.group(2))
+            self.assertEqual(score, 1 if files <= 3 else 2, m.group(0))
 
 
 if __name__ == "__main__":

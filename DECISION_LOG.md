@@ -394,3 +394,10 @@
 - **예측**: R0 뒤 master-plan 가드의 차단은 실제 L7 미갱신일 때만 나온다(밑줄 ID 오탐 0). gate-a-sync 차단 중 배너가 실제로 비었던 경우가 절반 이상이다 — 아니면 그때 제거를 다시 본다.
 - **확인 시점**: R0 뒤 첫 월간 사용 보고서(가드 차단은 이제 `hookErrors` 도 함께 본다)
 - **결과**:
+
+### [2026-11-05] Gate E 는 설정한 경로에 쓰고 완료 줄을 남긴다 — R/V/D 우선순위는 바꾸지 않는다
+- **결정**: 수정 → `skills/gate-e`(`<archive_path>`·`<worklog_path>`, 아카이브 첫 줄 `final_status: ✅E`), `skills/doc-cleanup`(`<archive_path>`), `skills/harness-update`(Axis C 소스 경로, Axis E 판정·적용), `skills/gate-d`(실행 명령), `skills/gate-a`(R/V/D 예시), `hooks/test_engine_lint.py`(규칙 30~32). 바꾸지 않음 → R≥6 과 D≥2 가 함께일 때의 우선순위, 대시보드 바닥글의 `HARNESS_PLANS_DIR` 표시(사용자가 보지 않는 아래쪽).
+- **근거**: 항목마다 기록을 먼저 대조했다. 보존 기록의 실제 설정값 `archive_path` 는 `…/current_work/archive/session_history`, `worklog_path` 는 `…/plans/tasks/worklog` 로 원본의 고정 경로와 같았다 — 설정값으로 바꿔도 원본 사본 사용자의 위치는 그대로다. 엔진 실행은 `docs/worklog`·`tasks/worklog` 로 갈렸다. `final_status` 는 자체 점검이 「쓰는 곳 없음 → 제거」로 봤지만, 원본 사본의 대조 실험 아카이브에 1건이 남아 있었다. 다만 그 형식은 `^final_status:` 와 맞지 않았고, 원본·엔진 Gate E 어디에도 쓰라는 지시가 없었다. doc-cleanup 이 인덱스의 ✅E 행을 먼저 지우므로 읽는 쪽을 지우면 완료 근거가 사라진다. R/V/D 충돌은 실제 기록 36건이 R=0(34)·R=3(2)이라 한 번도 생기지 않았다. Axis E 는 v1.15.1 검증의 실제 실행에서 모델이 「적용 절차가 없다」고 보고했다. Docker 는 엔진 실행의 시험 64회가 모두 호스트였다.
+- **예측**: R0 뒤 Gate E 아카이브가 모두 `archive_path` 바로 아래에 생기고 첫 줄이 `final_status: ✅E` 다. doc-cleanup 의 인덱스 회수가 이 줄로 완료를 판정한다.
+- **확인 시점**: R0 뒤 Gate E 10회
+- **결과**:

@@ -115,7 +115,7 @@ Summary:
 - Current tier ≥ recommended → proceed normally (to Step 0 Pre-Plan investigation). Output 1 line at the start of this response: 「✅ 모델 검증: 현재 {모델} ≥ 권장 {권장} (R/V/D 분해)」.
 - Current tier < recommended → STOP. Use the audit STOP format, stating the score breakdown.
 
-> **Decomposition output obligation**: Output the **R/V/D 3-axis decomposition** in the first line of this response (e.g. `현재 Sonnet ≥ 권장 Sonnet (R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1 → Sonnet 디폴트)`). Omitting the decomposition·showing only the total is a **PROC violation**. When producing Opus, the R-13 cost-justification 1 line is also mandatory (Step 0-A-b' format).
+> **Decomposition output obligation**: Output the **R/V/D 3-axis decomposition** in the first line of this response (e.g. `현재 Sonnet ≥ 권장 Sonnet (R=0 / V=2: 변경파일 3 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1 → Sonnet 디폴트)`). Omitting the decomposition·showing only the total is a **PROC violation**. When producing Opus, the R-13 cost-justification 1 line is also mandatory (Step 0-A-b' format).
 
 > **This 3-axis classification is the single canonical for producing the follow-up Gate B/C/D/E recommended models**: Step 1's "per-Gate recommended model table" is produced by applying the Step 0-A-b per-Gate decision rule **independently to each Gate** (no natural-language prose, no Gate B auto-inheritance).
 
@@ -295,7 +295,7 @@ If `FEATURE_SPEC.md` exists at the target repo root → `SKILL_DETAIL.md §Layer
 
 At every Gate transition, the items below must be updated:
 - `| 현재 Gate |`, `| Gate 진행 |` (✅⏸☐), next action — keep these Korean labels; the guards and the dashboard parse them literally
-- **R/V/D decomposition** — Step 0-A-a 3-axis scoring result (e.g. `R=0 / V=2: 변경파일 4 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1`)
+- **R/V/D decomposition** — Step 0-A-a 3-axis scoring result (e.g. `R=0 / V=2: 변경파일 3 +1 + Step 3 +1 + 단일저장소 +0 / D=1: smallest diff +1`)
 - **Per-Gate recommended model** (B/C/D/E each, the Step 0-A-b result — e.g. `B: Sonnet 5.5 / C: Haiku 5.5 / D: Sonnet 5.5 / E: Haiku 5.5`)
 
 ---

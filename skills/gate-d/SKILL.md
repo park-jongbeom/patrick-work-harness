@@ -19,9 +19,9 @@ effort: high
    - Per-file test cases: state input·condition·expected result at the `describe` / `it` unit
    - Mocking strategy (mock target·return value·reason)
    - Coverage goal — classify each case as happy / edge / error. **A failure·error-path test ≥1 is mandatory per non-trivial logic unit** (operational reality scenarios: timeout·null/empty input·malformed response·auth/permission failure·duplicate/concurrent request·DB constraint violation·external API 4xx/5xx), or if the unit has no failure path, an **explicit 1-line N/A reason**. Listing only happy paths is a PROC candidate (Markdown-only·grep-verification sessions are N/A)
-   - Execution command (write the Docker command verbatim, no host direct execution)
+   - Execution command (the `CLAUDE.md §Build·Test` command verbatim — see §Execution Commands)
 
-2. **Run the tests·build with the Docker command**
+2. **Run the tests·build with that command**
    - Markdown-only repositories (planning or docs-only repositories) need no Docker — verify with Bash commands such as `grep`/`ls`
 
    > **💡 Giant test-log delegation (HARNESS-DELEGATE-1)**: When the output log is giant, as with `gradlew`/`pytest`/`npm test`, delegate the execution to an `Explore`/`Agent` subagent (Bash) and **retrieve only the PASS/FAIL + failure-summary conclusion** to save main-context tokens (only when "intermediate output ≫ conclusion" — inline is better for small ones). The main performs self-debug (2-B)·FIX-B/DEP classification based on the delegated conclusion. Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines` (a project file — skip if your project has none).
@@ -104,7 +104,7 @@ effort: high
    - Read the Gate D verification result + Gate C code and identify refactoring targets
    - Write a list of code duplication·complexity·naming·structure improvement points
    - Perform the refactoring — no additional feature changes beyond the Gate A plan scope
-   - Re-verify — re-run the existing tests with the same Docker command
+   - Re-verify — re-run the existing tests with the same command
 
 ### Layer 2 documents
 
@@ -117,10 +117,10 @@ If `TEST_PLAN.md`, `ERROR_HANDLING.md` or `DECISION_LOG.md` exists at the target
 
 7. STOP — await user document review·confirmation. **Batch exception** (`gate-c/SKILL.md` §Batch runs): if the user authorized 「C~E 일괄」 or 「D~E 일괄」, the session is not high-risk, and this Gate ended with every test and build passing and no FIX-B/DEP item, continue to `/gate-e` instead of stopping. Any failure → STOP and report; never run Gate E on a failing verification
 
-## Docker Execution Commands (mandatory in Gate D record)
+## Execution Commands (mandatory in Gate D record)
 
 > For the test·build commands, **write the `CLAUDE.md §Build·Test` canonical table verbatim** (one canonical row per code repository). Do not duplicate the values into this SKILL — single canonical source (SSOT·recurrence prevention).
-> Host direct execution·`-it` prohibited (Claude Code has no TTY). On permission error, work around with `sg docker -c "..."`. Wrong commands (a repository name used as the container name, `-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
+> If the project runs its tests in containers, run them there, not on the host. Never use `-it` (Claude Code has no TTY). On a docker permission error, work around with `sg docker -c "..."`. Wrong commands (a repository name used as the container name, `-it`, etc.) are blocked by `docker-command-guard.py` (PreToolUse), which guides you to the canonical command.
 
 ## FIX-B Handling Example
 

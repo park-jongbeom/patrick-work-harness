@@ -98,7 +98,7 @@ Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ 
 | B | **Hook wiring** | Plugin or `install.sh` install (`${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py` exists): the project's `.claude/settings.json` has no entry containing `${CLAUDE_PLUGIN_ROOT}`. Source copy: the Stop array has `session-dashboard-sync.py` (first), `gate-e-sync-guard.py`, `error-topics-guard.py` with absolute paths (`error-topics-guard.py` optional when `harness-answers.yml` has neither `code_repos` nor `error_topics_path`) | A `${CLAUDE_PLUGIN_ROOT}` entry exists in the project settings, a source copy is missing a required guard, or `.claude/settings.json` or `.claude/settings.local.json` wires a retired hook (listed below) |
 | C | **session-dashboard.html** | File exists at repo root | Absent |
 | D | **Session stubs** | `${SESSION_INDEX_FILE}` and `${CURRENT_SESSION_FILE}` exist at repo root | Either absent AND `session_docs: true` in harness-answers.yml |
-| E | **Layer 2 docs status** | `DOC_INDEX.md` exists at repo root AND all Layer 2 rows show `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` absent OR any Layer 2 row still shows `Pending` (indicates `/init` Step 9 did not run or was `--docs=minimal/none`) |
+| E | **Layer 2 docs status** | No `DOC_INDEX.md`, or every Layer 2 row in it shows `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` exists and a Layer 2 row still shows `Pending` — no `DOC_INDEX.md` means the project chose `--docs=minimal/none`, which is ✅ |
 | F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
 | G | **Autonomous-lane setting** | `harness-answers.yml` has an `autonomous_lane:` block | Block absent — every plan then takes the review lane, which is safe but leaves the setting invisible |
 
@@ -164,9 +164,9 @@ Run the sync script once manually:
 CLAUDE_PROJECT_DIR=<repo root> python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard-sync.py"
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is unavailable, use the source path:
+If `CLAUDE_PLUGIN_ROOT` is unavailable (a source copy), use that copy's `hooks/` folder — the absolute path already wired in `.claude/settings.json`:
 ```bash
-CLAUDE_PROJECT_DIR=<repo root> python3 ${HARNESS_PLANS_DIR}/hooks/session-dashboard-sync.py
+CLAUDE_PROJECT_DIR=<repo root> python3 <source copy>/hooks/session-dashboard-sync.py
 ```
 
 Confirm `session-dashboard.html` exists at the repo root after execution.
@@ -207,6 +207,10 @@ next_action: "새 작업 시 /gate-a로 시작."
 ```
 
 After writing, verify both files exist (`ls` check). If either is absent after write, retry once.
+
+### Axis E — Layer 2 document skeletons
+
+For each `Pending` row in `DOC_INDEX.md`, create that file's skeleton as `/init` Step 9 does and set the row to `Skeleton`. Do not create documents the index does not list.
 
 ### Axis F — Lesson store
 

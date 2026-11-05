@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gate E·doc-cleanup 이 설정한 아카이브·WORKLOG 경로를 쓴다** — 정의되지 않은 `${HARNESS_PLANS_DIR}`·고정 경로 대신 `.claude/harness-answers.yml` 의 `archive_path`·`worklog_path`(`/init` 이 SSOT 로 정한 값)를 쓴다. 보존 기록의 실제 설정에서 두 값은 원본의 그 경로와 같았다. 엔진 실행에서는 변수 해석이 갈려 `docs/worklog` 와 `tasks/worklog` 로 나뉘었고, 아카이브가 `archive_path` 아래 한 단계 더 들어간 경우도 있었다. `docs/archive` 를 쓰는 임시 프로젝트에서 A→E 를 실제로 돌려 아카이브·WORKLOG·세션 원장이 설정한 곳에 생김을 확인했다.
+- **Gate E 가 아카이브 첫 줄에 `final_status:` 를 쓴다** — gate-a·doc-cleanup 이 이 줄을 읽는데 쓰라는 지시가 원본·엔진 어디에도 없었다. doc-cleanup 은 인덱스의 ✅E 행을 먼저 지우므로 이 줄이 마지막 완료 근거다. 읽는 쪽을 지우지 않고 쓰는 쪽을 더했다.
+- **`/harness-update` Axis E 가 매번 ❌ 로 남지 않는다** — `DOC_INDEX.md` 가 없으면(`--docs=minimal/none`) ✅ 로 보고, `Pending` 행이 있을 때만 그 골격을 만든다. 이전에는 판정만 있고 적용 절차가 없어, 실제 실행에서 모델이 「적용 절차가 없어 보고만 한다」고 답했다.
+- **Gate D 가 Docker 를 전제하지 않는다** — 「Docker 명령 그대로, 호스트 실행 금지」를 `CLAUDE.md §Build·Test` 명령 그대로로 바꿨다. 컨테이너에서 시험하는 프로젝트는 그대로 컨테이너에서, `-it` 금지는 유지한다. 엔진 스킬 실행 기록의 시험 명령 64회는 모두 호스트였고 문제가 없었다.
+- **gate-a 의 R/V/D 예시가 V 표와 맞는다** — 「변경파일 4 +1」은 표상 +2 였다.
+
 ## [1.17.1] - 2026-11-05
 
 ### Fixed

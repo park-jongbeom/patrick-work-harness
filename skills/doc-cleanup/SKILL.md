@@ -153,7 +153,7 @@ Measure the line counts of the applicable plan documents and output a result tab
 
 > **Responsibility separation from Gate E (SRP)**:
 > - This Step **deletes the ${CURRENT_SESSION_FILE} body (completed Gate A~D blocks)**.
-> - The original of the deleted body must already have been copied to `plans/current_work/archive/session_history/ARCHIVE_*.md` by Gate E Step 2 (a Gate E preceding precondition).
+> - The original of the deleted body must already have been copied to `<archive_path>/ARCHIVE_*.md` by Gate E Step 2 (a Gate E preceding precondition).
 > - **User-notice obligation**: At the end of the Step 7 result output, always include 1 line 「슬림화된 본문 원본은 archive 참조: {경로}」 so the user can trace the Gate E output location.
 > - **Reason**: 2026-04-27 user feedback — when doc-cleanup runs right after Gate E, the ${CURRENT_SESSION_FILE} body disappears and causes the misunderstanding "did Gate E not happen?". The archive-path notice secures location traceability.
 
@@ -238,7 +238,7 @@ Once handoff migration is done, delete the entire completed Gate A~E blocks. Kee
 - Leave the **category ###** in the table above as-is, including its 1-line summary table.
 - Delete only the **completed-session detail ###** blocks in the table above.
 - After deletion, add once:
-  > 세션 상세 내용은 `plans/current_work/archive/session_history/` 참조
+  > 세션 상세 내용은 `<archive_path>` 참조
 - Target: ≤ 450 lines
 
 ---
@@ -272,7 +272,7 @@ For each extracted session ID, confirm against these two canonicals via grep:
 | Canonical | grep pattern | Verdict |
 |-----------|--------------|---------|
 | `${SESSION_INDEX_FILE}` table | `\| {세션ID} \|.*✅E` | If ✅E, index-stale candidate |
-| Latest archive | `find ${HARNESS_PLANS_DIR}/current_work/archive/session_history -name "ARCHIVE_*_{세션ID}.md"` then `grep "^final_status:"` | If `✅ E` or `✅E`, index-stale confirmed |
+| Latest archive | `find <archive_path> -name "ARCHIVE_*_{세션ID}.md"` then `grep "^final_status:"` | If `✅ E` or `✅E`, index-stale confirmed |
 
 > **Stale is confirmed only when both canonicals are ✅E.** If only one is ✅E, the canonicals themselves are inconsistent → await user-explicit decision (Step 4-A-d).
 
@@ -410,7 +410,7 @@ Re-measure line counts after the change and output in the following format:
 의심 후보 (사용자 승인 대기): (없으면 "없음")
 
 슬림화된 본문 원본 (Gate E archive 참조):
-  - {세션ID}: plans/current_work/archive/session_history/ARCHIVE_YYYY-MM-DD_{세션ID}.md
+  - {세션ID}: <archive_path>/ARCHIVE_YYYY-MM-DD_{세션ID}.md
   (Step 1에서 ${CURRENT_SESSION_FILE} 본문을 삭제한 경우만 출력. 미삭제 시 "본문 슬림화 없음" 출력)
 ```
 
