@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-11-05
+
 ### Fixed
 
 - **마스터 플랜 가드가 설정한 인덱스 파일을 본다** (`master-plan-stale-guard.py`) — 파일 이름을 `00_MASTER_PLAN.md` 로 고정해 `master_plan_file` 을 다르게 둔 프로젝트에서는 가드가 조용히 꺼져 있었다. 이제 `.claude/harness-answers.yml` 의 `master_plan_file` 을 읽고(상대·절대 경로), 없거나 채우지 않은 자리표시면 기본 이름을 쓴다. `plan_tier: "1"` 은 인덱스 문서가 없으므로 보지 않는다. 차단 메시지도 실제 파일 이름을 말한다.
