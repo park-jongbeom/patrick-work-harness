@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **원본 쪽 이름을 공개 저장소에서 뺐다** (`sync-from-source.sh`, 엔진 린트) — 동기화 스크립트가 정화 규칙과 검토 패턴에 원본 작업 공간의 저장소·문서 이름을 그대로 담고 있었다(공개 저장소 규칙 위반). 이름은 커밋하지 않는 `sync-from-source.local` 로 옮겼고, 스크립트는 그 목록이 없으면 아무것도 스테이징하지 않고 멈춘다. 엔진 린트는 같은 목록으로 배포 파일만이 아니라 추적 중인 모든 파일을 본다 — 이번에 `CHANGELOG.md` 의 지난 항목 3줄과 `audit` 스킬 예시의 자리표시에서도 찾아 일반 이름으로 바꿨다(`${API_REPO_DIR}`·`${WEB_REPO_DIR}`). 목록이 없는 곳(깨끗한 컨테이너)에서는 이 검사를 건너뛴다. 모든 이름이 든 가짜 원본으로 구판과 대조해, 스테이징 결과는 바꾼 두 자리표시만 다르고 검토 경고는 같았다. 이미 공개된 커밋과 태그에는 이름이 남아 있다.
+
 ## [1.17.2] - 2026-11-05
 
 ### Fixed
@@ -1056,7 +1060,7 @@
 ### Fixed
 - **`skills/gate-e/SKILL.md` — 오류 기록 경로가 특정 저장소 3곳으로 하드코딩돼 있고, 그 폴더가 없을 때의 동작이 정의되지 않던 문제**. Step 3 「Canonical location」은 Gate E가 **실제로 기록을 수행하는 경로**인데, 다른 프로젝트에는 해당 폴더가 없고 부재 시 분기가 한 줄도 없어 **행동이 미정의**였다(임의 폴더 생성·기록 포기·엉뚱한 위치 중 무엇을 할지 불확정). `.claude/harness-answers.yml` → **`code_repos`(SSOT)** 참조로 교체하고, 각 항목의 경로를 `{repo}/docs/rules/error_topics/`로 도출하도록 변경.
   - **폴백 신설**: `code_repos`가 없거나 비면 **`"code_repos 미설정 — 오류 기록 경로 없음. harness-answers.yml에 설정하세요"`**를 출력하고 Step 4로 진행한다. 기존의 `"오류 기록 대상 없음 — 생략"`과 **의도적으로 다른 문구**이며, 스킬 본문에 혼용 금지 사유를 명시했다 — 같은 줄을 쓰면 *설정 공백*이 *정상 세션*으로 읽혀, 운영자는 계속 초록불을 보는데 실제로는 아무것도 기록되지 않는다.
-- **`skills/audit/SKILL.md` — 유지보수성 측정 명령에 컨테이너명이 하드코딩**돼 있던 문제. `docker exec college-crawler-local …` → `docker exec ${PYTHON_REPO_CONTAINER} …`. 함께 주석 3건을 「e.g. a Kotlin/TypeScript/Python repo」로 바꾸고, 조건부 설명에서 특정 프로젝트의 설치 이력·린터 조합 서술을 제거하고 **원칙(단일 린터와 공존하는 도구만 채택 — 유지보수성 측정이 그 자체로 유지보수 부담을 늘리지 않도록)**만 남겼다.
+- **`skills/audit/SKILL.md` — 유지보수성 측정 명령에 컨테이너명이 하드코딩**돼 있던 문제. `docker exec 〈내부 이름〉-local …` → `docker exec ${PYTHON_REPO_CONTAINER} …`. 함께 주석 3건을 「e.g. a Kotlin/TypeScript/Python repo」로 바꾸고, 조건부 설명에서 특정 프로젝트의 설치 이력·린터 조합 서술을 제거하고 **원칙(단일 린터와 공존하는 도구만 채택 — 유지보수성 측정이 그 자체로 유지보수 부담을 늘리지 않도록)**만 남겼다.
 - `skills/gate-d/SKILL.md`·`skills/gate-a/SKILL.md` — API 계약 문서 경로와 OSS 트리거 표의 저장소명을 **예시임이 드러나도록** 표기(`e.g. <front-repo>/docs/…`, `Front-end UI/flow change (e.g. a React repo)`).
 
 ### Note
@@ -1100,7 +1104,7 @@
 ## [1.2.1] - 2026-07-20
 
 ### Fixed
-- **공개 스킬 파일 내부 참조 잔존 정리** — 1.2.0에서 `sync-from-source.sh`에 추가된 정화 규칙(SSOT 문서명 플레이스홀더 치환·내부 리서치 문서 인용 각주화)이 저장소 **기존** 스킬 콘텐츠에는 소급 적용된 적이 없어, 스킬 7종에 내부 리서치 문서 경로(`REPORTS/HARNESS_*.md`)·SSOT 원문 파일명·로컬 절대경로·구 브랜드명이 노출된 채 남아 있던 것을 일괄 정리(11파일 ±88줄 순수 치환 + 수동 잔존 3건: harness-update 로컬경로 1·init 구 브랜드명 2). 1.2.0의 tier-aware 일반화 콘텐츠는 전량 보존 — 소스 전체 재동기화(sync)는 tier-aware 콘텐츠를 역행시키므로 수행하지 않음(역방향 절차 설계는 소스 저장소 HARNESS-SYNC-RECONCILE-2 트랙).
+- **공개 스킬 파일 내부 참조 잔존 정리** — 1.2.0에서 `sync-from-source.sh`에 추가된 정화 규칙(SSOT 문서명 플레이스홀더 치환·내부 리서치 문서 인용 각주화)이 저장소 **기존** 스킬 콘텐츠에는 소급 적용된 적이 없어, 스킬 7종에 내부 리서치 문서 경로(`〈내부 이름〉*.md`)·SSOT 원문 파일명·로컬 절대경로·구 브랜드명이 노출된 채 남아 있던 것을 일괄 정리(11파일 ±88줄 순수 치환 + 수동 잔존 3건: harness-update 로컬경로 1·init 구 브랜드명 2). 1.2.0의 tier-aware 일반화 콘텐츠는 전량 보존 — 소스 전체 재동기화(sync)는 tier-aware 콘텐츠를 역행시키므로 수행하지 않음(역방향 절차 설계는 소스 저장소 HARNESS-SYNC-RECONCILE-2 트랙).
 - `hooks/session-dashboard-sync.py` — `PROJECT_ROOT` fallback의 사설 절대경로를 `CLAUDE_PROJECT_DIR` env 기반으로 교체(공개 저장소 이식성·경로 노출 제거). 훅 회귀 89 PASS / 0 FAIL.
 
 ### Note
@@ -1113,7 +1117,7 @@
 - **Gate D 검증 단계 code-review 에스컬레이션** (`gate-d/SKILL.md` §3-B, R-14) — Gate A의 R축 총점 ≥6 또는 변경파일 >7개일 때, 기존 인라인 7항목 자체점검 대신 `/code-review` Skill(다각도 finder + 독립 검증 에이전트)을 Gate C diff에 위임하도록 확장. `/code-review`는 하네스가 보증하지 않는 클라이언트 개별 capability이므로 가용성 체크 후 미가용 시 인라인 체크리스트로 자동 폴백(gate-e의 `/error-log` 미가용 대응 원칙과 동일).
 - `skills/SKILL_DETAIL.md` `§Plan-Doc Update Pattern` 신설 — gate-a~e·audit·doc-cleanup 전역의 "계획 문서 갱신" tier-aware 공통 문구를 한 곳에 정의. `harness-answers.yml`에 `plan_tier` 필드가 없는 기존 저장소는 자동으로 `"2"`(기존 2단 동작)로 간주 — 하위 호환 보장.
 - `install.sh` `NEW_HOOKS`에 누락됐던 6개 Stop 훅(`gate-a-sync-guard`·`gate-e-sync-guard`·`error-topics-guard`·`comprehension-ledger-stale-guard`·`test-tampering-guard`·`skill-usage-auto`) + PreToolUse `commit-msg-guard` 자동등록 추가 — README에는 문서화되어 있었으나 실제 설치 스크립트에는 등록되지 않던 버그 수정.
-- `sync-from-source.sh`에 SSOT 문서명(`00_MASTER_PLAN.md`·`SESSION_INDEX.md`·`CURRENT_SESSION.md`) 플레이스홀더 자동치환 + 내부 리서치 문서(`REPORTS/HARNESS_*.md`) 인용 자동 각주화 sed 규칙 추가. 2단 구조·튜닝된 임계값·예시 저장소명 등 사람 판단이 필요한 잔존 패턴은 sync 후 경고로 표면화.
+- `sync-from-source.sh`에 SSOT 문서명(`00_MASTER_PLAN.md`·`SESSION_INDEX.md`·`CURRENT_SESSION.md`) 플레이스홀더 자동치환 + 내부 리서치 문서(`〈내부 이름〉*.md`) 인용 자동 각주화 sed 규칙 추가. 2단 구조·튜닝된 임계값·예시 저장소명 등 사람 판단이 필요한 잔존 패턴은 sync 후 경고로 표면화.
 
 ### Fixed
 - `doc-cleanup/SKILL.md` Step 0-B/Step 3/V-D3 공식을 tier별로 파라미터화 (4문서 임계값 표 → 2단/1단 행 집합 분기), Step 5를 확장해 1단 프로젝트의 완료 Phase 본문 슬림화까지 흡수 (Step 3의 preserve/delete 판단표 재사용).

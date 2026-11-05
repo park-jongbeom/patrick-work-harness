@@ -522,6 +522,7 @@ METRICS = [
     ("Gate 산출물은 대시보드 위쪽", None, None, "R0 뒤 「문맥 비용」 표의 스킬 적재량과 사용자 지적 수(세션 원장)"),
     ("가드 3종은 남긴다", None, None, "R0 뒤 사용 보고서의 가드 차단 수(사본별)·docker 거부 10회"),
     ("Gate E 는 설정한 경로에", None, None, "R0 뒤 아카이브 첫 줄의 final_status 와 경로(사용자 확인)"),
+    ("원본 쪽 이름은 커밋하지 않는 목록에", None, None, "다음 sync-from-source.sh 실행과 릴리스 전 린트"),
 ]
 
 

@@ -5,8 +5,9 @@
 같은 결함이 문구 수정으로 세 번 되풀이됐기 때문에 글이 아니라 시험으로 묶는다
 (Gate 역할 표기 3회, 제품명 잔존 반복 — 하네스 개선 Harness2 도입 검증 보고서).
 
-  1. 소스 저장소 전용 이름 — 패턴은 sync-from-source.sh 의 REVIEW_HITS 한 곳에서 읽는다
-     (이 파일에 이름을 다시 적지 않는다).
+  1. 소스 저장소 전용 이름 — 목록은 커밋하지 않는 `sync-from-source.local` 의 `name` 줄에서 읽고 추적 중인 모든 파일을 본다
+     (공개 저장소에 이름을 적지 않는다, 2026-11-05). 목록이 없는 곳(깨끗한 컨테이너)에서는 건너뛴다 — 이름은 동기화로만
+     들어오고, 동기화와 릴리스 전 시험은 목록이 있는 작업 서버에서 돈다.
   2. 은퇴한 스킬 참조 — /error-log · /doc-update · /export-roles.
   3. 어떤 설치 경로도 만들지 않는 파일 참조 — HARNESS_EVOLUTION_LOG.
   4. 프로젝트에 있을 수도 없을 수도 있는 파일(CLAUDE_DETAIL.md) 은 「없으면 건너뛴다」는
@@ -119,17 +120,31 @@ def skills_and_readme():
     return [p for p in (ROOT / "skills").rglob("SKILL.md")] + [ROOT / "README.md"]
 
 
-def review_hits_pattern():
-    text = (ROOT / "sync-from-source.sh").read_text(encoding="utf-8")
-    m = re.search(r"REVIEW_HITS=\$\(grep -rlE '([^']+)'", text)
-    return m.group(1) if m else None
+PRIVATE_NAMES = ROOT / "sync-from-source.local"
+
+
+def private_names_pattern():
+    """`sync-from-source.local` 의 `name` 줄을 하나의 정규식으로. 파일이 없으면 None."""
+    try:
+        lines = PRIVATE_NAMES.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    names = [l.split(None, 1)[1].strip() for l in lines if l.startswith("name ") and l.split(None, 1)[1:]]
+    return "|".join(names) or None
+
+
+def tracked_files():
+    import subprocess
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True).stdout.split("\n")
+    return [ROOT / f for f in out if f and (ROOT / f).is_file()]
 
 
 class EngineLint(unittest.TestCase):
-    def test_no_source_repo_names_in_shipped_files(self):
-        pattern = review_hits_pattern()
-        self.assertTrue(pattern, "sync-from-source.sh 에서 REVIEW_HITS 패턴을 찾지 못함")
-        found = hits(pattern)
+    def test_no_source_repo_names_in_tracked_files(self):
+        pattern = private_names_pattern()
+        if not pattern:
+            self.skipTest("sync-from-source.local 이 없다 — 원본 쪽 이름 검사는 작업 서버에서만 돈다")
+        found = hits(pattern, files=tracked_files())
         self.assertEqual(found, [], "소스 저장소 전용 이름이 배포 파일에 남아 있음:\n" + "\n".join(found))
 
     def test_no_private_server_paths_in_shipped_files(self):
@@ -389,6 +404,13 @@ class EngineLint(unittest.TestCase):
         for m in re.finditer(r"변경파일 (\d+) \+(\d)", gate_a):
             files, score = int(m.group(1)), int(m.group(2))
             self.assertEqual(score, 1 if files <= 3 else 2, m.group(0))
+
+    def test_sync_script_reads_names_from_the_local_list(self):
+        sync = (ROOT / "sync-from-source.sh").read_text(encoding="utf-8")
+        self.assertIn("sync-from-source.local", sync)
+        self.assertNotRegex(sync, r"REVIEW_HITS=\$\(grep -rlE '[^$]", "이름이 스크립트에 다시 박혔다")
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn("sync-from-source.local", ignored)
 
 
 if __name__ == "__main__":

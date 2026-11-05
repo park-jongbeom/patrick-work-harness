@@ -41,3 +41,6 @@ session-dashboard.html
 CURRENT_SESSION.md
 SESSION_INDEX.md
 WORK_PLAN.md
+
+# sync-from-source.sh 의 원본 쪽 이름 목록(공개하지 않는다)
+sync-from-source.local

@@ -15,6 +15,9 @@
 # skill changes selectively, using the staged copy as the source text (CHANGELOG 1.3.0).
 # CHANGELOG.md is written in this repo and is never copied from the source.
 #
+# Needs `sync-from-source.local` next to this script: the source-side names to sanitize, kept out of
+# git (format in the error message when it is missing). The engine lint reads the same list.
+#
 # If SOURCE_REPO_PATH is not provided, SOURCE_REPO env var is used.
 # Example:
 #   SOURCE_REPO=/path/to/your/private-repo ./sync-from-source.sh
@@ -47,6 +50,25 @@ fi
 SOURCE="$(cd "$SOURCE" && pwd)"
 SOURCE_NAME="$(basename "$SOURCE")"
 ROOT_RE="$(dirname "$SOURCE" | sed 's/[][\.*^$|]/\\&/g')"
+
+# Source-side names (sibling repos, research-note paths, the old harness name) are not published.
+# They live in `sync-from-source.local` next to this script, which is git-ignored; the engine lint
+# reads the same list. Without it the staged copy could carry those names, so stop here.
+PRIVATE_LIST="$(cd "$(dirname "$0")" && pwd)/sync-from-source.local"
+if [[ ! -f "$PRIVATE_LIST" ]]; then
+  echo "[ERROR] $PRIVATE_LIST not found — the list of source-side names to sanitize (kept out of git)."
+  echo "        Format: 'name <regex>' · 'dir <sibling folder> <PLACEHOLDER>' · 'word <from> <to>' · 'note <regex>'."
+  exit 1
+fi
+NAME_RE=""; NOTE_RE=""; DIR_SED=(); WORD_SED=()
+while read -r kind a b; do
+  case "$kind" in
+    name) NAME_RE="${NAME_RE:+$NAME_RE|}$a" ;;
+    dir)  DIR_SED+=(-e "s|${ROOT_RE}/${a}|\${${b}}|g") ;;
+    word) WORD_SED+=(-e "s|${a}|${b}|g") ;;
+    note) NOTE_RE="$a" ;;
+  esac
+done < <(grep -v -E '^\s*(#|$)' "$PRIVATE_LIST")
 
 SKILLS_SRC="$SOURCE/.claude/skills"
 HOOKS_SRC="${HOOKS_SOURCE_DIR:-$SOURCE/../plans/hooks}"
@@ -89,30 +111,30 @@ if [[ -d "$SKILLS_SRC" ]]; then
   find "$STAGE/skills" -name "*.md" | xargs sed -i \
     -e "s|${ROOT_RE}/${SOURCE_NAME}|\${CLAUDE_PROJECT_DIR}|g" \
     -e "s|${ROOT_RE}/plans|\${HARNESS_PLANS_DIR}|g" \
-    -e "s|${ROOT_RE}/ga-api-platform|\${GA_API_PLATFORM_DIR}|g" \
-    -e "s|${ROOT_RE}/react-web-ga|\${REACT_WEB_DIR}|g" \
-    -e 's|go-almond-harness|patrick-work-harness|g'
+    "${DIR_SED[@]}" "${WORD_SED[@]}"
   # Sanitize: source repo's SSOT doc names → generic placeholders (safe — plain filename swaps,
-  # no 2-tier/threshold logic attached). ai-consulting-plans/ prefix already stripped above.
+  # no 2-tier/threshold logic attached). The source repo's own path prefix is already stripped above.
   find "$STAGE/skills" -name "*.md" | xargs sed -i \
     -e 's|00_MASTER_PLAN\.md|${MASTER_PLAN_FILE}|g' \
     -e 's|SESSION_INDEX\.md|${SESSION_INDEX_FILE}|g' \
     -e 's|CURRENT_SESSION\.md|${CURRENT_SESSION_FILE}|g'
-  # Sanitize: internal research-doc citations (REPORTS/HARNESS_*.md) have no public equivalent —
+  # Sanitize: internal research-doc citations (the `note` prefix in the local list) have no public equivalent —
   # collapse the file-path citation to a generic footnote, keep any public citation in the same sentence.
-  find "$STAGE/skills" -name "*.md" | xargs sed -i \
-    -E 's|`?[A-Za-z0-9_./]*REPORTS/HARNESS_[A-Za-z0-9_]+\.md( ?§[0-9]+)?`?|(internal research note, if your project maintains one)|g'
+  if [[ -n "$NOTE_RE" ]]; then
+    find "$STAGE/skills" -name "*.md" | xargs sed -i \
+      -E 's|`?[A-Za-z0-9_./]*'"$NOTE_RE"'[A-Za-z0-9_]+\.md( ?§[0-9]+)?`?|(internal research note, if your project maintains one)|g'
+  fi
   echo "      Done."
 
   # Warn on patterns that still need human review — these are structurally tied to the
   # source repo's 2-tier plan structure (index + sub-platform detail plan), repo-tuned line-count
   # thresholds, or illustrative example repo/service names. Blind sed here would silently break
   # the skill's logic for consuming projects, so surface them instead of auto-replacing.
-  # Also catches "ai-consulting-plans/${...}" hybrids — a relative-looking source-repo prefix
+  # Also catches source-repo-prefix/${...} hybrids — a relative-looking source-repo prefix
   # that survived the absolute-path sed pass concatenated with an unresolved shell variable from
   # the filename sed pass (recurrence guard: PATCHREVIEW-1, both sed passes must independently
   # sanitize every occurrence, but a stray prefix that predates the filename pass can slip through).
-  REVIEW_HITS=$(grep -rlE '00_MODERNIZATION_MASTER_PLAN\.md|05_PLATFORM_MODERNIZATION|ga-api-platform|react-web-ga|college-crawler|REPORTS/HARNESS_|ai-consulting-plans' "$STAGE/skills" 2>/dev/null || true)
+  REVIEW_HITS=$(grep -rlE "$NAME_RE" "$STAGE/skills" 2>/dev/null || true)
   if [[ -n "$REVIEW_HITS" ]]; then
     echo ""
     echo "[WARN] The following staged skill files still reference source-repo-specific"

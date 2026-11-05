@@ -196,10 +196,10 @@ Check each item in the table below in order and record the verdict (✅ PASS / �
 
 ```bash
 # e.g. a Kotlin repo — detekt already installed (build.gradle.kts·config/detekt/). Cognitive complexity + CPD duplication
-sg docker -c "docker compose -f ${GA_API_PLATFORM_DIR}/docker-compose-test.yml run --rm ga-test ./gradlew detekt --no-daemon" 2>/dev/null || echo "detekt 미설치/실행불가 → 정성 판정만"
+sg docker -c "docker compose -f ${API_REPO_DIR}/docker-compose-test.yml run --rm test ./gradlew detekt --no-daemon" 2>/dev/null || echo "detekt 미설치/실행불가 → 정성 판정만"
 
 # e.g. a TypeScript repo — jscpd (copy-paste detection·independent of Biome). No permanent dev container (production=nginx only) → run via one-shot node container
-sg docker -c "docker run --rm -v ${REACT_WEB_DIR}:/app -w /app node:20-alpine sh -c 'npm install --legacy-peer-deps >/dev/null 2>&1 && npx jscpd src'" 2>/dev/null || echo "jscpd 미설치/실행불가 → 정성 판정만"
+sg docker -c "docker run --rm -v ${WEB_REPO_DIR}:/app -w /app node:20-alpine sh -c 'npm install --legacy-peer-deps >/dev/null 2>&1 && npx jscpd src'" 2>/dev/null || echo "jscpd 미설치/실행불가 → 정성 판정만"
 
 # e.g. a Python repo — radon (cognitive complexity cc·maintainability mi, runs independent of Ruff). Only if installed
 docker exec ${PYTHON_REPO_CONTAINER} radon cc src -a 2>/dev/null || echo "radon 미설치 → 정성 판정만"
