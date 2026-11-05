@@ -152,7 +152,7 @@ Same check as `/init` Step 6: `ls "${CLAUDE_PLUGIN_ROOT}/hooks/session-dashboard
   entries.
 
 - **In both cases**, remove every hook entry in the project's `.claude/settings.json` and `.claude/settings.local.json` whose script is a retired hook —
-  `comprehension-ledger-stale-guard.py` or `claude-gate-guard.py` — and list them in the Step 4 approval. Leave every other
+  `comprehension-ledger-stale-guard.py`, `claude-gate-guard.py` or `skill-usage-auto.py` — and list them in the Step 4 approval. Leave every other
   entry untouched.
 
 Never write `${CLAUDE_PLUGIN_ROOT}` into a settings file.

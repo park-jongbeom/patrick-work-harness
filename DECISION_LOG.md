@@ -373,3 +373,10 @@
 - **예측**: R0 뒤 미발동 회차에서 「구현」 재입력이 없다(Gate 순서는 b 다음 c, 사용자 입력 없음). Stop 가드의 3회 뒤 재차단이 0 이다. 한도가 풀린 채 실제 누락이 지나간 사례가 나오면 한도 뒤 알림을 세션마다 다시 내는 쪽을 검토한다.
 - **확인 시점**: R0 뒤 첫 월간 사용 보고서
 - **결과**:
+
+### [2026-11-05] skill-usage-auto 훅과 빈 문서를 뺀다 — 집계기는 수동 도구로 남긴다
+- **결정**: 제거 → `hooks/skill-usage-auto.py`(시험 포함), `install.sh` 의 `plans/process_evolution` 생성 단계, 엔진 루트의 API_SPEC·ERROR_HANDLING·FEATURE_SPEC·TEST_PLAN·DOC_INDEX·GITHUB_RELEASE_GUIDE. 수정 → 은퇴 목록(`install.sh`·`sync-from-source.sh`·`/harness-update`·`hooks/harness_report.py`), README·PROJECT_MAP·DATA_FLOW·ARCHITECTURE·RELEASE_POLICY 의 틀린 줄. 남김 → `hooks/skill_usage_aggregator.py`(수동 도구, 사용량 도구 합치기는 2027-01 예측 확인 뒤), `process_evolution_path` 키(옛 프로젝트 호환), ARCHITECTURE 의 설계 근거, 스킬이 대상 저장소에 만드는 같은 이름의 문서 틀.
+- **근거**: 저장소 규칙 「정탐이 없는 가드는 뺀다」와 산출물을 읽는 곳이 없다는 확인. 재현: 저장소의 `plans/process_evolution/skill_usage_aggregator.py` 와 yml 지정 경로의 스크립트가 Stop 에서 확인 없이 실행됐고, 하네스 없는 저장소에 미추적 `plans/` 가 생겼다. 공식 문서상 저장소의 프로젝트 훅도 코드를 실행할 수 있어 새 권한은 아니므로 보안 긴급이 아니라 불필요한 동작으로 판단했다. 문서는 `<session_id>` 그대로인 빈 틀이고, 지운 사본에서 시험 511건이 통과했다. DOC_INDEX 는 상태표지만 표의 대부분이 지운 문서이고 스킬은 있을 때만 갱신한다. README 의 Gate C 주장은 gate-c 의 「시험은 Gate D 에서만」과 어긋났다.
+- **예측**: 재설치·`/harness-update` 뒤 이 훅의 오류가 0 이고, 월별 기록이 사라져 곤란한 사례가 없다. 나오면 `harness_report.py` 의 표로 충분했는지 먼저 본다.
+- **확인 시점**: R0 뒤 첫 월간 사용 보고서
+- **결과**:

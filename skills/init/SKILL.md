@@ -84,7 +84,7 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `archive_path` | Absolute path for session archive files | ask user |
 | `worklog_path` | Absolute path for WORKLOG files | ask user |
 | `learning_path` | Directory holding the comprehension ledger (`comprehension_ledger.md`). Relative paths resolve against `CLAUDE_PROJECT_DIR`; absolute paths are used as-is. Omit the field to keep the legacy default | `plans/learning` |
-| `process_evolution_path` | Directory holding the skill-usage aggregator (`skill_usage_aggregator.py`), written by the `skill-usage-auto` hook. Same resolution rule as `learning_path`. Omit the field to keep the legacy default | `plans/process_evolution` |
+| `process_evolution_path` | Directory for usage reports you generate by hand with `skill_usage_aggregator.py --output`. Nothing writes here automatically. Same resolution rule as `learning_path`. Omit the field to keep the legacy default | `plans/process_evolution` |
 | `error_topics_path` | Directory where Gate E records error cases and lessons (gate-e Step 3). The Gate A lesson lookup reads it and `error-topics-guard.py` checks it, so leaving the lesson store unset silently turns both off. Relative to `CLAUDE_PROJECT_DIR`. Use this for a single-repo project | `docs/rules/error_topics` |
 | `code_repos` | Multi-repo workspace only (this repo holds plans, the code lives in sibling repos): list of sibling repo directory names; each records into `<parent>/<repo>/docs/rules/error_topics/`. Ignored when `error_topics_path` is set | omit |
 | `plan_tier` | `"2"` (separate index + sub-platform detail-plan doc) or `"1"` (single plan doc with `## Phase N` sections) | proposed by Step 1-c, confirm/override with user |

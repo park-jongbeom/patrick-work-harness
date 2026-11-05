@@ -7,8 +7,6 @@ patrick-work-harness/
 ├── .claude-plugin/
 │   ├── marketplace.json      # Community marketplace registration
 │   └── plugin.json           # Plugin metadata (version, author, keywords)
-├── .github/
-│   └── workflows/            # GitHub Actions CI/CD
 ├── hooks/                    # Stop / PreToolUse event handlers (Python)
 ├── skills/                   # Gate A–E + utility skill definitions
 │   ├── audit/
@@ -22,7 +20,6 @@ patrick-work-harness/
 │   ├── init/
 │   └── SKILL_DETAIL.md       # Shared rubric / advisor escalation detail
 ├── CHANGELOG.md
-├── GITHUB_RELEASE_GUIDE.md
 ├── README.md
 ├── RELEASE_POLICY.md
 ├── install.sh                # CLI installer (--version / --target / --dry-run)
@@ -53,21 +50,32 @@ patrick-work-harness/
 | harness-update | `skills/harness-update/SKILL.md` |
 | init | `skills/init/SKILL.md` |
 
-### Hooks (Python, 14종)
+### Hooks (`hooks/hooks.json` 에 배선)
 
 | Hook | Role |
 |------|------|
 | `commit-msg-guard.py` | 커밋 메시지 형식 검사 |
+| `comprehension-pending-guard.py` | 이해도 질문이 대기 중이면 Gate C·D·E 진입 차단 |
 | `docker-command-guard.py` | 잘못된 docker 명령 차단 |
 | `error-topics-guard.py` | 오류 주제 파일 동기화 |
 | `gate-a-sync-guard.py` | Gate A 승인 대기 일관성 |
-| `gate-e-sync-guard.py` | Gate E ✅ 완료 일관성 |
+| `gate-e-sync-guard.py` | Gate E ✅ 완료 일관성, Gate D 기록 확인 |
+| `lane-scope-guard.py` | 자율 레인 범위 검사 |
 | `master-plan-stale-guard.py` | 마스터 플랜 스테일 감지 |
 | `session-dashboard-sync.py` | session-dashboard.html 자동 갱신 |
-| `session_dashboard_parsers.py` | 대시보드 파서 (라이브러리) |
-| `session_dashboard_renderer.py` | 대시보드 렌더러 (라이브러리) |
-| `skill-usage-auto.py` | 스킬 사용 집계 |
 | `test-tampering-guard.py` | reward-hacking 탐지 |
+| `test-write-guard.py` | 시험 파일 쓰기 전 확인 |
+
+### Tools and modules (배선 없음)
+
+| File | Role |
+|------|------|
+| `gate_b_trigger.py` | Gate B 발동 판정 |
+| `gate_transcript.py` | 대화 기록에서 Gate 호출·쓰기 판정 |
+| `harness_report.py` · `skill_usage_aggregator.py` | 사용 보고서(수동 실행) |
+| `lane_card.py` · `session_ledger.py` · `report_facts.py` | 자율 레인 카드·세션 원장·변경 사실 |
+| `session_dashboard_parsers.py` · `session_dashboard_renderer.py` | 대시보드 파서·렌더러 |
+| `run_all_tests.py` | 전체 시험 실행 |
 
 ### Config
 

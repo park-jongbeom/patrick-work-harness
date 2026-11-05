@@ -90,7 +90,7 @@ def hits(pattern, files=None):
 
 
 GATE_B = ROOT / "skills" / "gate-b" / "SKILL.md"
-RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py")
+RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py", "skill-usage-auto.py")
 BATCH_DEFINITION_HEADING = "## Batch runs (C~E·D~E 일괄)"
 DEFINED_BATCHES = {"C~E", "D~E"}
 AUTONOMOUS_HEADING = "## Autonomous lane (자율 레인)"
@@ -319,7 +319,7 @@ class EngineLint(unittest.TestCase):
 
     def test_skills_do_not_talk_as_if_retired_mechanisms_run(self):
         skills = [f for f in (ROOT / "skills").rglob("*.md") if f.parent.name != "harness-update"]
-        found = hits(r"comprehension-ledger-stale|SM-2|double the previous", files=skills)
+        found = hits(r"comprehension-ledger-stale|skill-usage-auto|SM-2|double the previous", files=skills)
         self.assertEqual(found, [], "은퇴한 장치를 말함:\n" + "\n".join(found))
 
     def test_skills_do_not_order_a_destructive_restore(self):

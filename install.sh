@@ -428,10 +428,6 @@ NEW_HOOKS = {
             "matcher": ".*",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/test-tampering-guard.py"}]
         },
-        {
-            "matcher": ".*",
-            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/skill-usage-auto.py"}]
-        },
     ],
 }
 
@@ -456,7 +452,7 @@ def script_of(cmd):
 # 은퇴한 훅의 배선을 지운다 (2026-11-05). 훅 파일은 위 복사의 삭제 단계로 사라지는데 배선이 남으면, Stop 에서는 응답마다
 # 훅 오류가 남고 PreToolUse 에서는 막힌다. 이 설치 폴더를 가리키는 배선만 지운다 — 다른 사본을 가리키는 배선과 같은 항목의
 # 사용자 훅은 사용자 것이다.
-RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py")
+RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py", "skill-usage-auto.py")
 retired_scripts = {f"{hooks_dir}/{name}" for name in RETIRED_HOOKS}
 
 def is_retired(hook):
@@ -546,42 +542,6 @@ if [[ "$DRY_RUN" == false && -f "$ANSWERS" ]]; then
       printf '_engine_version: "%s"\n' "$BARE_VERSION" >> "$ANSWERS"
     fi
     echo "      provenance 갱신: _engine_version ${CURRENT_PROV:-미기재} → ${BARE_VERSION}"
-  fi
-fi
-
-# ── 훅이 쓰는 디렉터리 보장 (HARNESS-INSTALL-DIRS-1, 2026-09-25) ──
-#
-# 🔴 `skill-usage-auto` 훅은 `<process_evolution_path>/skill_usage_YYYY-MM.md` 를
-#    쓰는데, 설치는 그 디렉터리를 만들지 않았다. 새 프로젝트에는 그 경로가
-#    없으므로 **첫 집계부터 매번 실패**하고, 훅은 항상 exit 0 이라 아무도 몰랐다.
-#    실측(2026-09-25): Gate 를 가장 많이 쓴 세 프로젝트에 자기 기록이 0건이었다
-#    (`homepage` 는 gate-a 만 33회를 쓰고도 산출물이 없었다).
-#
-#    집계기 쪽에도 `mkdir(parents=True)` 를 넣었지만(런타임 방어), 이식 시점에
-#    자리를 만들어 두는 것이 정본이다 — 사용자가 손으로 만들 일이 아니다.
-#
-#    ⚠ 기본값을 박지 않는다. `process_evolution_path` 는 프로젝트마다 다르다
-#    (실측: `docs/process_evolution` 로 지정한 프로젝트가 있다). 답변 파일이
-#    있으면 그 값을, 없으면 훅과 같은 기본값(`plans/process_evolution`)을 쓴다.
-if [[ "$DRY_RUN" == false ]]; then
-  PE_PATH="plans/process_evolution"
-  if [[ -f "$ANSWERS" ]]; then
-    PE_FROM_ANSWERS=$(grep -E '^process_evolution_path:' "$ANSWERS" \
-      | head -1 | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')
-    [[ -n "$PE_FROM_ANSWERS" ]] && PE_PATH="$PE_FROM_ANSWERS"
-  fi
-  # 상대경로는 대상 프로젝트 기준으로 해석한다 (훅의 해석 규칙과 동일)
-  case "$PE_PATH" in
-    /*|[A-Za-z]:*) PE_DIR="$PE_PATH" ;;
-    *)             PE_DIR="${TARGET_DIR}/${PE_PATH}" ;;
-  esac
-  if [[ -d "$PE_DIR" ]]; then
-    echo "      사용량 기록 경로 확인: ${PE_PATH}"
-  elif mkdir -p "$PE_DIR" 2>/dev/null; then
-    echo "      사용량 기록 경로 생성: ${PE_PATH}"
-  else
-    # 만들지 못해도 설치를 멈추지 않는다 — 집계기가 런타임에 다시 시도한다
-    echo "      ⚠ 사용량 기록 경로를 만들지 못했습니다: ${PE_DIR}"
   fi
 fi
 

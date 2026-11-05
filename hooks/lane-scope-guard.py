@@ -56,7 +56,7 @@ DEFAULT_PROTECTED = (
 SESSION_DOCS = ("CURRENT_SESSION.md", "SESSION_INDEX.md", "session-dashboard.html")
 DOC_PATH_KEYS = ("archive_path", "worklog_path", "learning_path", "process_evolution_path",
                  "error_topics_path", "master_plan_file", "detail_plan_file", "single_plan_file")
-#: 키가 없을 때 훅이 실제로 쓰는 기본 경로 (skill-usage-auto).
+#: 키가 없을 때의 기본 경로. 옛 프로젝트에는 은퇴한 집계 훅이 남긴 기록이 있다.
 #: 빠뜨리면 하네스가 스스로 쓴 기록이 「계획 밖 파일」로 잡힌다(S8c 실사용에서 발견).
 DOC_PATH_DEFAULTS = {"learning_path": "plans/learning", "process_evolution_path": "plans/process_evolution"}
 LIMIT_DEFAULTS = {"max_files": 5, "max_lines": 200, "hard_max_lines": 400}

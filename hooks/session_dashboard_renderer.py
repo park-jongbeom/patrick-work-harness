@@ -30,7 +30,7 @@ from session_dashboard_parsers import (  # noqa: E402
 _HOOKS_DIR = Path(__file__).resolve().parent
 _CSS_PATH = _HOOKS_DIR / "dashboard.css"
 
-# 정본 저장소(아카이브) 경로 — env 폴백(skill-usage-auto.py 동일 변수 규약 재사용).
+# 정본 저장소(아카이브) 경로 — env 폴백.
 # 미설정 시 본가 절대경로 폴백 → 정본 footer byte-equivalent + plugin sync 시 정의 동반(NameError 해소).
 HARNESS_PLANS_DIR = os.environ.get("HARNESS_PLANS_DIR", ".")
 

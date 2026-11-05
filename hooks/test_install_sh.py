@@ -166,11 +166,13 @@ class TestInstallWithoutRsync(unittest.TestCase):
         self.other_copy = "python3 /w/plans/hooks/comprehension-ledger-stale-guard.py"
         self.mine = "python3 /w/my-hook.py"
         old_guard = f"python3 {hooks_dir}/claude-gate-guard.py"
+        usage = f"python3 {hooks_dir}/skill-usage-auto.py"
         os.makedirs(os.path.dirname(self.settings), exist_ok=True)
         with open(self.settings, "w", encoding="utf-8") as f:
             json.dump({"theme": "dark", "hooks": {
                 "Stop": [{"hooks": [{"type": "command", "command": self.retired}, {"type": "command", "command": self.mine}]},
-                         {"hooks": [{"type": "command", "command": self.other_copy}]}],
+                         {"hooks": [{"type": "command", "command": self.other_copy}]},
+                         {"matcher": ".*", "hooks": [{"type": "command", "command": usage}]}],
                 "PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": old_guard}]}],
             }}, f)
 
@@ -186,7 +188,7 @@ class TestInstallWithoutRsync(unittest.TestCase):
         cfg, commands = self.commands()
         self.assertEqual(cfg["theme"], "dark")
         self.assertNotIn(self.retired, commands)
-        self.assertFalse([c for c in commands if "claude-gate-guard" in c])
+        self.assertFalse([c for c in commands if "claude-gate-guard" in c or "skill-usage-auto" in c])
         self.assertIn(self.mine, commands, "같은 항목에 있던 사용자 훅이 함께 지워짐")
         self.assertIn(self.other_copy, commands, "다른 사본을 가리키는 배선은 이 설치의 몫이 아님")
 

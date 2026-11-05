@@ -487,7 +487,7 @@ def main() -> int:
         # 🔴 HARNESS-ANALYTICS-PORT-2 (2026-09-25): 부모 디렉터리를 만든다.
         #
         # 종전에는 `write_text` 만 했고, 출력 경로의 부모가 없으면
-        # `FileNotFoundError` 로 죽었다. 호출자인 `skill-usage-auto` 훅은
+        # `FileNotFoundError` 로 죽었다. 옛 호출자였던 훅은
         # 예외를 stderr 로만 남기고 **항상 exit 0** 이라, 새 프로젝트에서는
         # 집계가 **매번 실패하면서 아무도 모르는** 상태가 된다(실측).
         #

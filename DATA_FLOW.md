@@ -4,7 +4,7 @@
 
 ```
 CURRENT_SESSION.md / SESSION_INDEX.md   (target repo)
-  → session-dashboard-sync.py           (Stop hook — 항상 첫 번째)
+  → session-dashboard-sync.py           (PostToolUse Edit|Write — 플러그인·install.sh, 소스 사본은 Stop)
       → session_dashboard_parsers.py    (parse_current_session, parse_session_index)
       → session_dashboard_renderer.py   (generate_html)
   → session-dashboard.html              (target repo root)
@@ -40,8 +40,8 @@ CLAUDE.md (HARNESS zone, target repo)
 ```
 install.sh (--version / --target / --dry-run / SHA256 체크섬)
   → GitHub Releases tarball 다운로드
-  → skills/ · hooks/ 압축 해제 → target repo
-  → .claude/settings.json Stop hook 배선
+  → skills/ → target repo, hooks/ → ~/.claude/hooks/patrick-work-harness/
+  → ~/.claude/settings.json 훅 배선
 ```
 
 ## Layer 2 Document Fill Path (--docs=full)
@@ -56,7 +56,7 @@ Gate A 실행
   → FEATURE_SPEC.md ## Overview / ## Acceptance Criteria 마커 채움
   → DOC_INDEX.md FEATURE_SPEC 행 Skeleton → Partial
 
-Gate B 실행 (엔드포인트 변경 세션만)
+Gate C 실행 (엔드포인트 변경 세션만)
   → API_SPEC.md ## Endpoints Changed 마커 채움
 
 Gate C 실행

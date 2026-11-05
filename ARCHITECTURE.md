@@ -12,10 +12,9 @@
 | Layer | Path | Role |
 |-------|------|------|
 | Skills | `skills/` | Gate A–E + audit + doc-cleanup + harness-update + init 스킬 정의 |
-| Hooks | `hooks/` | Stop / PreToolUse 이벤트 핸들러 (가드·동기화·집계) |
+| Hooks | `hooks/` | Stop / PreToolUse 이벤트 핸들러 (가드·동기화) |
 | Config | `plugin.json` · `.claude-plugin/` | 플러그인 메타데이터 · 마켓플레이스 등록 |
 | Docs | `README.md` · `CHANGELOG.md` · `RELEASE_POLICY.md` | 사용자 문서 |
-| CI | `.github/workflows/` | GitHub Actions 자동화 |
 
 ## Dependency Chain
 
@@ -30,16 +29,20 @@ master-plan-stale-guard.py
   └─ reads  CURRENT_SESSION.md + 00_MASTER_PLAN.md  (target repo)
   └─ warns  on L7 status mismatch
 
-gate-e-sync-guard.py / gate-a-sync-guard.py
+gate-e-sync-guard.py
   └─ reads  SESSION_INDEX.md + CURRENT_SESSION.md  (target repo)
-  └─ blocks response termination on ✅E mismatch
+  └─ blocks response termination on ✅E mismatch or a missing Gate D record
+
+gate-a-sync-guard.py
+  └─ reads  CURRENT_SESSION.md  (target repo)
+  └─ blocks response termination on missing dashboard fields
 ```
 
 ## System Boundaries
 
 플러그인은 Claude Code 의 **Stop / PreToolUse 훅 이벤트**를 통해 대상 저장소와 통신한다.
 대상 저장소의 `CURRENT_SESSION.md` · `SESSION_INDEX.md` · `00_MASTER_PLAN.md` 는 읽기 또는
-경고 목적으로만 쓴다. **실제 파일 수정은 스킬(SKILL.md 지시)이 수행하고, 훅은 감시·차단만 한다.**
+경고 목적으로만 쓴다. **실제 파일 수정은 스킬(SKILL.md 지시)이 수행하고, 훅은 감시·차단만 한다.** 예외는 `session-dashboard-sync.py` 의 HTML 생성이다.
 
 ### 하지 않는 것 (2026-09-23 확정)
 

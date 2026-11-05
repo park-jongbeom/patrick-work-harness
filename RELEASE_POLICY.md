@@ -41,7 +41,7 @@
 - `Added` — 새로 추가된 스킬·훅·기능
 - `Fixed` — 버그 수정
 - `Changed` — 기존 동작 변경 (하위 호환 유지)
-- `Removed` — 제거된 기능 (MAJOR 버전에서만)
+- `Removed` — 제거된 기능. 훅 API 나 스킬 인터페이스를 깨는 제거만 MAJOR 다
 - `Breaking` — 파괴적 변경 사항 (MAJOR 버전에서만, 최상단 강조)
 - CHANGELOG 는 이 저장소에서 직접 쓴다. 소스 저장소의 CHANGELOG 를 복사하지 않는다. 소스 쪽은 1.2.1 에서
   멈춰 있어, 덮어쓰면 그 이후 릴리스 이력이 사라진다.
@@ -74,4 +74,5 @@ git checkout main
 git commit -m "fix: <이슈 한 줄 설명>"
 git tag v1.0.1
 git push origin main && git push origin v1.0.1
+gh release create v1.0.1 --title "v1.0.1 — <한 줄 요약>" --notes-file <해당 버전 CHANGELOG 절만 담은 파일>
 ```

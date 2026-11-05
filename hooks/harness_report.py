@@ -36,8 +36,8 @@ sys.path.insert(0, HERE)
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-#: 은퇴한 훅 → 그 훅의 알림 꼬리표. 파일은 없어도 보존된 대화 기록에는 남아 있어 같은 행으로 읽어야 한다.
-RETIRED_HOOKS = {"comprehension-ledger-stale-guard.py": "COMPREHENSION-LEDGER-STALE"}
+#: 은퇴한 훅 → 그 훅의 알림 꼬리표(없으면 None). 파일은 없어도 보존된 대화 기록에는 남아 있어 같은 행으로 읽어야 한다.
+RETIRED_HOOKS = {"comprehension-ledger-stale-guard.py": "COMPREHENSION-LEDGER-STALE", "skill-usage-auto.py": None}
 #: 이 엔진의 훅 파일 이름 — 명령 경로에서 「하네스 훅인가」와 「어느 설치인가」를 가린다
 ENGINE_HOOKS = {os.path.basename(p) for p in glob.glob(os.path.join(HERE, "*.py"))
                 if not os.path.basename(p).startswith("test_")} | set(RETIRED_HOOKS)
@@ -104,7 +104,7 @@ def _notice_owners():
     return {tag: next(iter(files)) for tag, files in owners.items() if len(files) == 1}
 
 
-NOTICE_OWNERS = {**_notice_owners(), **{tag: name for name, tag in RETIRED_HOOKS.items()}}
+NOTICE_OWNERS = {**_notice_owners(), **{tag: name for name, tag in RETIRED_HOOKS.items() if tag}}
 
 
 def guard_name(command="", content="", fallback=""):
@@ -518,6 +518,7 @@ METRICS = [
     ("Gate B 는 되돌리기 어려운 변경에만", _gate_b_asked, 10, "Gate B 질문 회차 수 — 답함·스킵은 「Gate B 질문 결과」 표"),
     ("이해도 원장 만료 알림 훅과", None, None, "R0 뒤 사용 보고서의 훅 오류 수"),
     ("자체 점검 결함을 고친다", None, None, "R0 뒤 사용 보고서의 Gate 순서와 가드 차단 수"),
+    ("skill-usage-auto 훅과 빈 문서를 뺀다", None, None, "R0 뒤 사용 보고서의 훅 오류 수"),
 ]
 
 

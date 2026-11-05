@@ -18,17 +18,8 @@
 
 ## 이 시험이 보는 것
 
-디렉터리 보장 구간만 떼어 검증한다. 설치 전체(다운로드·rsync)는 네트워크와
-외부 도구에 의존해 결정론적이지 않으므로, `--no-skills --no-hooks` 로
-그 부분을 비활성화하고 **경로 해석과 생성**만 잰다.
-
-계약(실측으로 확인한 것):
-  · 답변 파일이 없으면 기본값 `plans/process_evolution`
-  · `process_evolution_path` 가 있으면 **그 값을 쓴다**(프로젝트마다 다르다 —
-    실측: `docs/process_evolution` 로 지정한 프로젝트가 있다)
-  · 절대경로는 그대로, 상대경로는 대상 프로젝트 기준
-  · `--dry-run` 은 **만들지 않는다**
-  · 재실행해도 **기존 내용을 지우지 않는다**
+디렉터리 보장 구간은 집계 훅을 빼면서 함께 뺐다(2026-11-05). 지금은 provenance 갱신과, 설치가 쓰는 곳 없는 폴더를
+만들지 않는다는 것을 본다. 설치 전체(다운로드·rsync)는 `--no-skills --no-hooks` 로 끈다.
 """
 from __future__ import annotations
 
@@ -129,74 +120,21 @@ class InstallDirsTestBase(unittest.TestCase):
         return out
 
 
-class TestDefaultPath(InstallDirsTestBase):
-
-    def test_creates_default_dir_when_no_answers(self):
-        """답변 파일이 없으면 훅과 같은 기본값으로 만든다."""
-        out = self.run_install()
-        self.assertTrue(
-            (self.target / "plans" / "process_evolution").is_dir(),
-            f"기본 경로가 안 생겼다\n{out}")
-
-    def test_reports_creation(self):
-        out = self.run_install()
-        self.assertIn("사용량 기록 경로", out, "생성 사실을 알리지 않는다")
-
-
-class TestAnswersPath(InstallDirsTestBase):
-
-    def test_respects_configured_path(self):
-        """🔴 기본값을 박으면 안 된다 — 프로젝트마다 다르다.
-
-        실측: `docs/process_evolution` 로 지정한 프로젝트가 있다.
-        기본값을 강제하면 훅이 쓰는 곳과 **다른 자리**를 만들어,
-        디렉터리는 생겼는데 집계는 계속 실패하는 상태가 된다.
-        """
-        self.write_answers('process_evolution_path: "docs/process_evolution"\n')
-        out = self.run_install()
-        self.assertTrue((self.target / "docs" / "process_evolution").is_dir(),
-                        f"지정 경로가 안 생겼다\n{out}")
-        self.assertFalse((self.target / "plans").exists(),
-                         "지정이 있는데 기본 경로를 만들었다")
-
-    def test_strips_quotes_and_comments(self):
-        """YAML 값의 따옴표·주석을 벗겨야 경로가 맞는다."""
-        self.write_answers(
-            "process_evolution_path: 'docs/pe'   # 여기에 쌓인다\n")
-        out = self.run_install()
-        self.assertTrue((self.target / "docs" / "pe").is_dir(),
-                        f"따옴표·주석 처리가 안 됐다\n{out}")
-
-    def test_absolute_path_used_as_is(self):
-        """절대경로는 대상 프로젝트 밑으로 붙이지 않는다."""
-        outside = Path(tempfile.mkdtemp(prefix="inst_abs_"))
-        target_dir = outside / "pe"
-        try:
-            self.write_answers(
-                f'process_evolution_path: "{target_dir.as_posix()}"\n')
-            out = self.run_install()
-            self.assertTrue(target_dir.is_dir(), f"절대경로에 안 생겼다\n{out}")
-            self.assertFalse((self.target / "plans").exists(),
-                             "절대경로인데 프로젝트 밑에도 만들었다")
-        finally:
-            shutil.rmtree(outside, ignore_errors=True)
-
-
 class TestProvenance(InstallDirsTestBase):
     """🔴 `_engine_version` 이 없는 답변 파일에서 설치가 죽던 자리.
 
     `set -euo pipefail` 아래에서 `grep` 은 매치 실패 시 rc=1 이다.
     `init` 스킬이 막 만든 답변 파일에는 이 필드가 없을 수 있고(템플릿
     본문에 없다), 그러면 설치가 **`[5/5]` 에서 끊긴 채 조용히 rc=1 로
-    종료**한다 — provenance 갱신·디렉터리 생성·완료 메시지가 전부 날아간다.
+    종료**한다 — provenance 갱신·완료 메시지가 전부 날아간다.
     """
 
     def test_survives_missing_engine_version(self):
         self.write_answers('process_evolution_path: "docs/pe"\n')
         out = self.run_install()
         self.assertIn("설치 완료", out, f"필드 부재로 설치가 죽었다\n{out}")
-        self.assertTrue((self.target / "docs" / "pe").is_dir(),
-                        "설치가 끊겨 디렉터리 단계까지 못 왔다")
+        answers = (self.target / ".claude" / "harness-answers.yml").read_text(encoding="utf-8")
+        self.assertIn("_engine_version:", answers, "설치가 끊겨 provenance 단계까지 못 왔다")
 
     def test_appends_engine_version_when_absent(self):
         """🔴 `sed` 는 **있는 줄만** 바꾼다 — 없으면 추가해야 한다.
@@ -221,32 +159,17 @@ class TestProvenance(InstallDirsTestBase):
         self.assertIn('stack: "python"', body, "다른 응답이 사라졌다")
 
 
-class TestSafety(InstallDirsTestBase):
+class TestNoUsageDirectory(InstallDirsTestBase):
+    """집계 훅을 뺐으므로 쓰는 곳이 없다 — 설치가 프로젝트에 폴더를 만들 이유가 없다(2026-11-05)."""
 
-    def test_dry_run_creates_nothing(self):
-        """--dry-run 이 디스크를 건드리면 그 옵션의 의미가 없다."""
-        out = self.run_install("--dry-run")
-        self.assertFalse((self.target / "plans").exists(),
-                         f"--dry-run 인데 만들었다\n{out}")
-
-    def test_rerun_preserves_existing_contents(self):
-        """재설치가 쌓인 기록을 지우면 안 된다."""
+    def test_install_makes_no_usage_directory(self):
         self.run_install()
-        kept = self.target / "plans" / "process_evolution" / "skill_usage_2026-09.md"
-        kept.write_text("기존 산출물", encoding="utf-8")
+        self.assertFalse((self.target / "plans").exists(), "쓰는 곳 없는 폴더를 프로젝트에 만들었다")
 
-        out = self.run_install()
-        self.assertTrue(kept.is_file(), f"재설치가 기존 파일을 지웠다\n{out}")
-        self.assertEqual(kept.read_text(encoding="utf-8"), "기존 산출물")
-
-    def test_rerun_reports_confirmation_not_creation(self):
-        """이미 있으면 「생성」이 아니라 「확인」이라고 말해야 한다.
-
-        매번 「생성」이라고 하면 로그를 읽는 사람이 **덮어썼다고 오해**한다.
-        """
+    def test_configured_path_is_not_created_either(self):
+        self.write_answers('process_evolution_path: "docs/pe"\n')
         self.run_install()
-        out = self.run_install()
-        self.assertIn("확인", out, f"재실행인데 생성이라고 말한다\n{out}")
+        self.assertFalse((self.target / "docs" / "pe").exists())
 
 
 if __name__ == "__main__":

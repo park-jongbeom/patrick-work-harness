@@ -17,11 +17,11 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | Problem | Harness solution |
 |---------|-----------------|
 | Code changes without a plan | Gate A — pre-approve files · steps · scope before any edit |
-| Verification closed by AI self-judgment | Gate C — closes only on external execution signals (test PASS/FAIL) |
+| Verification closed by AI self-judgment | Gate D — closes only on external execution signals (test PASS/FAIL) |
 | Tests disabled to fake a pass | `test-tampering-guard` Stop hook detects reward-hacking in real time |
 | Completion records scattered and untraceable | Gate E — auto-generates WORKLOG + archive |
 | Documents go stale every session | 5 guard hooks including `master-plan-stale-guard` |
-| Re-explaining the same concept every session | Gate B (comprehension gate) — expiring evidence ledger |
+| A hard-to-undo change passing unread | Gate B (comprehension gate) — one question, chosen by a script |
 
 #### Process flow
 
@@ -45,7 +45,7 @@ end. Opt in per project — see Usage below and `skills/gate-a/SKILL.md` §0-Lan
 |------|------|-------------|
 | A | **Plan** | Per-file change plan — scope, steps, risks. No code until approved. |
 | B | **Comprehend** | Comprehension gate — one question on changes that are hard to undo, chosen by a script. Pass-through otherwise. |
-| C | **Implement** | Code implementation — follow Gate A plan exactly. Closes on external signals only (test PASS/FAIL). |
+| C | **Implement** | Code implementation — follow Gate A plan exactly. Tests run in Gate D. |
 | D | **Verify** | Test plan · execution · failure classification, and the code-review/security pass. Fills the `## Verification Checklist` marker Gate C leaves. |
 | E | **Record** | WORKLOG + long-form archive. Flip all 3 docs to ✅E. |
 
@@ -75,14 +75,14 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | Command | Role |
 |---------|------|
 | `/gate-a` | Build a change plan — inspect files · steps · scope, then wait for approval |
-| `/gate-b` | Comprehension gate — explain the flow in your own words; evidence ledger with expiry |
+| `/gate-b` | Comprehension gate — one question on changes that are hard to undo |
 | `/gate-c` | Implement code — follow the Gate A plan exactly, then wait for confirmation |
 | `/gate-d` | Verify — test plan · execution · failure classification (FIX-B / DEP) · code review |
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
-| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 6-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
-| `/init` | Initialize new project — create sentinel zones · stubs · wire hooks |
+| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 7-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
+| `/init` | Initialize new project — create sentinel zones · stubs · wire hooks for a source copy |
 
 ---
 
@@ -98,7 +98,6 @@ Hooks run automatically around each Claude Code response and tool call (Stop, Pr
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
 | `session-dashboard-sync.py` | PostToolUse | Auto-regenerates `session-dashboard.html` after each Edit/Write |
-| `skill-usage-auto.py` | Stop | Auto-records skill usage history markers |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
 | `test-write-guard.py` | PreToolUse | During Gate D, asks before any edit to a test file — no passing by weakening tests |
@@ -174,7 +173,7 @@ your-project/
         └── harness-update/
 ~/.claude/
 └── hooks/
-    └── patrick-work-harness/   ← 12 hook files (10 registered + 2 shared modules)
+    └── patrick-work-harness/   ← hook files and shared modules
         ├── master-plan-stale-guard.py
         ├── gate-e-sync-guard.py
         └── ...
@@ -196,15 +195,11 @@ Creates `CLAUDE.md` sentinel zones · `SESSION_INDEX.md` · `CURRENT_SESSION.md`
 git clone https://github.com/park-jongbeom/patrick-work-harness.git
 cd patrick-work-harness
 
-# Copy skills
-cp -r skills/ /your-project/.claude/skills/
-
-# Copy hooks
-mkdir -p ~/.claude/hooks/patrick-work-harness
-cp hooks/*.py ~/.claude/hooks/patrick-work-harness/
+./install.sh --source "$PWD" --target /your-project
 ```
 
-Then register hooks manually in Claude Code `settings.json` or run the `/init` skill.
+This installs from your clone instead of a release: skills go into the project, hooks into
+`~/.claude/hooks/patrick-work-harness/`, and the hooks are wired in `~/.claude/settings.json`.
 
 ---
 
@@ -250,7 +245,7 @@ the only gate that runs tests.)
    at the plan's base commit, so a session cannot switch itself on. `archive_path` must be set; the card ledger lives there.
 2. Run `/gate-a` as usual. If the plan's `### 레인 판정` says 자율, reply 「자율 레인 승인」. 「Gate A 승인」 keeps the review lane.
 3. Gate E shows a review card — acceptance commands re-run by script, diff counts, the scope check and flags. Reply 「카드 승인」
-   or 「지적: 심각|경미 — …」. `python3 hooks/lane_card.py pending` lists cards still waiting for a verdict.
+   or 「지적: 심각|경미 — …」. `lane_card.py pending` in the installed hooks folder lists cards still waiting for a verdict.
 
 #### Measuring how the harness is used
 
@@ -318,11 +313,11 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | 문제 | 하네스의 해결 |
 |------|--------------|
 | 계획 없이 바로 코드 변경 | Gate A — 변경 파일·Step·범위 사전 승인 |
-| 검증을 AI 자기 판단으로 종료 | Gate C — 외부 실행 신호(테스트 PASS/FAIL)로만 닫힘 |
+| 검증을 AI 자기 판단으로 종료 | Gate D — 외부 실행 신호(테스트 PASS/FAIL)로만 닫힘 |
 | 테스트를 무력화해 통과 위장 | `test-tampering-guard` Stop hook 실시간 감지 |
 | 완료 기록이 흩어져 추적 불가 | Gate E — WORKLOG + archive 자동 생성 |
 | 문서가 세션마다 스테일 | `master-plan-stale-guard` 등 5종 가드 훅 |
-| 같은 기술 이해도 재질문 반복 | Gate B(이해도 게이트) 만료형 증적 원장 |
+| 되돌리기 어려운 변경이 읽히지 않고 통과 | Gate B(이해도 게이트) — 스크립트가 고른 1문항 |
 
 #### 프로세스 흐름
 
@@ -344,7 +339,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 |------|------|------|
 | A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음(절차 규칙이며 사전 차단 훅은 없다 — 위 설계 원칙 참고). |
 | B | **이해도 게이트** | 되돌리기 어려운 변경에만 1문항, 판정은 스크립트. 그 밖에는 pass-through. |
-| C | **구현** | 코드 구현 — Gate A 계획 그대로. 외부 실행 신호(테스트 PASS/FAIL)로만 종료. |
+| C | **구현** | 코드 구현 — Gate A 계획 그대로. 시험은 Gate D 에서 돈다. |
 | D | **검증 + 리팩터** | 검증 루프, 이후 조건부 리팩터 (코드리뷰 3건 이상 또는 명시적 요청 시 실행). |
 | E | **기록** | WORKLOG + 장문 archive 생성. 3문서 ✅E 전환. |
 
@@ -375,14 +370,14 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | 커맨드 | 역할 |
 |--------|------|
 | `/gate-a` | 변경 계획 수립 — 파일·Step·범위 점검·승인 대기 |
-| `/gate-b` | 이해도 게이트 — 흐름을 자기 말로 설명·만료 있는 증적 원장 |
+| `/gate-b` | 이해도 게이트 — 되돌리기 어려운 변경에만 1문항 |
 | `/gate-c` | 코드 구현 — Gate A 계획 그대로 구현 후 확인 대기 |
 | `/gate-d` | 검증 — 시험 계획·실행·실패 분류(FIX-B/DEP)·코드리뷰 |
 | `/gate-e` | 세션 정리 — WORKLOG·archive 생성·3문서 ✅E 갱신 |
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
-| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→4 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
-| `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·hook 배선 |
+| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→7 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
+| `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·소스 사본의 hook 배선 |
 
 ---
 
@@ -398,7 +393,6 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
 | `session-dashboard-sync.py` | PostToolUse | Edit·Write 뒤 `session-dashboard.html` 자동 재생성 |
-| `skill-usage-auto.py` | Stop | 스킬 사용 이력 자동 마커 기록 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
 | `test-write-guard.py` | PreToolUse | Gate D 중 시험 파일 편집 전에 확인 — 시험을 약하게 고쳐 통과시키지 못하게 |
@@ -473,7 +467,7 @@ your-project/
         └── harness-update/
 ~/.claude/
 └── hooks/
-    └── patrick-work-harness/   ← 훅 파일 12개 (등록 10 + 공용 모듈 2)
+    └── patrick-work-harness/   ← 훅 파일과 공용 모듈
         ├── master-plan-stale-guard.py
         ├── gate-e-sync-guard.py
         └── ...
@@ -495,15 +489,11 @@ your-project/
 git clone https://github.com/park-jongbeom/patrick-work-harness.git
 cd patrick-work-harness
 
-# 스킬 복사
-cp -r skills/ /your-project/.claude/skills/
-
-# 훅 복사
-mkdir -p ~/.claude/hooks/patrick-work-harness
-cp hooks/*.py ~/.claude/hooks/patrick-work-harness/
+./install.sh --source "$PWD" --target /your-project
 ```
 
-이후 Claude Code `settings.json`에 훅을 수동 등록하거나 `/init` 스킬을 실행합니다.
+릴리스 대신 내려받은 사본으로 설치한다. 스킬은 프로젝트에, 훅은 `~/.claude/hooks/patrick-work-harness/` 에 들어가고
+`~/.claude/settings.json` 에 배선된다.
 
 ---
 
@@ -549,7 +539,7 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
    있는 설정을 읽으므로 세션이 스스로 켤 수 없다. 카드 원장이 `archive_path` 에 쌓이므로 그 값이 있어야 한다.
 2. 평소처럼 `/gate-a`. 계획의 `### 레인 판정` 이 자율이면 「자율 레인 승인」으로 답한다. 「Gate A 승인」은 검토 레인이다.
 3. Gate E 에서 검토 카드가 나온다 — 스크립트가 다시 돌린 수락 명령 결과, diff 수치, 범위 판정, 깃발. 「카드 승인」 또는
-   「지적: 심각|경미 — …」로 답한다. `python3 hooks/lane_card.py pending` 이 판정 없는 카드를 보여 준다.
+   「지적: 심각|경미 — …」로 답한다. 설치된 훅 폴더의 `lane_card.py pending` 이 판정 없는 카드를 보여 준다.
 
 #### 하네스 사용 측정
 
@@ -577,7 +567,7 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 /harness-update
 ```
 
-현재 `_engine_version`과 최신 버전을 비교해 CHANGELOG를 보여주고, 사용자 승인 후 4 axis를 일괄 갱신합니다.
+현재 `_engine_version`과 최신 버전을 비교해 CHANGELOG를 보여주고, 사용자 승인 후 7 axis를 일괄 갱신합니다.
 
 ```
 /harness-update --check   ← 파일 변경 없이 체크리스트만 확인

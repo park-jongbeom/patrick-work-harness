@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **`skill-usage-auto` 훅** — 응답이 끝날 때마다 월별 사용 기록을 만들었지만 그 파일을 읽는 스킬·훅이 없었다. 저장소 안의 집계기가 있으면 확인 없이 실행했고, 하네스 없는 저장소에도 미추적 `plans/` 를 만들어 다른 프로젝트 이름을 남겼다. 자체 점검에서 재현했고, v1.15.1 검증의 임시 프로젝트에서도 파일이 생겼다. 사용 현황은 `hooks/harness_report.py`, 월별 표는 `hooks/skill_usage_aggregator.py` 를 직접 돌려 본다. 재설치와 `/harness-update` 가 남은 배선을 지운다.
+- **설치의 `plans/process_evolution` 생성 단계** — 이 훅만을 위한 폴더였다.
+- **엔진 루트의 빈 문서** — API_SPEC·ERROR_HANDLING·FEATURE_SPEC·TEST_PLAN(`<session_id>` 그대로인 06-30 산출물), DOC_INDEX, v1.0.0 절차인 GITHUB_RELEASE_GUIDE. 스킬이 말하는 것은 대상 저장소의 같은 이름 파일이라 영향이 없다. 지운 사본에서 시험이 모두 통과했다.
+
+### Fixed
+
+- **README 의 틀린 설명** — 시험이 닫는 Gate(C → D), `/harness-update` 축 수(6·4 → 7), 설치 파일 수, 원장이 재질문을 줄인다는 설명, 설치 프로젝트에 없는 `hooks/lane_card.py` 경로. 방법 3 수동 설치는 스킬 폴더가 중첩되고 `dashboard.css` 가 빠져 `install.sh --source` 로 바꿨다.
+- **저장소 문서의 틀린 줄** — PROJECT_MAP(없는 `.github`, 빠진 훅 3개), DATA_FLOW(대시보드 시점, 설치 경로, API_SPEC 을 채우는 Gate), ARCHITECTURE(CI, gate-a 가드 설명), RELEASE_POLICY(Removed 를 MAJOR 만이라 적었으나 과거 MINOR·PATCH 에도 있었다, 핫픽스 절차에 릴리스 생성이 없었다).
+
 ## [1.15.1] - 2026-11-05
 
 ### Changed
