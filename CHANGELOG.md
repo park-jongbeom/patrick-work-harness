@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-05
+
 ### Removed
 
 - **`skill-usage-auto` 훅** — 응답이 끝날 때마다 월별 사용 기록을 만들었지만 그 파일을 읽는 스킬·훅이 없었다. 저장소 안의 집계기가 있으면 확인 없이 실행했고, 하네스 없는 저장소에도 미추적 `plans/` 를 만들어 다른 프로젝트 이름을 남겼다. 자체 점검에서 재현했고, v1.15.1 검증의 임시 프로젝트에서도 파일이 생겼다. 사용 현황은 `hooks/harness_report.py`, 월별 표는 `hooks/skill_usage_aggregator.py` 를 직접 돌려 본다. 재설치와 `/harness-update` 가 남은 배선을 지운다.
