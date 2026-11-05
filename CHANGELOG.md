@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-05
+
 ### Added
 
 - **사용 보고서 「Gate B 질문 결과」 절** (`hooks/harness_report.py`) — Gate 순서가 아니라 회차마다 사람이 어떻게 응답했는지
