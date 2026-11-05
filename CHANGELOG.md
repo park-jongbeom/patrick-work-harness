@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.2] - 2026-11-05
+
 ### Fixed
 
 - **Gate E·doc-cleanup 이 설정한 아카이브·WORKLOG 경로를 쓴다** — 정의되지 않은 `${HARNESS_PLANS_DIR}`·고정 경로 대신 `.claude/harness-answers.yml` 의 `archive_path`·`worklog_path`(`/init` 이 SSOT 로 정한 값)를 쓴다. 보존 기록의 실제 설정에서 두 값은 원본의 그 경로와 같았다. 엔진 실행에서는 변수 해석이 갈려 `docs/worklog` 와 `tasks/worklog` 로 나뉘었고, 아카이브가 `archive_path` 아래 한 단계 더 들어간 경우도 있었다. `docs/archive` 를 쓰는 임시 프로젝트에서 A→E 를 실제로 돌려 아카이브·WORKLOG·세션 원장이 설정한 곳에 생김을 확인했다.
