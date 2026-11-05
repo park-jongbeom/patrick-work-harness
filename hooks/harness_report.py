@@ -513,6 +513,7 @@ METRICS = [
     ("사용 집계기가 플러그인 스킬 이름을", None, None, "다음 월간 집계(skill_usage_aggregator)와 다음 동기화의 린트"),
     ("커밋 메시지 가드가 -am", None, 3, "엔진 저장소 릴리스 — 정당한 커밋이 막힌 경우"),
     ("Gate B 스킵은 증거가 아니다", _gate_b_asked, 20, "Gate B 질문 회차 수 — 결과는 「Gate B 질문 결과」 표, 스킵 행 통과는 대화 기록"),
+    ("Gate B 는 되돌리기 어려운 변경에만", _gate_b_asked, 10, "Gate B 질문 회차 수 — 답함·스킵은 「Gate B 질문 결과」 표"),
 ]
 
 

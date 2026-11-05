@@ -40,6 +40,9 @@
  21. gate-b 의 근거 문구는 독자가 따라갈 수 있고 효과를 부풀리지 않는다 — 없는 내부 노트를 가리키거나, 계획을 펴 둔 질문을 인출 연습이라고
      말하지 않는다 (2026-11-05).
 
+ 22. Gate B 의 발동 판정은 스크립트가 낸다 — gate-a·gate-b 가 `gate_b_trigger.py` 를 부르고, 옛 3단계 위험 분류를 쓰지 않는다 (2026-11-05 —
+     표에 migration 이 있어도 모델이 운영 마이그레이션을 「일반」으로 판정했다).
+
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
 import collections
@@ -280,6 +283,14 @@ class EngineLint(unittest.TestCase):
     def test_gate_b_basis_is_followable_and_not_overstated(self):
         found = hits(r"MIT 2025|internal research note|Dunlosky|[Ff]orce (?:actual )?retrieval|forced through", files=[GATE_B])
         self.assertEqual(found, [], "gate-b 근거 문구:\n" + "\n".join(found))
+
+    def test_gate_b_verdict_comes_from_the_script(self):
+        for name in ("gate-a", "gate-b"):
+            text = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("gate_b_trigger.py", text, name + " 가 판정 스크립트를 부르지 않음")
+        found = hits(r"Large blast radius|General risk|general risk or large|AI self-explains|폭발반경 大→|Pass after retry\s*/",
+                     files=list((ROOT / "skills").rglob("*.md")))
+        self.assertEqual(found, [], "옛 위험 분류:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

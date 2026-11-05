@@ -68,7 +68,7 @@ The single definition of the batch phrases (gate-d and gate-e only point here). 
 - **Authorization**: only a sentence that names the range counts — 「C~E 일괄」「Gate C부터 E까지 한 번에」「D~E 일괄」. 「진행」「구현」
   「계획대로 구현」 alone never authorize a batch (they reach Gate C at most, as above).
 - **Approval that arrives before Gate B**: a batch phrase sent while the session is still in Gate A — together with a scope answer, the
-  plan approval, or a general 「다 진행해」 — does not skip Gate B. Run Gate B first (its pass-through verdict for trivial work counts); the
+  plan approval, or a general 「다 진행해」 — does not skip Gate B. Run Gate B first (its pass-through verdict counts); the
   batch starts at Gate C. 「가드 우회 진행」 lifts only the Gate A size limit.
 - **Not for hard-trigger sessions**: if the session touches security·auth, DB schema·migrations, a public API contract, destructive or
   irreversible operations, more than one repository, or a change that tests cannot verify — keep every STOP and tell the user why the batch

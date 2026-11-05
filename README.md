@@ -44,7 +44,7 @@ end. Opt in per project — see Usage below and `skills/gate-a/SKILL.md` §0-Lan
 | Gate | Role | Description |
 |------|------|-------------|
 | A | **Plan** | Per-file change plan — scope, steps, risks. No code until approved. |
-| B | **Comprehend** | Comprehension gate — free-form flow explanation, expiring evidence ledger. Pass-through for trivial work. |
+| B | **Comprehend** | Comprehension gate — one question on changes that are hard to undo, chosen by a script. Pass-through otherwise. |
 | C | **Implement** | Code implementation — follow Gate A plan exactly. Closes on external signals only (test PASS/FAIL). |
 | D | **Verify** | Test plan · execution · failure classification, and the code-review/security pass. Fills the `## Verification Checklist` marker Gate C leaves. |
 | E | **Record** | WORKLOG + long-form archive. Flip all 3 docs to ✅E. |
@@ -234,7 +234,7 @@ or
 #### Gate B → C → D → E (comprehend · implement · verify · record)
 
 ```
-/gate-b   ← comprehension check (pass-through for trivial work)
+/gate-b   ← comprehension check (one question on hard-to-undo changes)
 /gate-c   ← implement (exactly per Gate A plan)
 /gate-d   ← verify (test plan · execution · failure classification)
 /gate-e   ← record (WORKLOG + archive)
@@ -344,7 +344,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | Gate | 역할 | 설명 |
 |------|------|------|
 | A | **계획** | 파일별 변경 계획 — 범위·Step·위험 점검. 승인 전 코드 변경 없음(절차 규칙이며 사전 차단 훅은 없다 — 위 설계 원칙 참고). |
-| B | **이해도 게이트** | 자유형 흐름 설명, 만료형 증적 원장. 단순 작업은 pass-through. |
+| B | **이해도 게이트** | 되돌리기 어려운 변경에만 1문항, 판정은 스크립트. 그 밖에는 pass-through. |
 | C | **구현** | 코드 구현 — Gate A 계획 그대로. 외부 실행 신호(테스트 PASS/FAIL)로만 종료. |
 | D | **검증 + 리팩터** | 검증 루프, 이후 조건부 리팩터 (코드리뷰 3건 이상 또는 명시적 요청 시 실행). |
 | E | **기록** | WORKLOG + 장문 archive 생성. 3문서 ✅E 전환. |
@@ -534,7 +534,7 @@ Gate A 승인
 #### Gate B → C → D → E (이해도·구현·검증·기록)
 
 ```
-/gate-b   ← 이해도 점검 (단순 작업은 pass-through)
+/gate-b   ← 이해도 점검 (되돌리기 어려운 변경에만 1문항)
 /gate-c   ← 구현 (Gate A 계획 그대로)
 /gate-d   ← 검증 (시험 계획·실행·실패 분류)
 /gate-e   ← 기록 (WORKLOG + archive)

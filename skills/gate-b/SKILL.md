@@ -9,15 +9,17 @@ effort: low
 > **Purpose**: Check between Gate A approval → Gate C implementation: before AI-written code runs, can the user say how this change flows end to end? This is a **pre-implementation check on this plan, not skill training**. The plan stays open while the user answers, so a question works as open-book guided re-reading: it shows the plan was read and can expose a gap in it. We found no study showing that answering here carries over to debugging or catching AI mistakes, so do not claim it builds or keeps skill. Why the check exists: taking AI output directly lowers what people learn from new material (Shen & Tamkin 2026, arXiv:2601.20245: N=52, d=0.738 on an immediate quiz; Bastani et al. 2025, PNAS: ~1,000 students, −17% once the AI was removed). Whether experienced developers lose skill they already have has not been measured.
 > **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
-## Step 0. 3-way risk classification
+## Step 0. Does this plan get a question?
 
-Classify the Gate A plan by risk level and determine the path:
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_FILE}"`. It reads this plan's changed files and 「되돌리는 법」 and prints one line:
 
-| Risk level | Decision criteria | Path |
-|------------|-------------------|------|
-| **Large blast radius** | auth·authorization·payment·concurrency·transaction boundary·migration·security policy (CORS·token·RBAC) | **User explains** — before seeing AI code |
-| **General risk** | new module·unfamiliar pattern·unfamiliar library·new algorithm/scoring | **AI self-explains** — user reviews |
-| **Trivial** | formulaic CRUD·docs·smallest-diff repeated pattern·config-value change | **Pass-through** — 1~2 line confirmation, proceed to gate-c |
+| Script output | Path |
+|---------------|------|
+| `발동 — …` | **One question** (Step 2). You may not downgrade this verdict, and the ledger does not waive it. |
+| `미발동 — …` | **Pass-through** — 1~2 line confirmation, proceed to gate-c. Add a question only for something hard to undo that the script cannot see, and say what it is in one line. |
+| `판정 불가 — …` | Apply the same rule yourself: stored data or schema, auth·permissions·payment, deploys, or anything already public → one question; otherwise pass-through. |
+
+> Why a script: on 2026-10-20 a production migration was judged 「일반」 although this gate's table listed migration as its top risk class. Why so few questions: of 10 question rounds only 1 was answered to the end, and the user named time and habit as the reasons (2026-11-05). A change git can revert gets no question however wide it is — Gate D's real execution covers that.
 
 > User override: if the user explicitly states 「스킵」 → pass-through; 「게이트 걸어줘」 → force trigger. Ambiguous responses keep the AI auto verdict.
 >
@@ -25,10 +27,12 @@ Classify the Gate A plan by risk level and determine the path:
 
 ## Step 1. Ledger expiry·re-verification prerequisite lookup
 
+**A 발동 verdict skips this Step and is always asked** — the question is about this plan, and a row from another plan does not cover it. Use this lookup only for a question you add yourself on a 미발동 plan.
+
 **Before** requiring an explanation, look up entries in the comprehension ledger (`comprehension_ledger.md` — see `.claude/harness-answers.yml` → `learning_path` (SSOT); absent field means `plans/learning`) by `tech_tags` match first, then fall back to `scope` text match:
 
 - **tech_tags matching (primary)**: if any tag in the ledger row's `tech_tags` column overlaps with this Gate A plan's technology area → apply expiry check
-- **Only a 결과 of Pass or Pass after retry is evidence.** A row with any other 결과 (「미답 — 사용자 스킵」, User-delegated, 「힌트 후 통과」) counts as **No record**, however recent it is. Why: on 2026-10-29 a row recording a skip was read as 「유효」 about 26 minutes later, and a large-blast-radius change passed with no question.
+- **Only a 결과 of Pass or Pass after retry is evidence.** A row with any other 결과 (「미답 — 사용자 스킵」, 「피드백 후 진행」, User-delegated, 「힌트 후 통과」) counts as **No record**, however recent it is. Why: on 2026-10-29 a row recording a skip was read as 「유효」 about 26 minutes later, and a large-blast-radius change passed with no question.
 - **Expiry verdict**:
   - **Not expired** (within exp AND no material change to scope files) → skip (pass the gate, record 1-line reason)
   - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
@@ -36,37 +40,33 @@ Classify the Gate A plan by risk level and determine the path:
 
 > Automatic expiry detection (Stop hook `comprehension-ledger-stale-guard.py`) is non-blocking and notifies on response end — **only when that hook is actually wired in your Claude Code settings**. If it is not wired, this Step's manual lookup is the sole detection path. Either way, this Step's direct lookup is the first-pass verdict.
 
-## Step 2. Guided questions (non-trivial paths only)
+## Step 2. One question
 
 **Ban "know/don't-know" Y/N self-report.** Confidence in being able to explain is unreliable, and expertise raises that confidence without grounds (illusion of explanatory depth; Fisher & Keil 2016). Require an actual answer.
 
-- **Large blast radius**: AI asks **2~4 questions, one at a time** (do not reveal the next question until the current one is answered — prevents reading-ahead gaming), **before the user sees AI-written code**. Question template: ①why is this change needed ②what is the core mechanism ③what is the most fragile break point ④(if relevant) how to roll it back. AI only evaluates — it does not answer for the user.
-- **General risk**: AI asks **1~2 targeted questions** about the just-approved Gate A plan. (Previously this path had the AI self-explain with the user only reviewing, so the user answered nothing. This is the structural fix.) If the user cannot answer, AI gives one hint and re-asks; if still stuck, AI states the answer and marks the row 「힌트 후 통과」.
-- **Question source**: draw every question from **one item of the Gate A plan's `### 이해 브리핑`** — ①why → 「왜 바꾸나」, ②mechanism → 「어떻게 동작하나」, ③break point → 「가장 깨지기 쉬운 곳」, ④rollback → 「되돌리는 법」. A question must be answerable from the plan alone. If the plan has no briefing, write it into the Gate A block first (4 items, `gate-a/SKILL.md §Step 1`), then ask.
-- **Record each question when you ask it** — append it to the Gate B block of `${CURRENT_SESSION_FILE}` in the same response, so the dashboard (regenerated on Stop) already shows it when the user opens it to answer:
+- **Ask one question**, before the user sees AI-written code: what would have to be false for this plan to break, or what stays behind if it is undone. Draw it from the Gate A plan's `### 이해 브리핑` — 「가장 깨지기 쉬운 곳」 or 「되돌리는 법」. Ask about **one thing**, answerable in one line and from the plan alone — a question with three parts costs what three questions cost. AI only evaluates — it does not answer for the user. If the plan has no briefing, write it into the Gate A block first (4 items, `gate-a/SKILL.md §Step 1`), then ask.
+- **Record the question when you ask it** — append it to the Gate B block of `${CURRENT_SESSION_FILE}` in the same response, so the dashboard (regenerated on Stop) already shows it when the user opens it to answer:
 
   ```
-  ### 질문 N
+  ### 질문 1
   <question text>
   - **읽을 곳**: 이해 브리핑 「<label>」 (optionally + a `###` section title of this session's Gate A block)
   - **평가**: (filled after the answer)
   ```
 
-  「읽을 곳」 must name something **visible on the dashboard** — a briefing label or a `###` title. **Never line numbers**: the dashboard shows none and they drift when the document is edited. If the session file holds more than one plan, say which one (「이번 세션 Gate A의 …」) — in HARNESS-DASH-LEARN-1-a question 2, the pointer 「실행 순서 5」 matched the section 「5. 실행 순서」 of another plan in the same file and the user answered from that plan. Record only questions already asked — never the next one — and never write the answer before the user answers.
-- **Gaming guard**: an answer must cite a concrete file/line/mechanism from the Gate A plan (reuses gate-d's claim↔evidence cross-check principle). A generic answer ("이해했어요") does not pass — ask once more.
-- **Trivial**: unchanged, pass-through.
+  「읽을 곳」 must name something **visible on the dashboard** — a briefing label or a `###` title. **Never line numbers**: the dashboard shows none and they drift when the document is edited. If the session file holds more than one plan, say which one (「이번 세션 Gate A의 …」) — in HARNESS-DASH-LEARN-1-a question 2, the pointer 「실행 순서 5」 matched the section 「5. 실행 순서」 of another plan in the same file and the user answered from that plan. Never write the answer before the user answers.
 
-## Step 3. Per-question evaluation → corrective loop on failure (no blocking)
+## Step 3. Feedback, no pass bar (no blocking)
 
-Evaluate **each question's answer independently** (not one holistic free-form paragraph as before): does it cite a concrete file/mechanism, does it match the Gate A plan's actual content, is there a flow gap or an unrecognized break point.
+Compare the answer with the plan and reply in 1~2 lines: what matched, what the plan actually says where it differs, and whether the answer exposes a gap in the plan. Give that feedback even when the answer is thin. **Do not re-ask and do not add a second question.** Correcting a wrong answer is where the value is; repeating the question is what made rounds take 7~23 minutes.
 
-- **All questions answered concretely** → record Step 4 evidence then pass the gate → proceed to gate-c
-- **Gap found in ≥1 question** → **do not block**. Give one hint, re-ask that question once. If a gap remains after retry, delegate decision to user (proceed/further learning). Record which question(s) needed a retry in the evidence row's 설명요약.
-- **Record whether the answer changed the plan** — under each 평가 add one line: `- **계획 변경**: 있음 — <what changed>` or `- **계획 변경**: 없음`. A skipped question gets no such line. The usage report counts these: they are the data for deciding whether this gate earns its cost.
+- **The answer exposes a real gap** → fix the plan, or list the gap for the user if the fix is a decision.
+- **Then** write the 평가 (`답함 — <1-line feedback>`), record Step 4 and pass the gate → proceed to gate-c.
+- **Record whether the answer changed the plan** — under the 평가 add one line: `- **계획 변경**: 있음 — <what changed>` or `- **계획 변경**: 없음`. A skipped question gets no such line. The usage report counts these: they are the data for deciding whether this gate earns its cost.
 
-## Step 4. Evidence record (expiring, non-trivial paths only)
+## Step 4. Evidence record (expiring, answered questions only)
 
-> **Skipped gate → no row.** If the gate ended on 「스킵」, even after some answers, write nothing to the ledger: the 평가 「미답 — 사용자 스킵」 in the Gate B block is the whole record. The ledger holds only what the user actually answered.
+> **Skipped gate → no row.** If the gate ended on 「스킵」, write nothing to the ledger: the 평가 「미답 — 사용자 스킵」 in the Gate B block is the whole record. The ledger holds only what the user actually answered.
 
 Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning_path` — see Step 1):
 
@@ -76,12 +76,12 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 | `tech_tags` | Comma-separated technology/library/system tags |
 | `scope` | Verification scope (module/feature/file glob) |
 | `exp` | Expiry condition (`N개월` or `{scope} 실질변경 시`) |
-| 설명 주체 | User / AI |
-| 결과 | Pass / Pass after retry / User-delegated |
+| 설명 주체 | User |
+| 결과 | Pass (the answer matched the plan) / 피드백 후 진행 (the feedback corrected it — not evidence) |
 | 설명 요약 | Core flow·break point, 1 line |
 
-> Pass-through (trivial) sessions: skip this Step.
-> **Expiry default (first pass)**: the earlier of `3개월` or `해당 scope 파일 실질변경 시`. Large-blast-radius: `1개월`.
+> Pass-through sessions: skip this Step.
+> **Expiry default (first pass)**: the earlier of `3개월` or `해당 scope 파일 실질변경 시`.
 > **Expiry on re-verification pass (adaptive, SM-2-lite)**: when Step 1 found a matching `tech_tags` row that had expired and this session's re-verification **passes again**, set the new `exp` to roughly **double the previous row's exp value** (e.g. 3개월→6개월, 1개월→2개월), capped at `12개월`. No new column — parse the previous exp text, double the numeric part, write it into the new row. On a **failed** re-verification (retry needed or user-delegated), reset `exp` back to the first-pass default instead of doubling.
 
 ## Step 5. Update the plan document(s) (status: `B (확인 대기)`) — **run the file-editing tool**

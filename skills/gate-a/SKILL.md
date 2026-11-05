@@ -96,7 +96,7 @@ Before session start (before any code change):
 | Gate | Decision rule (in priority order) |
 |------|-----------------------------------|
 | **A** (plan) | (1) R ≥ 6 → Opus 5.5 (2) R = 0 + V ≤ 1 + D = 0 → Haiku 5.5 (3) otherwise → **Sonnet 5.5 (default)** |
-| **B** (comprehension) | (1) gate fires (`gate-b/SKILL.md §Step 0` — general risk or large blast radius) → **Sonnet 5.5** — drafting questions from the plan's briefing and judging answers against it (2) pass-through (trivial) → — (no model needed) |
+| **B** (comprehension) | (1) gate fires (`gate-b/SKILL.md §Step 0`) → **Sonnet 5.5** — drafting the question from the plan's briefing and giving feedback on the answer (2) pass-through → — (no model needed) |
 | **C** (implement) | (1) **default Sonnet 5.5** — Anthropic official coding positioning·instruction-following advantage·overengineering avoidance fit the smallest-diff guard (2) Opus promotion = only when a Gate A unresolved R decision is delegated to C (1-line reason mandatory) (3) Haiku downgrade = R=0 + V≤1 + D≥1 (repeated-pattern application·CRUD mass production — SWE-bench Haiku 91%·RouteLLM basis) |
 | **D** (verify) | (1) API/DB/SEC coupling or self-debug branch → Sonnet 5.5 (2) Simple regression re-confirm (already PASS) → Haiku 5.5 (3) D's conditional refactor of architecture-redesign class (R ≥ 6) → Opus 5.5 |
 | **E** (cleanup) | always Haiku 5.5 |
@@ -271,7 +271,7 @@ Write the result as the section right after `### 이해 브리핑`, in exactly t
    - Execution order (based on dependencies)
    - Risks and responses (concrete cause + response method)
    - **시스템 적합성 점검** (architecture·Phase·prohibited-pattern 3 axes, 1 line; the "0-Fitness" result above — HARNESS-PLAN-AUGMENT-1)
-   - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — produce 1 line by risk heuristic (AI auto + user override): 「발동(폭발반경 大→사용자 설명 / 일반 위험→AI 자기설명)」 or 「미발동(사소 CRUD·문서·정형 변경)」. On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
+   - **이해도 게이트 발동 판정** (COMPREHEND-GATE-1) — once `### 변경 파일` and `### 이해 브리핑` are written, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_FILE}"` and copy its one line (「발동 — …」 or 「미발동 — …」). On firing, the comprehension gate is performed as **Gate B** (`/gate-b`) after Gate A approval (the comprehension gate is integrated into Gate B — no separate standalone skill). Criteria → `gate-b/SKILL.md §Step 0`.
    - **OSS 카탈로그 참조 점검** (on trigger, propose §4 candidate + user decision / if not applicable, 「N/A」 1 line — HARNESS-PLAN-AUGMENT-2)
    - **미니멀리즘 래더 점검** (R-4-6) — per new file·method·abstraction, the rung number at which it stops (e.g. `MatchScoreCalculator 신규 — 래더 7칸(rung 2·3·4·5 불가 확인)`); the "0-Ladder" result above. If 0 new items, 「N/A (신규 추상화 없음)」 1 line
    - **주장-근거 대조 점검** (HARNESS-CLAIM-EVIDENCE-1) — the "0-Claim" result above. If ⓒ = 0 after promotion, 「주장-근거 대조 ✅ (ⓒ 0건)」 1 line; otherwise list each unpromotable claim as `{주장} — 승격 불가: {사유}` (each must also appear in the risk table)
