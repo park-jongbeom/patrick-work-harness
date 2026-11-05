@@ -147,9 +147,12 @@ class EngineLint(unittest.TestCase):
         found = hits(pattern, files=tracked_files())
         self.assertEqual(found, [], "소스 저장소 전용 이름이 배포 파일에 남아 있음:\n" + "\n".join(found))
 
-    def test_no_private_server_paths_in_shipped_files(self):
+    def test_no_private_server_paths_in_tracked_files(self):
         """작업 서버의 디스크·계정 경로가 배포 파일에 박히지 않는다 (2026-10-29 대조 검증에서 집계기 코드에서 발견)."""
-        found = hits(r"/(?:media|mnt|srv)/[\w.-]+/|/home/[\w.-]+/|(?<![\w/])media-\w+-\w+")
+        # 배포 파일만이 아니라 공개되는 추적 파일 전체를 본다(2026-11-05 — CHANGELOG 에 남은 1줄을 놓쳤다).
+        # 시험 파일은 일부러 가짜 계정 경로(`/home/u/…`)를 쓴다.
+        files = [f for f in tracked_files() if not f.name.startswith("test_") and "fixtures" not in f.parts]
+        found = hits(r"/(?:media|mnt|srv)/[\w.-]+/|/home/[\w.-]+(?![\w.-])|(?<![\w/])media-\w+-\w+", files=files)
         self.assertEqual(found, [], "작업 서버 경로가 배포 파일에 남아 있음:\n" + "\n".join(found))
 
     def test_no_retired_skill_references(self):

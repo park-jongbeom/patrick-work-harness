@@ -523,6 +523,7 @@ METRICS = [
     ("가드 3종은 남긴다", None, None, "R0 뒤 사용 보고서의 가드 차단 수(사본별)·docker 거부 10회"),
     ("Gate E 는 설정한 경로에", None, None, "R0 뒤 아카이브 첫 줄의 final_status 와 경로(사용자 확인)"),
     ("원본 쪽 이름은 커밋하지 않는 목록에", None, None, "다음 sync-from-source.sh 실행과 릴리스 전 린트"),
+    ("공개 이력은 다시 쓰지 않는다", None, None, "다음 릴리스 3회의 본문 검사"),
 ]
 
 
