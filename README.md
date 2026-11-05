@@ -258,6 +258,10 @@ pending prediction in `DECISION_LOG.md` has come. It only reads; the output cont
 snippets, so it is written outside any repository (`~/.claude/harness-reports/<date>/`). Transcripts are deleted after
 30 days unless `cleanupPeriodDays` is raised (see `/init` Step 6-b).
 
+When the work runs on another computer, run the report there and copy its output folder here; then
+`python3 hooks/harness_report.py --sessions <copied>/sessions.jsonl` checks the predictions against this repository's
+`DECISION_LOG.md` without the transcripts.
+
 #### Direction check — /audit
 
 Every 3 sessions or at a chain transition:
@@ -550,6 +554,10 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 대기 예측이 확인 시점까지 얼마나 왔는지도 보여 준다. 읽기만 하고, 결과에 프로젝트 이름과 대화 조각이 들어가므로 저장소
 밖(`~/.claude/harness-reports/<날짜>/`)에 쓴다. 대화 기록은 `cleanupPeriodDays` 를 늘리지 않으면 30일 뒤 지워진다
 (`/init` 6-b 단계).
+
+작업이 다른 컴퓨터에서 돌면 그쪽에서 보고서를 만들어 결과 폴더를 이리로 복사한다. 그다음
+`python3 hooks/harness_report.py --sessions <복사한 폴더>/sessions.jsonl` 이 대화 기록 없이 이 저장소의
+`DECISION_LOG.md` 예측과 맞댄다.
 
 #### 방향성 점검 — /audit
 

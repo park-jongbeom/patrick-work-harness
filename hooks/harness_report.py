@@ -42,6 +42,9 @@ RETIRED_HOOKS = {"comprehension-ledger-stale-guard.py": "COMPREHENSION-LEDGER-ST
 ENGINE_HOOKS = {os.path.basename(p) for p in glob.glob(os.path.join(HERE, "*.py"))
                 if not os.path.basename(p).startswith("test_")} | set(RETIRED_HOOKS)
 HOOK_ERROR = re.compile(r"^PreToolUse:\w+ hook error: \[(.*?)\]: ", re.S)
+#: Stop 훅의 exit 2 차단은 `stop_hook_summary.hookErrors` 에 이 모양으로만 남는다(첨부 없음, 2026-11-05 실제 기록).
+#: 같은 칸의 다른 줄 — 실행 실패(`Failed to run`·`non-blocking status`)와 JSON 차단 본문 — 은 첨부에도 남아 거기서 센다.
+STOP_EXIT2 = re.compile(r"^\[(.*?)\]: ", re.S)
 PY_NAME = re.compile(r"([\w.-]+\.py)")
 NOTICE_TAG = re.compile(r"^\[([A-Z0-9][A-Z0-9_-]+)\]")
 COMMAND_NAME = re.compile(r"<command-name>/(?:[\w-]+:)?([\w-]+)</command-name>")
@@ -332,6 +335,11 @@ def read_session(path):
                 if src:
                     sources.add(src)
                 name = guard_name(command, as_text(att.get("content")), as_text(att.get("hookName")))
+                if atype == "hook_blocking_error":   # JSON 차단 — 명령이 없어 본문의 꼬리표·스크립트 이름으로 주인을 찾는다
+                    be = att.get("blockingError")
+                    text = as_text(be.get("blockingError") if isinstance(be, dict) else be).strip()
+                    tag, scripts = NOTICE_TAG.match(text), PY_NAME.findall(text)
+                    name = NOTICE_OWNERS.get(tag.group(1), tag.group(1)) if tag else (scripts[0] if scripts else name)
                 if isinstance(att.get("durationMs"), (int, float)) and command:
                     durations[name].append(att["durationMs"])
                 g = guards[name]
@@ -370,6 +378,16 @@ def read_session(path):
                     if fired:
                         g["fired"] += 1
             elif kind == "system" and event.get("subtype") == "stop_hook_summary":
+                for err in event.get("hookErrors") or []:
+                    text = as_text(err)
+                    m = STOP_EXIT2.match(text)
+                    if m:
+                        g = guards[guard_name(m.group(1), text[m.end():])]
+                        g["block"] += 1
+                        g["fired"] += 1
+                        src = engine_source(m.group(1))
+                        if src:
+                            sources.add(src)
                 for info in event.get("hookInfos") or []:
                     command = as_text(info.get("command") if isinstance(info, dict) else "")
                     src = engine_source(command)
@@ -433,6 +451,22 @@ def collect(projects_dir, since=None, include_tmp=False):
         row["folder"] = folder
         sessions.append(row)
     return {"sessions": sessions, "bad_lines": bad, "failed_sessions": failed}
+
+
+def load_sessions(paths, since=None):
+    """다른 컴퓨터의 `--out` 이 남긴 sessions.jsonl 을 읽는다. 실제 작업이 노트북에서 돌고 대화 기록은 거기에만 있어서,
+    집계는 노트북에서 하고 예측 대조는 DECISION_LOG 가 있는 이 저장소에서 한다(2026-11-05)."""
+    sessions = []
+    for path in paths:
+        if not os.path.isfile(path):
+            sys.exit(f"세션 기록 파일이 없습니다: {path}")
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    row = json.loads(line)
+                    if not since or (row.get("last") or "")[:10] >= since:
+                        sessions.append(row)
+    return {"sessions": sessions, "bad_lines": 0, "failed_sessions": []}
 
 
 # ── DECISION_LOG 예측 진행 ─────────────────────────────────────────────
@@ -524,6 +558,7 @@ METRICS = [
     ("Gate E 는 설정한 경로에", None, None, "R0 뒤 아카이브 첫 줄의 final_status 와 경로(사용자 확인)"),
     ("원본 쪽 이름은 커밋하지 않는 목록에", None, None, "다음 sync-from-source.sh 실행과 릴리스 전 린트"),
     ("공개 이력은 다시 쓰지 않는다", None, None, "다음 릴리스 3회의 본문 검사"),
+    ("보고서는 다른 컴퓨터의 세션 기록을", None, None, "R0 뒤 노트북에서 받은 첫 sessions.jsonl"),
 ]
 
 
@@ -656,9 +691,16 @@ def main(argv=None):
     parser.add_argument("--out", default="", help="출력 폴더(기본 ~/.claude/harness-reports/<오늘>)")
     parser.add_argument("--include-tmp", action="store_true", help="-tmp- 로 시작하는 시험용 프로젝트도 넣는다")
     parser.add_argument("--decision-log", default="", help="대기 예측 진행표를 만들 DECISION_LOG.md")
+    parser.add_argument("--sessions", action="append", default=[],
+                        help="다른 컴퓨터에서 만든 sessions.jsonl 을 대화 기록 대신 읽는다(여러 번 줄 수 있다)")
     args = parser.parse_args(argv)
     out = args.out or os.path.join(os.path.expanduser("~/.claude/harness-reports"), datetime.date.today().isoformat())
-    data = collect(args.projects_dir, since=args.since or None, include_tmp=args.include_tmp)
+    if args.sessions:
+        data = load_sessions(args.sessions, since=args.since or None)
+        source = "받은 세션 기록: " + ", ".join(args.sessions)
+    else:
+        data = collect(args.projects_dir, since=args.since or None, include_tmp=args.include_tmp)
+        source = args.projects_dir
     decision_log = args.decision_log or os.path.join(os.path.dirname(HERE), "DECISION_LOG.md")
     progress = prediction_progress(decision_log, data["sessions"]) if os.path.isfile(decision_log) else None
     os.makedirs(out, exist_ok=True)
@@ -666,7 +708,7 @@ def main(argv=None):
         for row in data["sessions"]:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     with open(os.path.join(out, "report.md"), "w", encoding="utf-8") as f:
-        f.write(render(data, progress, args.projects_dir, args.since))
+        f.write(render(data, progress, source, args.since))
     print(f"보고서: {os.path.join(out, 'report.md')} (세션 {len(data['sessions'])}개)")
     return 0
 

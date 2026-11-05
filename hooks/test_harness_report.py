@@ -324,6 +324,70 @@ class TestPredictionsAndOutput(ReportCase):
         self.assertEqual(len(rows), 1)
 
 
+class TestStopBlocks(ReportCase):
+    """Stop 가드의 차단 — exit 2 는 `stop_hook_summary.hookErrors` 의 `[명령]: 메시지` 로만 남고, JSON 차단은 `hook_blocking_error`
+    첨부로 남는다. 실행 실패는 hookErrors 와 `hook_non_blocking_error` 첨부 양쪽에 남는다(2026-11-05 실제 기록에서 확인)."""
+
+    GUARD = "python3 /h/hooks/gate-e-sync-guard.py"
+
+    def summary(self, *errors):
+        return {"type": "system", "subtype": "stop_hook_summary", "hookInfos": [{"command": self.GUARD, "durationMs": 50}],
+                "hookErrors": list(errors), "preventedContinuation": False}
+
+    def test_exit2_block_is_read_from_hook_errors(self):
+        self.session([self.summary(f"[{self.GUARD}]: [GATE-E-SYNC] Gate D 기록 없이 ✅E (1/3)")])
+        g = self.rows()["s1"]["guards"]["gate-e-sync-guard.py"]
+        self.assertEqual((g.get("block"), g.get("fired")), (1, 1))
+
+    def test_failures_are_not_counted_twice(self):
+        fail = "Failed with non-blocking status code: /bin/sh: /x/hook.py: No such file or directory"
+        self.session([self.summary(fail, "Failed to run: Hook command references ${CLAUDE_PLUGIN_ROOT} …"),
+                      hook("hook_non_blocking_error", "Stop", content=fail)])
+        guards = self.rows()["s1"]["guards"]
+        self.assertEqual(sum(g.get("error", 0) for g in guards.values()), 1)
+        self.assertEqual(sum(g.get("block", 0) for g in guards.values()), 0)
+
+    def test_json_block_is_counted_once_and_named(self):
+        text = "검증 게이트(tools/verify_gate.py) — 종료 보류 1/2회"
+        att = {"type": "attachment", "timestamp": "2026-10-23T10:00:01Z",
+               "attachment": {"type": "hook_blocking_error", "hookName": "Stop", "hookEvent": "Stop",
+                              "blockingError": {"blockingError": text, "command": ""}}}
+        self.session([att, self.summary(text)])
+        guards = self.rows()["s1"]["guards"]
+        self.assertEqual(guards.get("verify_gate.py", {}).get("block"), 1, guards)
+        self.assertEqual(sum(g.get("block", 0) for g in guards.values()), 1)
+
+    def test_tagged_json_block_goes_to_its_hook(self):
+        att = {"type": "attachment", "timestamp": "2026-10-23T10:00:01Z",
+               "attachment": {"type": "hook_blocking_error", "hookName": "Stop", "hookEvent": "Stop",
+                              "blockingError": {"blockingError": "[GATE-E-SYNC] Gate E 미완료 (1/3)"}}}
+        self.session([att])
+        self.assertEqual(self.rows()["s1"]["guards"]["gate-e-sync-guard.py"]["block"], 1)
+
+
+class TestSessionsFromElsewhere(ReportCase):
+    """노트북에서 만든 sessions.jsonl 을 이 서버의 DECISION_LOG 와 맞댄다 — 대화 기록은 노트북에만 있다(2026-11-05)."""
+
+    def test_report_from_a_sessions_file(self):
+        self.session([gate("b"), said(TestGateBRounds.ASKED), user("스킵하고 구현해라"), gate("c")])
+        laptop = os.path.join(self.root, "laptop-out")
+        hr.main(["--projects-dir", self.root, "--out", laptop])
+        log = os.path.join(self.root, "DECISION_LOG.md")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("### [2026-10-01] Gate B 스킵은 증거가 아니다 — 시험\n- **결정**: x\n- **결과**:\n")
+        here = os.path.join(self.root, "server-out")
+        rc = hr.main(["--sessions", os.path.join(laptop, "sessions.jsonl"), "--decision-log", log, "--out", here])
+        self.assertEqual(rc, 0)
+        md = open(os.path.join(here, "report.md"), encoding="utf-8").read()
+        self.assertIn("세션 1개", md)
+        self.assertRegex(md, r"\| 2026-10-01 \| Gate B 스킵은 증거가 아니다[^|]*\| 1 \| 20 \|")
+        self.assertIn("받은 세션 기록", md)
+
+    def test_missing_sessions_file_is_an_error(self):
+        with self.assertRaises(SystemExit):
+            hr.main(["--sessions", os.path.join(self.root, "없음.jsonl"), "--out", os.path.join(self.root, "o")])
+
+
 class TestGateBRounds(ReportCase):
     """호출 순서가 아니라 사람의 응답을 센다 — 2026-10 의 집계기는 스킵이 이어진 달을 「이상 패턴 없음」으로 냈다."""
 

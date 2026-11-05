@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **사용 보고서 `--sessions`** (`hooks/harness_report.py`) — 다른 컴퓨터에서 만든 `sessions.jsonl` 을 대화 기록 대신 읽는다. 실제 작업은 노트북에서 돌고 대화 기록도 거기에만 있다. 노트북에서 집계해 결과 폴더만 보내면, `DECISION_LOG.md` 가 있는 이 저장소에서 예측을 맞댈 수 있다. 같은 기록을 직접 집계한 보고서와 받은 파일로 만든 보고서가 머리 줄 말고는 같았다.
+
+### Fixed
+
+- **사용 보고서가 Stop 가드의 차단을 센다** — exit 2 로 막은 Stop 가드는 `stop_hook_summary.hookErrors` 에 `[명령]: 메시지` 모양으로만 남는데, 보고서는 이 칸을 읽지 않았다. JSON 으로 막은 차단은 `hook_blocking_error` 첨부로 셌지만, 명령이 없어 주인을 「Stop」으로 뭉뚱그렸다. 이제 앞의 것은 그 훅의 차단으로 세고, 뒤의 것은 본문의 꼬리표·스크립트 이름으로 주인을 찾는다. 실행 실패(`Failed to run`·`non-blocking status`)는 첨부에도 남아 두 번 세지 않는다. 실제 기록에서 Gate E 차단 1건·교훈 가드 5건(실험)·하네스 밖 검증 훅 59건으로 따로 센 값과 같다. `DECISION_LOG` 의 가드 차단 예측을 이제 판정할 수 있다.
+
 ## [1.17.4] - 2026-11-05
 
 ### Fixed
