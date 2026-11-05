@@ -48,7 +48,35 @@ BASE_DIR = (
     or os.environ.get("CLAUDE_PROJECT_DIR", ".")
 )
 CURRENT_SESSION = os.path.join(BASE_DIR, "CURRENT_SESSION.md")
-MASTER_PLAN = os.path.join(BASE_DIR, "00_MASTER_PLAN.md")
+DEFAULT_MASTER_PLAN = "00_MASTER_PLAN.md"
+
+
+def _answer(raw, key):
+    """harness-answers.yml 의 최상위 문자열 값 하나. 따옴표·줄 끝 주석을 뗀다. 없으면 ""."""
+    m = re.search(rf"^{key}:[ \t]*(.*)$", raw, re.M)
+    if not m:
+        return ""
+    value = re.sub(r"\s+#.*$", "", m.group(1)).strip()
+    return value[1:-1].strip() if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'" else value
+
+
+def master_plan_path(base_dir=BASE_DIR):
+    """인덱스 문서 경로. 단일 계획 문서(plan_tier 1)면 None — 인덱스가 없다.
+
+    파일 이름을 00_MASTER_PLAN.md 로 고정해 `master_plan_file` 을 다르게 둔 프로젝트에서 가드가 조용히 꺼져 있었다
+    (2026-11-05 점검). 설정이 없거나 채우지 않은 자리표시(`${…}`·`<…>`)면 기본 이름을 쓴다.
+    """
+    try:
+        with open(os.path.join(base_dir, ".claude", "harness-answers.yml"), encoding="utf-8") as f:
+            raw = f.read()
+    except OSError:
+        raw = ""
+    if _answer(raw, "plan_tier") == "1":
+        return None
+    name = _answer(raw, "master_plan_file")
+    if not name or "${" in name or name.startswith("<"):
+        name = DEFAULT_MASTER_PLAN
+    return name if os.path.isabs(name) else os.path.join(base_dir, name)
 
 # 연속 차단 한도 (무한 루프 방지)
 MAX_BLOCKS = 3
@@ -123,14 +151,16 @@ def master_plan_first_session_id(plan_text):
     """
     00_MASTER_PLAN.md L7 YAML status: 값의 첫 세션 ID 토큰 추출.
     형식: status: "<세션ID> <설명>..."
-    첫 토큰이 영문자로 시작하는 세션 ID (예: PLAN-SYNC-14, HARNESS-STALE-GUARD-1).
+    첫 토큰이 영문자로 시작하는 세션 ID (예: PLAN-SYNC-14, HARNESS-STALE-GUARD-1). 영문자 시작은 완료 표기
+    (`✅E …`)를 ID 로 읽지 않기 위해 둔다. 밑줄은 허용한다 — 빼면 FEAT_LOGIN-1 이 FEAT 로 잘려 같은 세션을
+    막았다(2026-11-05 재현). 현재 세션 쪽(`current_session_id`)과 같은 문자 집합이다.
     """
     m = re.search(r'^status:\s*"([^"]+)"', plan_text, re.M)
     if not m:
         return None
     status_value = m.group(1).strip()
-    # 첫 단어(공백 전)가 세션 ID — 영문자+숫자+하이픈으로만 구성
-    m_tok = re.match(r"([A-Za-z][A-Za-z0-9\-]*)", status_value)
+    # 첫 단어(공백 전)가 세션 ID — 영문자로 시작, 영문자·숫자·밑줄·하이픈
+    m_tok = re.match(r"([A-Za-z][\w\-]*)", status_value)
     if not m_tok:
         return None
     return m_tok.group(1)
@@ -187,7 +217,9 @@ def main():
 
     # ── 문서 로드 (부재 시 검증 불가 → 허용) ──
     cur_text = read_text(CURRENT_SESSION)
-    plan_text = read_text(MASTER_PLAN)
+    plan_path = master_plan_path()
+    plan_text = read_text(plan_path) if plan_path else None
+    plan_name = os.path.basename(plan_path or DEFAULT_MASTER_PLAN)
     if cur_text is None or plan_text is None:
         clear_counter(cpath)
         allow()
@@ -212,16 +244,16 @@ def main():
         if attempts == MAX_BLOCKS + 1:
             notify(
                 f"[MASTER-PLAN-STALE] ⚠️ {MAX_BLOCKS}회 연속 차단에도 미해소 — 강제 종료 허용.\n"
-                f"  00_MASTER_PLAN.md L7 status 를 수동으로 갱신하세요."
+                f"  {plan_name} L7 status 를 수동으로 갱신하세요."
             )
         allow()
 
     block(
-        f"[MASTER-PLAN-STALE] 인덱스 스테일 감지 — 00_MASTER_PLAN.md L7 갱신 필요 "
+        f"[MASTER-PLAN-STALE] 인덱스 스테일 감지 — {plan_name} L7 갱신 필요 "
         f"({attempts}/{MAX_BLOCKS})\n"
         f"  CURRENT_SESSION.md 현재 세션 : '{cur_id}'\n"
-        f"  00_MASTER_PLAN.md L7 status : '{plan_id}' (불일치)\n"
-        f"  조치: 00_MASTER_PLAN.md YAML 헤더 L7 status: 를\n"
+        f"  {plan_name} L7 status : '{plan_id}' (불일치)\n"
+        f"  조치: {plan_name} YAML 헤더 L7 status: 를\n"
         f"    \"{cur_id} <현재 작업 설명>...\" 으로 갱신하세요.\n"
         f"  §4 「현재」 라인도 함께 갱신하면 완전한 동기화가 됩니다.\n"
         f"  ※ PLAN-SYNC 청소 세션 없이 이 응답 턴에서 직접 수정 가능합니다."

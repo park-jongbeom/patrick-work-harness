@@ -60,6 +60,23 @@ def run_hook(current_session_content, master_plan_content, session_id="test-sess
 
 # --- 픽스처 ---
 
+def run_with(files, session_id="test-sess"):
+    """파일 여러 개({상대경로: 내용})를 둔 프로젝트에서 실행 — 설정 파일·다른 이름의 인덱스용."""
+    clear_counter(session_id)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for rel, content in files.items():
+            path = os.path.join(tmpdir, rel.replace("<ROOT>", tmpdir)) if not rel.startswith("<ROOT>") else rel.replace("<ROOT>", tmpdir)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content.replace("<ROOT>", tmpdir))
+        env = os.environ.copy()
+        env["MASTER_PLAN_GUARD_BASE"] = tmpdir
+        proc = subprocess.run([sys.executable, SCRIPT], input=json.dumps({"session_id": session_id}),
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+    clear_counter(session_id)
+    return proc.returncode
+
+
 def current_md(session_id):
     """CURRENT_SESSION.md 헤더 '**세션 ID**' 픽스처 (복구 후 SSOT)."""
     return (
@@ -239,6 +256,52 @@ def test_stop_hook_active_allows():
     print("  PASS: stop_hook_active → 차단 조건 성립해도 즉시 허용")
 
 
+def test_underscore_session_id_is_the_same_session():
+    """인덱스 쪽이 밑줄 앞에서 잘려 같은 세션을 불일치로 막았다(2026-11-05 재현: FEAT_LOGIN-1 대 FEAT)."""
+    assert run_with({"CURRENT_SESSION.md": current_md("FEAT_LOGIN-1"),
+                     "00_MASTER_PLAN.md": master_plan_md("FEAT_LOGIN-1")}) == 0
+    assert run_with({"CURRENT_SESSION.md": current_md("FEAT_LOGIN-2"),
+                     "00_MASTER_PLAN.md": master_plan_md("FEAT_LOGIN-1")}) == 2
+    print("  PASS: 밑줄 세션 ID 를 끝까지 읽는다")
+
+
+def test_completed_status_is_not_read_as_an_id():
+    assert run_with({"CURRENT_SESSION.md": current_md("FEAT-2"),
+                     "00_MASTER_PLAN.md": master_plan_md("✅E", "완료")}) == 0
+    print("  PASS: 완료 표기는 세션 ID 가 아니다")
+
+
+def test_configured_index_name_is_guarded():
+    """`master_plan_file` 을 다른 이름으로 둔 프로젝트에서 가드가 조용히 꺼져 있었다."""
+    yml = 'plan_tier: "2"\nmaster_plan_file: "docs/PLAN_INDEX.md"   # 인덱스\n'
+    assert run_with({".claude/harness-answers.yml": yml, "CURRENT_SESSION.md": current_md("NEW-2"),
+                     "docs/PLAN_INDEX.md": master_plan_md("OLD-1")}) == 2
+    assert run_with({".claude/harness-answers.yml": yml, "CURRENT_SESSION.md": current_md("NEW-2"),
+                     "docs/PLAN_INDEX.md": master_plan_md("NEW-2")}) == 0
+    print("  PASS: 설정한 인덱스 파일을 본다")
+
+
+def test_absolute_index_path():
+    yml = "master_plan_file: <ROOT>/elsewhere/INDEX.md\n"
+    assert run_with({".claude/harness-answers.yml": yml, "CURRENT_SESSION.md": current_md("NEW-2"),
+                     "<ROOT>/elsewhere/INDEX.md": master_plan_md("OLD-1")}) == 2
+    print("  PASS: 절대경로 인덱스")
+
+
+def test_single_plan_tier_has_no_index():
+    """plan_tier 1 은 인덱스 문서가 없다 — 남은 00_MASTER_PLAN.md 를 보고 막지 않는다."""
+    assert run_with({".claude/harness-answers.yml": 'plan_tier: "1"\n', "CURRENT_SESSION.md": current_md("NEW-2"),
+                     "00_MASTER_PLAN.md": master_plan_md("OLD-1")}) == 0
+    print("  PASS: 단일 계획 문서 프로젝트는 보지 않는다")
+
+
+def test_unfilled_placeholder_falls_back_to_the_default_name():
+    yml = 'master_plan_file: "${MASTER_PLAN_FILE}"\n'
+    assert run_with({".claude/harness-answers.yml": yml, "CURRENT_SESSION.md": current_md("NEW-2"),
+                     "00_MASTER_PLAN.md": master_plan_md("OLD-1")}) == 2
+    print("  PASS: 채우지 않은 자리표시는 기본 이름으로")
+
+
 if __name__ == "__main__":
     tests = [
         test_fresh_allows,
@@ -252,6 +315,12 @@ if __name__ == "__main__":
         test_session_topic_field_fallback_allows,
         test_body_heading_no_longer_misparsed,
         test_stop_hook_active_allows,
+        test_underscore_session_id_is_the_same_session,
+        test_completed_status_is_not_read_as_an_id,
+        test_configured_index_name_is_guarded,
+        test_absolute_index_path,
+        test_single_plan_tier_has_no_index,
+        test_unfilled_placeholder_falls_back_to_the_default_name,
     ]
     print(f"master-plan-stale-guard.py 테스트 ({len(tests)}건)")
     print("=" * 55)
