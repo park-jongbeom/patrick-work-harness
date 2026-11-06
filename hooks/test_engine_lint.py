@@ -61,9 +61,12 @@
  31. Gate E 는 아카이브 첫 줄에 `final_status:` 를 쓴다 — gate-a·doc-cleanup 이 읽는데 쓰는 지시가 없었고, doc-cleanup 은 인덱스의 ✅E 행을
      먼저 지워 이 필드가 마지막 근거다 (2026-11-05).
  32. gate-a 의 R/V/D 예시는 V 표와 맞는다 (2026-11-05).
+ 33. 배포 파이썬은 텍스트 파이프·파일을 열 때 인코딩을 적는다 — 적지 않으면 한국어 윈도에서 cp949 로 읽혀 한글에서 죽는다. 변조 가드가
+     한국어 윈도 PC 의 한글 문서 프로젝트에서 10/22 부터 Stop 680회를 이렇게 실패해 검사가 통째로 빠졌다 (2026-11-06).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
+import ast
 import collections
 import json
 import os
@@ -414,6 +417,23 @@ class EngineLint(unittest.TestCase):
         self.assertNotRegex(sync, r"REVIEW_HITS=\$\(grep -rlE '[^$]", "이름이 스크립트에 다시 박혔다")
         ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertIn("sync-from-source.local", ignored)
+
+    def test_shipped_python_names_its_text_encoding(self):
+        found = []
+        for path in (p for p in shipped_files() if p.suffix == ".py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.Call):
+                    continue
+                kw = {k.arg: k.value for k in node.keywords}
+                func = node.func
+                name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+                piped = name in ("run", "check_output", "Popen") and ("text" in kw or "universal_newlines" in kw)
+                mode = node.args[1] if len(node.args) > 1 else kw.get("mode")
+                opened = (isinstance(func, ast.Name) and name == "open"
+                          and not (isinstance(mode, ast.Constant) and "b" in str(mode.value)))
+                if (piped or opened) and "encoding" not in kw:
+                    found.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
+        self.assertEqual(found, [], "인코딩 없이 연 텍스트 — 한국어 윈도에서 cp949 로 읽힌다:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

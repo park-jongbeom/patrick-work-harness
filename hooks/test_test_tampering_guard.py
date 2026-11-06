@@ -386,5 +386,87 @@ class TestSessionScope(unittest.TestCase):
         self.assertEqual((rc, out.strip()), (0, ""), err)
 
 
+# 한국어 윈도 파이썬은 인코딩을 주지 않은 subprocess 파이프를 locale.getencoding() 인 cp949 로 읽는다. 로캘을 바꾸면
+# 리눅스에서는 인자까지 깨져 노트북과 다른 실패가 나므로, 그 함수만 cp949 로 바꿔 훅을 실행한다(UTF-8 모드는 끈다).
+CP949_PIPES = (
+    "import locale, runpy, sys\n"
+    "locale.getencoding = lambda: 'cp949'\n"
+    "sys.argv = [sys.argv[1]]\n"
+    "runpy.run_path(sys.argv[0], run_name='__main__')\n"
+)
+
+
+class TestNonAsciiRepo(unittest.TestCase):
+    """한글 파일 이름·내용이 있는 저장소 (2026-11-06 한국어 윈도 PC: 10/22 부터 Stop 680회 실패)."""
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp(prefix="ttg-ko-")
+        self.state = tempfile.mkdtemp(prefix="ttg-ko-state-")
+        _git(self.repo, "init", "-q")
+        _git(self.repo, "config", "user.email", "t@t.t")
+        _git(self.repo, "config", "user.name", "t")
+        (Path(self.repo) / "tests").mkdir()
+        self._write("tests/한글Test.java", BASE_FOO)
+        self._write("tests/FooTest.java", BASE_FOO.replace("class FooTest {", "class FooTest { // 한글 주석"))
+        _git(self.repo, "add", "-A")
+        subprocess.run(["git", "commit", "-q", "-m", "기본"], cwd=self.repo, check=True, capture_output=True,
+                       env={**os.environ, "GIT_AUTHOR_DATE": BEFORE, "GIT_COMMITTER_DATE": BEFORE})
+
+    def tearDown(self):
+        shutil.rmtree(self.repo, ignore_errors=True)
+        shutil.rmtree(self.state, ignore_errors=True)
+
+    def _write(self, rel, content):
+        (Path(self.repo) / rel).write_text(content, encoding="utf-8")
+
+    def _run(self, cp949=False, payload=None):
+        proc = subprocess.run(
+            [sys.executable, "-c", CP949_PIPES, SCRIPT] if cp949 else [sys.executable, SCRIPT], cwd=self.repo,
+            env={**os.environ, "TEST_TAMPERING_GUARD_REPO_ROOT": self.repo,
+                 "TEST_TAMPERING_GUARD_STATE_DIR": self.state, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "0"},
+            input=json.dumps(payload) if payload else "", capture_output=True, text=True,
+            encoding="utf-8", errors="replace")
+        return proc.returncode, proc.stdout, proc.stderr
+
+    def test_korean_test_file_name_is_checked(self):
+        # git 기본 core.quotepath 는 한글 이름을 "tests/\355..." 로 감싸 시험 파일로 보이지 않게 했다 — 조용한 0건
+        self._write("tests/한글Test.java", BASE_FOO.replace("  void a()", "  @Disabled\n  void a()"))
+        rc, out, err = self._run()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Pattern A", _system_message(out))
+
+    def test_korean_name_with_cp949_pipes_does_not_crash(self):
+        # 노트북 오류 종류 A: --name-only 출력의 한글에서 디코딩 실패 → 검사 전체가 빠진다
+        _git(self.repo, "config", "core.quotepath", "false")
+        self._write("tests/한글Test.java", BASE_FOO.replace("  void a()", "  @Disabled\n  void a()"))
+        rc, out, err = self._run(True)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Pattern A", _system_message(out))
+
+    def test_korean_diff_body_with_cp949_pipes_does_not_crash(self):
+        # 노트북 오류 종류 C: 이름은 ASCII 인데 diff 본문의 한글에서 디코딩 실패
+        self._write("tests/FooTest.java", BASE_FOO.replace("class FooTest {", "class FooTest { // 바뀐 주석")
+                    .replace("  void a()", "  @Disabled\n  void a()"))
+        rc, out, err = self._run(True)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("Pattern A", _system_message(out))
+
+    def test_session_commit_with_korean_with_cp949_pipes_does_not_crash(self):
+        # 노트북 오류 종류 B: 이번 세션 커밋 검사(base..HEAD)에서 같은 실패
+        _git(self.repo, "config", "core.quotepath", "false")
+        self._write("tests/한글Test.java", NO_ASSERT_FOO)
+        _git(self.repo, "add", "-A")
+        subprocess.run(["git", "commit", "-q", "-m", "단언 삭제"], cwd=self.repo, check=True, capture_output=True,
+                       env={**os.environ, "GIT_AUTHOR_DATE": DURING, "GIT_COMMITTER_DATE": DURING})
+        transcript = os.path.join(self.state, "transcript.jsonl")
+        with open(transcript, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "user", "timestamp": SESSION_START,
+                                "message": {"role": "user", "content": "시작"}}) + "\n")
+        rc, out, err = self._run(True, {"session_id": "S-ko", "transcript_path": transcript})
+        self.assertNotIn("Traceback", err)
+        self.assertIn("Pattern B", _system_message(out))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

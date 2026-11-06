@@ -54,6 +54,17 @@ except Exception:  # 단독 배포 대비 — 같은 정규식
 # HARNESS-SYNC-RECONCILE-2-b (2026-08-07)
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+
+def _git(args, cwd):
+    """git 을 UTF-8 로 읽는다. 지정하지 않으면 파이프는 로캘 인코딩(한국어 윈도는 cp949)으로 읽혀
+    한글 이름·내용에서 죽고, 기본 core.quotepath 는 한글 이름을 따옴표·8진수로 감싸 시험 파일로 보이지 않게 한다.
+    2026-11-06: 한국어 윈도 PC 의 한글 문서 프로젝트에서 10/22 부터 Stop 680회가 이렇게 실패해 검사가 통째로 빠졌다."""
+    result = subprocess.run(["git", "-c", "core.quotepath=false"] + args, cwd=cwd, capture_output=True,
+                            text=True, encoding="utf-8", errors="replace", timeout=10)
+    result.stdout = result.stdout or ""
+    result.stderr = result.stderr or ""
+    return result
+
 # R-4-2-b: 3단 우선순위 (① custom env → ② CLAUDE_PROJECT_DIR → ③ 폴백)
 #
 # 🔴 HARNESS-CROSSCHECK-FIX-1-a-5 (2026-09-24): ②에서 `.parent` 를 걷어냈다.
@@ -72,13 +83,7 @@ _REPO_ROOT = (
 def _is_git_repo(repo_root):
     """Check once whether repo_root is inside a git work tree."""
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        result = _git(["rev-parse", "--is-inside-work-tree"], repo_root)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False
     return result.returncode == 0
@@ -100,13 +105,7 @@ def _run_git_diff(extra_args):
     if not _IS_GIT_REPO:
         return ""
     try:
-        result = subprocess.run(
-            ["git", "diff"] + extra_args,
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        result = _git(["diff"] + extra_args, _REPO_ROOT)
     except subprocess.TimeoutExpired:
         print("⚠️  git diff timed out", file=sys.stderr)
         return ""
@@ -165,8 +164,7 @@ def session_base(transcript_path):
     if not start:
         return None
     try:
-        result = subprocess.run(["git", "rev-list", "-1", f"--before={start}", "HEAD"],
-                                cwd=_REPO_ROOT, capture_output=True, text=True, timeout=10)
+        result = _git(["rev-list", "-1", f"--before={start}", "HEAD"], _REPO_ROOT)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
     sha = result.stdout.strip()

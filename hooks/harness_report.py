@@ -559,6 +559,8 @@ METRICS = [
     ("원본 쪽 이름은 커밋하지 않는 목록에", None, None, "다음 sync-from-source.sh 실행과 릴리스 전 린트"),
     ("공개 이력은 다시 쓰지 않는다", None, None, "다음 릴리스 3회의 본문 검사"),
     ("보고서는 다른 컴퓨터의 세션 기록을", None, None, "R0 뒤 노트북에서 받은 첫 sessions.jsonl"),
+    ("변조 가드는 git 출력을 UTF-8 로", _guard("test-tampering-guard.py", "error"), None,
+     "변조 가드 실행 오류 수 — R0 뒤 0 이어야 한다(R0 전 노트북 131)"),
 ]
 
 
