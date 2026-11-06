@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.7] - 2026-11-06
+
 ### Fixed
 
 - **커밋 메시지 가드가 PowerShell 커밋을 검사한다** (`hooks/commit-msg-guard.py`, `hooks/hooks.json`, `install.sh`) — 윈도의 Claude Code 는 PowerShell 도구로도 명령을 실행한다. Git Bash 가 없으면 Bash 도구가 아예 없다. 그런데 가드는 `Bash` 에만 걸려 있었고, 코드도 `tool_name` 이 `Bash` 가 아니면 통과시켰다. 프로젝트 쪽에서 matcher 를 `Bash|PowerShell` 로 넓혀도 PowerShell 커밋은 검사되지 않았다. 이제 공식 hooks 문서의 권고대로 `Bash|PowerShell` 에 걸고, PowerShell here-string(`git commit -m @' … '@`)에서도 제목을 읽는다. 다시 설치하면 옛 `Bash` 항목을 지워, Bash 커밋을 두 번 검사하지 않는다.
