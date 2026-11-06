@@ -63,6 +63,8 @@
  32. gate-a 의 R/V/D 예시는 V 표와 맞는다 (2026-11-05).
  33. 배포 파이썬은 텍스트 파이프·파일을 열 때 인코딩을 적는다 — 적지 않으면 한국어 윈도에서 cp949 로 읽혀 한글에서 죽는다. 변조 가드가
      한국어 윈도 PC 의 한글 문서 프로젝트에서 10/22 부터 Stop 680회를 이렇게 실패해 검사가 통째로 빠졌다 (2026-11-06).
+ 34. install.sh 의 따옴표 없는 heredoc(변수를 펼치는 파이썬 블록) 안에는 백틱·`$(` 를 쓰지 않는다 — 주석이라도 bash 가 명령으로 실행한다.
+     설치 때마다 주석 속 `python3 없는파일.py` 가 실제로 돌았다 (2026-11-06).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -434,6 +436,16 @@ class EngineLint(unittest.TestCase):
                 if (piped or opened) and "encoding" not in kw:
                     found.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
         self.assertEqual(found, [], "인코딩 없이 연 텍스트 — 한국어 윈도에서 cp949 로 읽힌다:\n" + "\n".join(found))
+
+    def test_install_heredocs_run_no_shell_inside(self):
+        install = (ROOT / "install.sh").read_text(encoding="utf-8")
+        found = []
+        for m in re.finditer(r"<<(\w+)\n(.*?)\n\1\n", install, re.S):
+            start = install.count("\n", 0, m.start()) + 2
+            for i, line in enumerate(m.group(2).splitlines()):
+                if "`" in line or "$(" in line:
+                    found.append(f"install.sh:{start + i}: {line.strip()}")
+        self.assertEqual(found, [], "따옴표 없는 heredoc 안의 셸 치환 — bash 가 실행한다:\n" + "\n".join(found))
 
 
 if __name__ == "__main__":

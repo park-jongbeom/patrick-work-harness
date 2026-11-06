@@ -192,6 +192,24 @@ class TestInstallWithoutRsync(unittest.TestCase):
         self.assertIn(self.mine, commands, "같은 항목에 있던 사용자 훅이 함께 지워짐")
         self.assertIn(self.other_copy, commands, "다른 사본을 가리키는 배선은 이 설치의 몫이 아님")
 
+    def test_reinstall_moves_the_commit_guard_to_the_wider_matcher(self):
+        """v1.17.6 까지는 commit-msg-guard 를 Bash 에만 걸었다. 다시 설치하면 옛 항목을 지우고 PowerShell 까지 건다 —
+        옛 항목이 남으면 Bash 커밋을 두 번 검사한다 (2026-11-06)."""
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        self.settings = os.path.join(self.home, ".claude", "settings.json")
+        cfg, _ = self.commands()
+        for entry in cfg["hooks"]["PreToolUse"]:
+            if any("commit-msg-guard.py" in h["command"] for h in entry["hooks"]):
+                entry["matcher"] = "Bash"            # 옛 설치의 배선
+        with open(self.settings, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        rc, out = self.install()
+        self.assertEqual(rc, 0, out)
+        cfg, _ = self.commands()
+        wired = [e["matcher"] for e in cfg["hooks"]["PreToolUse"] for h in e["hooks"] if "commit-msg-guard.py" in h["command"]]
+        self.assertEqual(wired, ["Bash|PowerShell"])
+
     def test_removal_is_backed_up_and_reported(self):
         self.prepare()
         rc, out = self.install()

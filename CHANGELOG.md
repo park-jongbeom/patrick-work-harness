@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **커밋 메시지 가드가 PowerShell 커밋을 검사한다** (`hooks/commit-msg-guard.py`, `hooks/hooks.json`, `install.sh`) — 윈도의 Claude Code 는 PowerShell 도구로도 명령을 실행한다. Git Bash 가 없으면 Bash 도구가 아예 없다. 그런데 가드는 `Bash` 에만 걸려 있었고, 코드도 `tool_name` 이 `Bash` 가 아니면 통과시켰다. 프로젝트 쪽에서 matcher 를 `Bash|PowerShell` 로 넓혀도 PowerShell 커밋은 검사되지 않았다. 이제 공식 hooks 문서의 권고대로 `Bash|PowerShell` 에 걸고, PowerShell here-string(`git commit -m @' … '@`)에서도 제목을 읽는다. 다시 설치하면 옛 `Bash` 항목을 지워, Bash 커밋을 두 번 검사하지 않는다.
+- **install.sh 가 설치 중에 주석 속 명령을 실행하던 문제** — 훅 배선을 쓰는 파이썬 블록은 변수를 펼치는 heredoc 이라, 주석 안의 백틱도 bash 가 명령으로 실행했다. 설치 때마다 `python3: can't open file '…/없는파일.py'` 가 출력됐다. 엔진 린트 규칙 34 가 이 블록 안의 백틱과 `$(` 를 막는다.
+
 ## [1.17.6] - 2026-11-06
 
 ### Fixed

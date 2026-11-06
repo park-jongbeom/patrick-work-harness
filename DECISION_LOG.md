@@ -429,3 +429,10 @@
 - **예측**: R0 뒤 노트북 보고서에서 이 가드의 「오류」가 0 이다. 한글 이름 시험 파일의 변조 경고가 나오면 사람이 정탐 여부를 본다.
 - **확인 시점**: R0 뒤 첫 노트북 보고서
 - **결과**:
+
+### [2026-11-06] 커밋 메시지 가드는 Bash|PowerShell 에 건다 — 옛 Bash 항목은 다시 설치할 때 지운다
+- **결정**: 수정 → `hooks/commit-msg-guard.py`(`PowerShell` 도구 입력 허용, here-string `-m @' … '@` 읽기), `hooks/hooks.json`(docker 와 항목을 나눠 commit-msg 만 `Bash|PowerShell`), `install.sh`(같은 matcher, 옛 `Bash` 항목 정리, 주석 속 백틱 제거), `hooks/test_engine_lint.py`(규칙 34). 바꾸지 않음 → `docker-command-guard.py`(Bash 만 본다 — 노트북 프로젝트는 Docker 를 쓰지 않거나 도입하지 않기로 했고, PowerShell 의 docker 명령을 볼 근거가 아직 없다).
+- **근거**: 노트북 homepage 갱신 점검에서 그 프로젝트가 matcher 를 `Bash|PowerShell` 로 걸어 PowerShell 커밋을 막으려 한 것을 봤다. 그런데 가드 코드가 `tool_name != "Bash"` 면 통과시켜, 그 matcher 는 효과가 없었다. 공식 문서: PowerShell 도구의 입력은 Bash 와 같은 `tool_input.command` 이고, 「셸 명령을 보는 훅은 `Bash|PowerShell` 에 건다 — `Bash` 만 맞추는 훅은 Git Bash 없는 윈도에서 발동하지 않는다」. 노트북은 한국어 윈도다. PowerShell 커밋이 실제로 몇 번 있었는지는 이 서버에서 셀 수 없다(노트북 기록). install.sh 의 `cmd_exists` 는 matcher 까지 같아야 중복으로 보므로 matcher 만 바꾸면 다시 설치할 때 옛 항목이 남아 Bash 커밋을 두 번 검사한다 — 옛 항목 정리를 넣었다. 작업 중 정리 코드가 matcher 없는 Stop 항목의 사용자 훅을 지우는 실수(None == None)와 은퇴 훅 정리를 깨는 실수를 냈고, 기존 시험이 둘 다 잡았다. 같은 블록의 주석 속 백틱이 설치 때마다 실행되는 것도 이때 찾아 옛 install.sh 로 재현했다.
+- **예측**: R0 뒤 노트북 보고서에서 commit-msg-guard 의 거부에 PowerShell 커밋이 섞여 나온다. 0 이면 PowerShell 로 커밋하지 않은 것이다 — 가드 결함의 증거가 아니다.
+- **확인 시점**: homepage 갱신 뒤 첫 노트북 보고서
+- **결과**:

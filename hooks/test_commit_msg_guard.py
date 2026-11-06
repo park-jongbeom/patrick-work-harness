@@ -142,6 +142,21 @@ class TestCommitMsgGuard(unittest.TestCase):
         rc, _ = run_hook('cd repo && git commit -qam "fixed stuff"')
         self.assertEqual(rc, 2, "&& 뒤의 실제 커밋을 놓쳤다")
 
+    # ── 윈도의 PowerShell 도구 (2026-11-06: 노트북 프로젝트가 PowerShell 로도 커밋하는데, 가드가 Bash 만 보고 통과시켰다) ──
+    def test_powershell_tool_is_checked(self):
+        rc, _ = run_hook('git commit -m "fixed stuff"', tool_name="PowerShell")
+        self.assertEqual(rc, 2, "PowerShell 커밋의 틀린 제목을 통과시켰다")
+        rc, err = run_hook('git add -A; git commit -m "fix(hooks): 형식을 지킨 제목"', tool_name="PowerShell")
+        self.assertEqual(rc, 0, err)
+
+    def test_powershell_here_string_is_checked(self):
+        for quote in ("'", '"'):
+            bad = f"git commit -m @{quote}\nfixed stuff\n\n본문\n{quote}@"
+            good = f"git commit -m @{quote}\nfeat(skills): 형식을 지킨 제목\n\nCo-Authored-By: x\n{quote}@"
+            self.assertEqual(run_hook(bad, tool_name="PowerShell")[0], 2, f"here-string {quote} 의 틀린 제목을 통과시켰다")
+            rc, err = run_hook(good, tool_name="PowerShell")
+            self.assertEqual(rc, 0, err)
+
     def test_unparsable_message_passes(self):
         """메시지를 못 뽑으면 통과 — 추출 실패로 막으면 오탐이 된다."""
         rc, _ = run_hook('git commit --amend --no-edit')

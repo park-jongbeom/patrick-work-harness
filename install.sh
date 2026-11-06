@@ -367,8 +367,9 @@ NEW_HOOKS = {
             "matcher": "Bash",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/docker-command-guard.py"}]
         },
+        # 윈도에서는 PowerShell 도구로도 커밋한다 — 공식 hooks 문서: 셸 명령을 보는 훅은 Bash|PowerShell 에 건다 (2026-11-06)
         {
-            "matcher": "Bash",
+            "matcher": "Bash|PowerShell",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/commit-msg-guard.py"}]
         },
         # 이해도 질문이 대기 중이면 gate-c·d·e 진입 차단 — 모델이 Skill 로 부르는 경로
@@ -443,7 +444,7 @@ def cmd_exists(hook_list, cmd, matcher=None):
     return False
 
 # 🔴 설치된 훅 파일이 실제로 있는 것만 등록한다 (2026-10-15).
-#    PreToolUse 훅의 스크립트가 없으면 `python3 없는파일.py` 가 exit 2 로 끝나고, PreToolUse 에서
+#    PreToolUse 훅의 스크립트가 없으면 python3 없는파일.py 가 exit 2 로 끝나고, PreToolUse 에서
 #    exit 2 는 「차단」이다(공식 hooks 문서 — 파일 없음 예외는 Stop 등 일부 이벤트만). 등록만 되고
 #    파일이 없으면 모든 Edit·Write·Skill 호출이 막힐 수 있다(예: main 의 install.sh 로 이전 릴리스를 설치).
 def script_of(cmd):
@@ -459,6 +460,14 @@ def is_retired(hook):
     parts = str(hook.get("command", "")).split()
     return bool(parts) and parts[-1].strip('"') in retired_scripts
 
+# matcher 를 넓힌 훅의 옛 항목 (2026-11-06). cmd_exists 는 matcher 까지 같아야 중복으로 보므로, 옛 항목이 남으면
+# 새 항목이 더해져 Bash 커밋을 두 번 검사한다. 이 설치 폴더를 가리키는 것만 지운다.
+REMATCHED = {f"{hooks_dir}/commit-msg-guard.py": "Bash"}
+
+def is_rematched(entry, hook):
+    script = str(hook.get("command", "")).split()[-1:]
+    return bool(script) and script[0].strip('"') in REMATCHED and REMATCHED[script[0].strip('"')] == entry.get("matcher")
+
 changed = False
 for event in list(hooks):
     kept = []
@@ -468,6 +477,13 @@ for event in list(hooks):
         if removed:
             changed = True
             print(f"      은퇴한 훅 배선 제거: {event} {removed}건")
+        moved = [h for h in left if is_rematched(entry, h)]
+        if moved:
+            changed = True
+            print(f"      옛 matcher 배선 교체: {event} {entry.get('matcher')} {len(moved)}건")
+            left = [h for h in left if h not in moved]
+            removed += len(moved)
+        if removed:
             entry = dict(entry, hooks=left)
         if left or not removed:
             kept.append(entry)

@@ -561,6 +561,8 @@ METRICS = [
     ("보고서는 다른 컴퓨터의 세션 기록을", None, None, "R0 뒤 노트북에서 받은 첫 sessions.jsonl"),
     ("변조 가드는 git 출력을 UTF-8 로", _guard("test-tampering-guard.py", "error"), None,
      "변조 가드 실행 오류 수 — R0 뒤 0 이어야 한다(R0 전 노트북 131)"),
+    ("커밋 메시지 가드는 Bash|PowerShell 에", _guard("commit-msg-guard.py", "deny"), None,
+     "커밋 메시지 가드 거부 수 — PowerShell 커밋인지는 대화 기록의 도구 이름으로 본다"),
 ]
 
 

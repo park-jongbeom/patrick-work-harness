@@ -3,7 +3,7 @@
 커밋 메시지 한국어 Conventional Commits 형식 검증 — Claude Code PreToolUse Hook.
 
 프로토콜:
-  - 입력: stdin JSON — { tool_name: "Bash", tool_input: { command }, cwd }
+  - 입력: stdin JSON — { tool_name: "Bash" | "PowerShell", tool_input: { command }, cwd }
   - 차단: stderr 메시지 + exit 2
   - 허용: exit 0
 
@@ -42,6 +42,12 @@ CONVENTIONAL_PATTERN = re.compile(
     r"(\([^)]+\))?"  # (범위) — 선택
     r":\s+"  # 구분자
     r"(.+)"  # 제목 (한글 포함)
+)
+
+# PowerShell here-string: git commit -m @' … '@ (또는 @" … "@) — 여는 표식 뒤는 줄바꿈, 닫는 표식은 줄 처음
+HERE_STRING_PATTERN = re.compile(
+    r"""git\s+commit\s+.*?(?<![\w-])-[a-zA-Z]*m\s+@(['"])[ \t]*\r?\n(.*?)\r?\n\1@""",
+    re.DOTALL,
 )
 
 # HEREDOC 패턴: git commit -m "$(cat <<'EOF' ... EOF )"
@@ -89,6 +95,10 @@ def _extract_from(command, cwd=None):
         return m.group(1).strip().split("\n")[0].strip()
 
     m = FILE_HEREDOC_PATTERN.search(command)
+    if m:
+        return m.group(2).strip().split("\n")[0].strip()
+
+    m = HERE_STRING_PATTERN.search(command)
     if m:
         return m.group(2).strip().split("\n")[0].strip()
 
@@ -145,8 +155,9 @@ def main():
     except Exception:
         allow()
 
+    # 윈도에서는 PowerShell 도구로도 커밋한다 — Bash 만 보면 그 커밋은 검사 없이 지나간다 (2026-11-06)
     tool_name = payload.get("tool_name", "")
-    if tool_name != "Bash":
+    if tool_name not in ("Bash", "PowerShell"):
         allow()
 
     command = payload.get("tool_input", {}).get("command", "")
