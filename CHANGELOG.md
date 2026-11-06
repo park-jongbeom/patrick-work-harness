@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.6] - 2026-11-06
+
 ### Fixed
 
 - **시험 변조 가드가 한국어 윈도에서 죽던 문제** (`hooks/test-tampering-guard.py`) — git 출력을 인코딩 없이 읽어 한국어 윈도에서는 cp949 로 해석됐고, 한글 파일 이름·내용이 있으면 `UnicodeDecodeError` 뒤 `NoneType` 오류로 끝났다. 비차단 오류라 세션은 이어졌지만 그때마다 변조 검사가 통째로 빠졌다(한 PC 에서 10/22 부터 Stop 680회). 이제 git 출력을 UTF-8 로 읽는다.
