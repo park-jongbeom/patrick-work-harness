@@ -519,3 +519,89 @@ class TestGateBRounds(ReportCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestFreshReviewTraces(ReportCase):
+    """새 문맥 검토(fresh_review.py) 흔적 — 노트북 보고서만으로 시험 운영을 판정한다(2026-11-10)."""
+
+    RUN = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/fresh_review.py" "/w/proj-a/CURRENT_SESSION.md"'
+    PROMPT = "[새 문맥 검토] 너는 이 계획을 처음 읽는 검토자다."
+
+    def notice(self, tid, tokens, ms):
+        """하위 에이전트가 뒤에서 돌면 사용량은 완료 알림(`queue-operation` 줄)에만 남는다(실제 기록)."""
+        return {"type": "queue-operation", "operation": "enqueue", "timestamp": "2026-10-23T10:05:00Z",
+                "content": f"<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>{tid}</tool-use-id>\n"
+                           f"<status>completed</status>\n<usage><subagent_tokens>{tokens}</subagent_tokens>"
+                           f"<tool_uses>8</tool_uses><duration_ms>{ms}</duration_ms></usage>\n</task-notification>"}
+
+    def run_script(self, tid, first_line, force=False):
+        return [assistant(tools=[(tid, "Bash", {"command": self.RUN + (" --force" if force else "")})]),
+                tool_result(tid, first_line + "\n…")]
+
+    def test_script_outcomes_review_usage_and_records(self):
+        sync = tool_result("r1", "## 다시 쓴 계획 …")
+        sync["toolUseResult"] = {"status": "completed", "totalTokens": 100000, "totalDurationMs": 360000}
+        record = "- **새 문맥 검토**: 지적 3 · 고침 2(내용 1) · 올림 1 · 반박 0"
+        self.session(self.run_script("f1", "발동 — R=6") + self.run_script("f2", "발동 — --force", force=True)
+                     + self.run_script("f3", "미실행 — 이해도 게이트 미발동 · R=0")
+                     + self.run_script("f4", "실패 — 준비하지 못함: OSError: x") + [
+            assistant(tools=[("f5", "Bash", {"command": "grep -n x hooks/fresh_review.py"})]), tool_result("f5", "1: x"),
+            assistant(tools=[("r1", "Agent", {"subagent_type": "Plan", "prompt": self.PROMPT})]), sync,
+            assistant(tools=[("r2", "Agent", {"subagent_type": "Plan", "prompt": self.PROMPT})]),
+            tool_result("r2", "Async agent launched successfully."), self.notice("r2", 40000, 180000),
+            self.notice("r2", 40000, 180000),                               # 같은 알림이 enqueue·remove 두 줄로 남는다
+            assistant(tools=[("x1", "Agent", {"prompt": "다른 일을 맡긴다"})]), tool_result("x1"),
+            assistant(tools=[("w1", "Edit", {"file_path": "/w/proj-a/CURRENT_SESSION.md", "old_string": "a",
+                                              "new_string": f"미발동 — 해당 없음\n{record}\n"})]),
+            assistant(tools=[("w2", "Write", {"file_path": "/w/proj-a/CURRENT_SESSION.md",
+                                               "content": f"# 문서\n{record}\n"})]),          # 같은 기록을 다시 쓴 것
+            assistant(tools=[("w3", "Write", {"file_path": "/w/x.md",
+                                               "content": "- **새 문맥 검토**: 지적 N · 고침 M(내용 X) · 올림 K · 반박 J\n"})]),
+        ])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f["fired"], f["forced"], f["not_run"], f["failed"]), (1, 1, 1, 1))
+        self.assertNotIn("unknown", f)                                    # 파일 이름을 grep 한 것은 실행이 아니다
+        self.assertEqual(f["reviews"], 2)
+        self.assertEqual((sorted(f["tokens"]), sorted(f["ms"])), ([40000, 100000], [180000, 360000]))
+        self.assertEqual(f["records"], ["지적 3 · 고침 2(내용 1) · 올림 1 · 반박 0"])   # 자리표시 줄은 기록이 아니다
+
+    def test_blocked_gate_call_is_counted_and_left_out_of_the_order(self):
+        self.session([gate("d"), tool_result("gd"),
+                      assistant(tools=[("ge", "Skill", {"skill": "patrick-work-harness:gate-e"})]),
+                      tool_result("ge", "PreToolUse:Skill hook error: [레인] Gate D 기록 없음", error=True)])
+        row = self.rows()["s1"]
+        self.assertEqual((row["blocked_gate_calls"], row["gates"]), (1, "d"))
+
+    def test_session_without_review_has_no_entry(self):
+        self.session([gate("a"), tool_result("ga")])
+        row = self.rows()["s1"]
+        self.assertNotIn("fresh_review", row)
+        self.assertEqual(row["blocked_gate_calls"], 0)
+
+    def test_report_section_shows_a_fired_run_without_a_record_and_counts_the_prediction(self):
+        self.session(self.run_script("f1", "발동 — 이해도 게이트 발동(데이터: db/migrations/1.sql)"))
+        log = os.path.join(self.root, "DECISION_LOG.md")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("### [2026-10-01] Gate A 계획을 대화 밖 검토자가 다시 써 보게 한다 — 시험\n- **결정**: x\n- **결과**:\n")
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--decision-log", log, "--out", out])
+        md = open(os.path.join(out, "report.md"), encoding="utf-8").read()
+        self.assertIn("## 새 문맥 검토", md)
+        self.assertIn("없음(건너뜀?)", md)
+        self.assertRegex(md, r"\| 2026-10-01 \| Gate A 계획을 대화 밖 검토자가[^|]*\| 1 \| 10 \|")
+
+
+class TestRepeatedSends(ReportCase):
+    """노트북은 보낼 때마다 최근 30일 전체를 보낸다 — 받는 쪽은 같은 세션을 한 번만 센다(2026-11-10)."""
+
+    def test_same_session_from_two_sends_keeps_the_latest_row(self):
+        paths = []
+        for i, (last, prompts) in enumerate((("2026-11-01T10:00:00Z", 1), ("2026-11-03T10:00:00Z", 5))):
+            path = os.path.join(self.root, f"send{i}.jsonl")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"session": "s1", "last": last, "user_prompts": prompts}) + "\n")
+                f.write(json.dumps({"session": f"only{i}", "last": last, "user_prompts": 0}) + "\n")
+            paths.append(path)
+        rows = {r["session"]: r for r in hr.load_sessions(list(reversed(paths)))["sessions"]}
+        self.assertEqual(sorted(rows), ["only0", "only1", "s1"])
+        self.assertEqual(rows["s1"]["user_prompts"], 5)

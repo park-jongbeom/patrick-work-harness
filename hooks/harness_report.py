@@ -56,6 +56,14 @@ SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehensi
 #: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
 HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
+#: 새 문맥 검토(fresh_review.py, 2026-11-10)의 흔적 — 검토자 지시문 첫머리 표지, Gate A 블록에 쓴 기록 줄(자리표시 `지적 N` 은
+#: 빼고 숫자나 「실패」만), 하위 에이전트가 뒤에서 돌았을 때의 완료 알림(`queue-operation` 줄 — 사용량은 여기에만 남는다).
+FRESH_MARKER = "[새 문맥 검토]"
+#: 스크립트를 실제로 부른 명령만 — 파일 이름을 grep·cat 으로 말한 명령은 아니다(이 엔진의 개발 대화에서 22건이 섞였다).
+FRESH_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*fresh_review\.py")
+FRESH_RECORD = re.compile(r"^[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)[^\n]*)$", re.M)
+TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>(\d+)</subagent_tokens>"
+                        r".*?<duration_ms>(\d+)</duration_ms>")
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
 #: v1.7.0 전 회차에는 둘 다 없어 응답의 「질문 N」도 본다(실제 기록 12회에서 질문 회차와 정확히 일치했다).
 GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]")
@@ -244,7 +252,7 @@ def gate_b_rounds(path):
 
 def read_session(path):
     """대화 기록 한 개 → 세션 행. 반환: (행, 해석하지 못한 줄 수)."""
-    from gate_transcript import AUTONOMOUS_APPROVAL, _TAGGED, gate_sequence
+    from gate_transcript import AUTONOMOUS_APPROVAL, GATE_SKILL, WRITE_TOOLS, _TAGGED, _written_texts, gate_sequence
 
     row = {"session": os.path.splitext(os.path.basename(path))[0], "project": "", "first": "", "last": "",
            "models": collections.Counter(), "user_prompts": 0, "cross_check_requests": 0,
@@ -257,6 +265,8 @@ def read_session(path):
     # message.id 로 묶는다. 스킬 본문은 적재 직전·직후 응답의 문맥 차로 잰다.
     call_index, calls, stops, loads = {}, [], [], []
     bad = 0
+    gate_calls, blocked = set(), 0                  # 훅이 막은 Gate 호출(2026-11-10)
+    fresh, fresh_calls, review_calls, review_usage, notified, records = collections.Counter(), {}, set(), {}, {}, set()
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -266,6 +276,9 @@ def read_session(path):
                 continue
             if not isinstance(event, dict):
                 continue
+            if "<task-notification>" in line:
+                for m in TASK_USAGE.finditer(line):
+                    notified.setdefault(m.group(1), (int(m.group(2)), int(m.group(3))))
             ts = event.get("timestamp") or ""
             if ts:
                 row["first"] = min(row["first"] or ts, ts)
@@ -289,8 +302,22 @@ def read_session(path):
                         calls[call_index[mid]] = size
                         stops[call_index[mid]] = message.get("stop_reason") or stops[call_index[mid]]
                 for block in message.get("content") or []:
-                    if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill":
-                        row["skills"][str((block.get("input") or {}).get("skill", "")).split(":")[-1]] += 1
+                    if not (isinstance(block, dict) and block.get("type") == "tool_use"):
+                        continue
+                    name, tid = block.get("name"), block.get("id")
+                    inp = block.get("input") if isinstance(block.get("input"), dict) else {}
+                    if name == "Skill":
+                        skill = str(inp.get("skill", ""))
+                        row["skills"][skill.split(":")[-1]] += 1
+                        if tid and GATE_SKILL.search(skill):
+                            gate_calls.add(tid)
+                    elif name in ("Bash", "PowerShell") and FRESH_RUN.search(str(inp.get("command", ""))):
+                        fresh_calls[tid] = "--force" in str(inp.get("command", ""))
+                    elif name in ("Agent", "Task") and str(inp.get("prompt", "")).lstrip().startswith(FRESH_MARKER):
+                        review_calls.add(tid)
+                    elif name in WRITE_TOOLS:
+                        for written in _written_texts(name, inp)[1]:
+                            records.update(m.group(1).strip() for m in FRESH_RECORD.finditer(written))
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
                 for text in (_texts(content) if isinstance(content, list) else []):
@@ -312,6 +339,17 @@ def read_session(path):
                         text = block.get("content")
                         text = text if isinstance(text, str) else json.dumps(text, ensure_ascii=False)
                         tid = block.get("tool_use_id")
+                        if tid in gate_calls and block.get("is_error"):
+                            blocked += 1
+                        if tid in fresh_calls:
+                            first = (text.strip().splitlines() or [""])[0]
+                            fresh[("forced" if fresh_calls.pop(tid) else "fired") if first.startswith("발동")
+                                  else "not_run" if first.startswith("미실행")
+                                  else "failed" if first.startswith("실패") else "unknown"] += 1
+                        if tid in review_calls:
+                            res = event.get("toolUseResult")
+                            if isinstance(res, dict) and isinstance(res.get("totalTokens"), int):
+                                review_usage[tid] = (res["totalTokens"], res.get("totalDurationMs") or 0)
                         if tid in asks:
                             asks[tid] = "denied" if block.get("is_error") else "allowed"
                         if AUTO_MODE_DENIAL in text:
@@ -403,6 +441,11 @@ def read_session(path):
     row["c_to_e"] = sum(1 for a, b in zip(seq, seq[1:]) if (a, b) == ("c", "e"))
     row["gate_b"] = gate_b_rounds(path) if "b" in seq else {}
     row["engine_source"] = sorted(sources)
+    row["blocked_gate_calls"] = blocked
+    if fresh or review_calls or records:
+        usage = [u for u in (review_usage.get(t) or notified.get(t) for t in review_calls) if u]
+        row["fresh_review"] = {**dict(fresh), "reviews": len(review_calls), "tokens": [u[0] for u in usage],
+                               "ms": [u[1] for u in usage], "records": sorted(records)}
     out_guards = {}
     for name, counter in guards.items():
         entry = {k: v for k, v in counter.items() if v}
@@ -466,7 +509,13 @@ def load_sessions(paths, since=None):
                     row = json.loads(line)
                     if not since or (row.get("last") or "")[:10] >= since:
                         sessions.append(row)
-    return {"sessions": sessions, "bad_lines": 0, "failed_sessions": []}
+    # 받는 폴더에는 같은 세션이 보낼 때마다 다시 온다(최근 30일 전체를 보낸다) — 마지막 활동이 가장 늦은 행만 남긴다.
+    latest = {}
+    for row in sessions:
+        key = row.get("session") or id(row)
+        if key not in latest or (row.get("last") or "") >= (latest[key].get("last") or ""):
+            latest[key] = row
+    return {"sessions": list(latest.values()), "bad_lines": 0, "failed_sessions": []}
 
 
 # ── DECISION_LOG 예측 진행 ─────────────────────────────────────────────
@@ -507,6 +556,10 @@ def _special(key):
 
 def _gate_a(rows):
     return sum(r["gates"].split().count("a") for r in rows)
+
+
+def _fresh(key):
+    return lambda rows: sum((r.get("fresh_review") or {}).get(key, 0) for r in rows)
 
 
 def _gate_b_asked(rows):
@@ -563,6 +616,10 @@ METRICS = [
      "변조 가드 실행 오류 수 — R0 뒤 0 이어야 한다(R0 전 노트북 131)"),
     ("커밋 메시지 가드는 Bash|PowerShell 에", _guard("commit-msg-guard.py", "deny"), None,
      "커밋 메시지 가드 거부 수 — PowerShell 커밋인지는 대화 기록의 도구 이름으로 본다"),
+    ("훅이 막은 Skill 호출은 Gate 순서에", _sum("blocked_gate_calls"), None,
+     "훅이 막은 Gate 호출 수 — 막힌 글자가 Gate 순서에서 빠졌는지는 「Gate 순서」 표"),
+    ("Gate A 계획을 대화 밖 검토자가", _fresh("fired"), 10,
+     "발동한 새 문맥 검토 수(--force 제외) — 내용 고침·올림·건너뜀은 「새 문맥 검토」 표"),
 ]
 
 
@@ -679,6 +736,20 @@ def render(data, progress, projects_dir, since):
                          + f" | {g.get('plan_changed', 0)}/{g.get('plan_same', 0)} |")
     lines.append("| 합계 | | | " + " | ".join(str(gate_b_total[k]) for k in gate_b_cols)
                  + f" | {gate_b_total['plan_changed']}/{gate_b_total['plan_same']} |")
+    reviewed = [r for r in sessions if r.get("fresh_review")]
+    if reviewed:
+        lines += ["", "## 새 문맥 검토 (Gate A, 시험 운영)", "",
+                  "- 발동·강제·미실행·실패는 `fresh_review.py` 출력 첫 줄, 검토는 `[새 문맥 검토]` Agent 호출 수, 기록은 Gate A 블록에 쓴 줄이다.",
+                  "- 발동했는데 기록이 없으면 건너뛴 회차다. 토큰·시간은 바로 끝난 호출은 결과에서, 뒤에서 돈 호출은 완료 알림에서 읽는다.", "",
+                  "| 프로젝트 | 세션 | 발동 | 강제 | 미실행 | 실패 | 검토 | 토큰(중앙) | 시간(중앙, 초) | 기록 |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
+        for r in sorted(reviewed, key=lambda r: r["last"], reverse=True):
+            f = r["fresh_review"]
+            tokens = int(statistics.median(f["tokens"])) if f.get("tokens") else "—"
+            secs = int(statistics.median(f["ms"]) / 1000) if f.get("ms") else "—"
+            rec = "; ".join(f.get("records") or []) or ("없음(건너뜀?)" if f.get("fired") else "—")
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {f.get('fired', 0)} | {f.get('forced', 0)} | "
+                         f"{f.get('not_run', 0)} | {f.get('failed', 0)} | {f.get('reviews', 0)} | {tokens} | {secs} | {rec} |")
     if progress is not None:
         lines += ["", "## DECISION_LOG 대기 예측의 진행", "",
                   "| 결정일 | 결정 | 지금 | 확인 시점 목표 | 자료 |", "|---|---|---|---|---|"]
