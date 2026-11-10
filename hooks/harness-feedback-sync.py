@@ -7,6 +7,7 @@
 무엇을: `harness_report.py` 가 만드는 세션 행(최근 30일 전체 — 받는 쪽이 같은 세션을 한 번만 센다)과 보낸 이유·엔진 버전
         한 파일. 대화 원문과 코드는 보내지 않는다. 행에는 프로젝트 이름·PC 의 폴더 이름·알림 문구가 들어 있다.
         엔진 버전마다 이 PC 에서 처음 본 시각과, 행마다 세션 시작 때의 엔진 버전도 붙인다(받는 쪽이 갱신 뒤 세션을 가른다).
+        보내기 전에 다른 훅의 알림 문구와 folder 칸을 빼고, 엔진 알림의 경로·파일 이름을 지운다(`shareable`).
 어디로: 설정 파일의 주소 하나(`[사용자@]호스트[:폴더]`, 폴더 기본 `harness-inbox`). 그 PC 의 SSH 설정과 키를 그대로 쓴다
         (`ssh`·`scp`, 암호를 묻지 않는 방식). 포트·키가 따로 필요하면 `~/.ssh/config` 의 Host 별칭을 주소로 쓴다.
         주소는 PC 의 사용자 폴더(`~/.claude/harness-feedback/`)에만 있고 저장소에는 없다.
@@ -186,6 +187,40 @@ def engine_at(first, seen):
     return best
 
 
+#: 보내기 전에 지우는 것 — 받은 행의 알림 문구에 고객 문서 이름이, folder 칸에 PC 사용자·고객 폴더 이름이 실려 왔다(2026-11-10).
+#: 이 PC 의 로컬 보고서는 그대로 두고 받는 서버로 가는 행에서만 지운다. 하네스 문서 이름은 판단에 쓰여 남긴다.
+PATH_TOKEN = re.compile(r"(?:[A-Za-z]:)?(?:[\\/][^\s\\/,;()\[\]「」『』\"'`]+){2,}[\\/]?")
+FILE_TOKEN = re.compile(r"[^\s\\/,;:()\[\]{}<>「」『』\"'`]+\.(?:md|markdown|txt|docx?|xlsx?|pptx?|pdf|hwpx?|csv|json|ya?ml|"
+                        r"py|ts|tsx|js|jsx|kt|java|sql|html?|png|jpe?g)\b", re.I)
+KEPT_NAMES = {"CURRENT_SESSION.md", "SESSION_INDEX.md", "00_MASTER_PLAN.md", "CLAUDE.md", "WORKLOG.md", "DECISION_LOG.md",
+              "session-dashboard.html", "harness-answers.yml"}
+
+
+def redact(text):
+    """경로는 `<경로>`, 하네스가 아는 이름이 아닌 파일 이름은 `<파일>` 로."""
+    import harness_report as hr
+
+    text = PATH_TOKEN.sub("<경로>", text or "")
+    return FILE_TOKEN.sub(lambda m: m.group(0) if m.group(0) in KEPT_NAMES | hr.ENGINE_HOOKS else "<파일>", text)
+
+
+def shareable(row):
+    """받는 서버로 보낼 행 — 다른 훅의 알림 문구는 빼고(훅 이름과 횟수는 남긴다), 엔진 훅 알림과 새 문맥 검토 첫 줄의
+    경로·파일 이름을 지우고, folder 칸(PC 의 전체 경로를 이름으로 바꾼 것)을 비운다. 프로젝트 이름은 남긴다."""
+    import harness_report as hr
+
+    out = {**row, "folder": ""}
+    notice = dict(row.get("max_repeat_notice") or {})
+    if notice.get("text"):
+        engine = notice.get("owner") in hr.ENGINE_HOOKS
+        notice["text"] = redact(notice["text"]) if engine else ""
+        out["max_repeat_notice"] = notice
+    fresh = row.get("fresh_review")
+    if fresh and fresh.get("unknown_heads"):
+        out["fresh_review"] = {**fresh, "unknown_heads": [redact(h) for h in fresh["unknown_heads"]]}
+    return out
+
+
 def send(rows, reason, address, dry_run=False, now=None):
     """세션 행을 한 파일로 보낸다 → (성공, 한 줄 설명). 성공하면 상태의 마지막 전송과 보낸 세션을 바꾼다."""
     now = now or _now()
@@ -198,7 +233,7 @@ def send(rows, reason, address, dry_run=False, now=None):
     probe = _load("state.json")
     note_version(probe, now)                        # 훅이 아직 한 번도 안 돈 수동 전송에서도 지금 버전이 들어간다
     seen = probe["versions_seen"]
-    rows = [{**r, "engine_at_start": engine_at(r.get("first"), seen)} for r in rows]
+    rows = [{**shareable(r), "engine_at_start": engine_at(r.get("first"), seen)} for r in rows]
     meta = {"_meta": {"pc": pc, "sent_at": _iso(now), "reason": reason, "engine_version": _engine_version(),
                       "versions_seen": seen, "sessions": len(rows), "keep_days": KEEP_DAYS}}
     summary = f"{reason} · 세션 {len(rows)}개 → {host}:{folder}/{name}"

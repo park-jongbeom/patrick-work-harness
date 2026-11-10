@@ -13,8 +13,10 @@ effort: low
 
 - **What**: the session rows `harness_report.py` builds from the last 30 days (Gate order, guard counts and errors, Gate B
   answers, fresh-context review counts, context cost — compactions, context per Gate A, what fills it by tool name and
-  character count, how skills were reloaded, Claude Code version). Each row carries the project name, this PC's folder
-  name, guard notice text and the engine version the session started with. One file per send, first line = PC name,
+  character count, how skills were reloaded, Claude Code version, code edits before Gate A approval). Each row carries the
+  project name, guard notice text and the engine version the session started with. Before sending, notice text from hooks outside
+  the harness is dropped (hook name and count stay), paths and file names in harness notices become `<경로>`·`<파일>`, and
+  the folder name (the PC's full path) is emptied. One file per send, first line = PC name,
   time, reason, engine version, and when each engine version was first seen on this PC.
 - **Where**: one SSH address, `[user@]host[:folder]` (folder defaults to `harness-inbox`). It uses this PC's own SSH
   config and keys with `BatchMode=yes` — it never asks for a password. For a port or key, put a `Host` alias in

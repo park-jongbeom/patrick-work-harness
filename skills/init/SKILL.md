@@ -304,12 +304,15 @@ These live in the user's `~/.claude/settings.json`, outside the target repo, so 
 
 ```json
 {
-  "cleanupPeriodDays": 3650,
+  "cleanupPeriodDays": 90,
   "permissions": { "ask": ["Bash(git push *)", "Bash(gh pr create *)"] }
 }
 ```
 
-- `cleanupPeriodDays` — Claude Code deletes conversation transcripts after 30 days by default. `hooks/skill_usage_aggregator.py` reads them for the monthly usage review, so the default leaves at most one month to review. Any value ≥ 1 works (0 is rejected).
+- `cleanupPeriodDays` — Claude Code deletes conversation transcripts after 30 days by default. The usage report reads them, and a
+  monthly review needs a little more than a month, so 90 is enough. Transcripts hold project content (code, paths, customer
+  material), so do not keep them longer than the review needs — `/harness-feedback` already sends a summary within 30 days.
+  Any value ≥ 1 works (0 is rejected).
 - `permissions.ask` — pushing and opening a PR always ask first, even inside an authorized C~E·D~E batch run. `ask` rules win over `allow` rules. Merge into an existing `permissions.ask` array; do not replace it.
 
 ### Step 7 — Generate the initial `session-dashboard.html`

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-이해도 질문이 답을 기다리는 동안 gate-c·gate-d·gate-e 진입을 막는다 — Claude Code Hook.
+Gate B 의 확인·질문이 응답을 기다리는 동안 gate-c·gate-d·gate-e 진입을 막는다 — Claude Code Hook.
+
+확인형 Gate B(2026-11-10)에서도 같은 `### 질문 N` 블록을 쓴다 — 「진행」이 정식 응답이고, gate-b 가 평가를 적으면 풀린다.
 
 왜: gate-b 는 질문 대기 중 「구현」「진행」은 답도 스킵도 아니라고 **문장으로** 정했다
 (v1.7.0). 문장은 모델이 따를 수도 안 따를 수도 있다. 공식 skills 문서는 「매번 지켜야 할
@@ -78,9 +80,9 @@ def question_is_from_earlier_plan(transcript_path):
 
 def reason_text(skill, pending):
     return (
-        f"이해도 질문이 답을 기다리고 있어 /{skill} 단계를 시작하지 않습니다 — "
-        f"{', '.join(pending)}. 질문에 답하거나, 답하지 않고 넘어가려면 「스킵」이라고 "
-        f"명시해 주세요(gate-b 가 평가를 기록하면 풀립니다)."
+        f"Gate B 확인이 응답을 기다리고 있어 /{skill} 단계를 시작하지 않습니다 — "
+        f"{', '.join(pending)}. 「진행」이라고 답하거나 바꿀 것·답을 적어 주세요. 그냥 넘어가려면 「스킵」 "
+        f"(gate-b 가 평가를 기록하면 풀립니다)."
     )
 
 

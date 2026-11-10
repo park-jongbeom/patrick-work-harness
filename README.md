@@ -23,7 +23,7 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | Tests disabled to fake a pass | `test-tampering-guard` Stop hook detects reward-hacking in real time |
 | Completion records scattered and untraceable | Gate E — auto-generates WORKLOG + archive |
 | Documents go stale every session | 5 guard hooks including `master-plan-stale-guard` |
-| A hard-to-undo change passing unread | Gate B (comprehension gate) — one question, chosen by a script |
+| A hard-to-undo change passing unread | Gate B (comprehension stop) — before a change a script flags as hard to undo, one stop showing what cannot be undone, where it breaks first and how to undo it; 「진행」 goes on, a question only on request |
 
 #### Process flow
 
@@ -77,7 +77,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | Command | Role |
 |---------|------|
 | `/gate-a` | Build a change plan — inspect files · steps · scope, then wait for approval |
-| `/gate-b` | Comprehension gate — one question on changes that are hard to undo |
+| `/gate-b` | Comprehension stop — confirm before a hard-to-undo change; a question only on request |
 | `/gate-c` | Implement code — follow the Gate A plan exactly, then wait for confirmation |
 | `/gate-d` | Verify — test plan · execution · failure classification (FIX-B / DEP) · code review |
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
@@ -238,7 +238,7 @@ or
 #### Gate B → C → D → E (comprehend · implement · verify · record)
 
 ```
-/gate-b   ← comprehension check (one question on hard-to-undo changes)
+/gate-b   ← comprehension stop (confirm hard-to-undo changes; a question only on request)
 /gate-c   ← implement (exactly per Gate A plan)
 /gate-d   ← verify (test plan · execution · failure classification)
 /gate-e   ← record (WORKLOG + archive)
@@ -262,11 +262,12 @@ the only gate that runs tests.)
 `python3 hooks/harness_report.py` reads Claude Code's conversation transcripts (`~/.claude/projects`) and writes a
 report: per session, which harness copy ran (plugin, `install.sh`, or a source copy), the models used, the Gate order,
 and per guard how often it fired, asked, denied, blocked or warned — including whether you allowed or denied each
-confirmation prompt — plus warnings repeated within one session, and how you responded to each Gate B question
-(answered, skipped partway, skipped, or passed with no answer). It also accounts for the context: compactions (auto or
+confirmation prompt — plus warnings repeated within one session, and how you responded at each Gate B stop
+(confirmed with 「진행」, answered or changed the plan, skipped partway, skipped, or passed with no answer). It also accounts for the context: compactions (auto or
 manual), the context already carried into each Gate A, the share of harness skill bodies up to each compaction, what
-fills the context (tool results per tool, skill bodies, your input, model output — images counted apart), and how
-harness skills were loaded again (typed, Skill call with or without arguments, duplicates). Run from this repository it also shows how far each
+fills the context (tool results per tool, skill bodies, your input, model output — images counted apart), how
+harness skills were loaded again (typed, Skill call with or without arguments, duplicates), and code edits made before
+Gate A approval or outside a Gate cycle. Run from this repository it also shows how far each
 pending prediction in `DECISION_LOG.md` has come. It only reads; the output contains project names and conversation
 snippets, so it is written outside any repository (`~/.claude/harness-reports/<date>/`). Transcripts are deleted after
 30 days unless `cleanupPeriodDays` is raised (see `/init` Step 6-b).
@@ -336,7 +337,7 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | 테스트를 무력화해 통과 위장 | `test-tampering-guard` Stop hook 실시간 감지 |
 | 완료 기록이 흩어져 추적 불가 | Gate E — WORKLOG + archive 자동 생성 |
 | 문서가 세션마다 스테일 | `master-plan-stale-guard` 등 5종 가드 훅 |
-| 되돌리기 어려운 변경이 읽히지 않고 통과 | Gate B(이해도 게이트) — 스크립트가 고른 1문항 |
+| 되돌리기 어려운 변경이 읽히지 않고 통과 | Gate B(이해도 확인) — 스크립트가 되돌리기 어렵다고 본 변경 앞에서 한 번 멈춰 되돌릴 수 없는 것·가장 깨지기 쉬운 곳·되돌리는 법을 보이고, 「진행」이면 넘어간다. 질문은 요청할 때만 |
 
 #### 프로세스 흐름
 
@@ -389,7 +390,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | 커맨드 | 역할 |
 |--------|------|
 | `/gate-a` | 변경 계획 수립 — 파일·Step·범위 점검·승인 대기 |
-| `/gate-b` | 이해도 게이트 — 되돌리기 어려운 변경에만 1문항 |
+| `/gate-b` | 이해도 확인 — 되돌리기 어려운 변경 앞에서 한 번 멈춤, 질문은 요청할 때만 |
 | `/gate-c` | 코드 구현 — Gate A 계획 그대로 구현 후 확인 대기 |
 | `/gate-d` | 검증 — 시험 계획·실행·실패 분류(FIX-B/DEP)·코드리뷰 |
 | `/gate-e` | 세션 정리 — WORKLOG·archive 생성·3문서 ✅E 갱신 |
@@ -549,7 +550,7 @@ Gate A 승인
 #### Gate B → C → D → E (이해도·구현·검증·기록)
 
 ```
-/gate-b   ← 이해도 점검 (되돌리기 어려운 변경에만 1문항)
+/gate-b   ← 이해도 확인 (되돌리기 어려운 변경 앞에서 한 번 멈춤, 질문은 요청할 때만)
 /gate-c   ← 구현 (Gate A 계획 그대로)
 /gate-d   ← 검증 (시험 계획·실행·실패 분류)
 /gate-e   ← 기록 (WORKLOG + archive)
@@ -572,10 +573,10 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 
 `python3 hooks/harness_report.py` 는 Claude Code 대화 기록(`~/.claude/projects`)을 읽어 보고서를 만든다. 세션마다 어느
 하네스 사본이 돌았는지(플러그인·`install.sh`·원본 사본), 쓰인 모델, Gate 순서, 가드별 발동·묻기·거부·차단·알림 수와
-확인 창에 사용자가 허용했는지 거부했는지, 한 세션 안에서 반복된 경고, Gate B 질문에 어떻게 응답했는지(답함·일부 답 뒤
+확인 창에 사용자가 허용했는지 거부했는지, 한 세션 안에서 반복된 경고, Gate B 에서 어떻게 응답했는지(「진행」으로 확인·답하거나 계획 변경·일부 답 뒤
 스킵·스킵·답 없음)를 센다. 문맥도 센다 — 압축(자동·수동), Gate A 를 부를 때 이미 실려 있던 문맥, 압축까지의 하네스 스킬
 본문 몫, 문맥을 채운 것(도구별 결과·스킬 본문·사용자 입력·모델 출력, 이미지는 따로), 하네스 스킬이 다시 실린 방식(직접
-입력·인자 유무·겹친 적재). 이 저장소에서 돌리면 `DECISION_LOG.md` 의
+입력·인자 유무·겹친 적재), Gate A 승인 전이나 Gate 회차 밖에서 한 코드 편집. 이 저장소에서 돌리면 `DECISION_LOG.md` 의
 대기 예측이 확인 시점까지 얼마나 왔는지도 보여 준다. 읽기만 하고, 결과에 프로젝트 이름과 대화 조각이 들어가므로 저장소
 밖(`~/.claude/harness-reports/<날짜>/`)에 쓴다. 대화 기록은 `cleanupPeriodDays` 를 늘리지 않으면 30일 뒤 지워진다
 (`/init` 6-b 단계).

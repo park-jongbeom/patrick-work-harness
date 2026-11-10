@@ -294,6 +294,28 @@ class TestCommands(FeedbackCase):
         self.assertEqual(rc, 0)
         self.assertIn("지금 보낼 조건: 내부 오류 1건", out)
 
+    def test_sent_rows_carry_no_customer_names(self):
+        """받은 행의 알림 문구에 고객 문서 이름이, folder 칸에 PC 사용자·고객 폴더 이름이 실려 왔다(2026-11-10) — 보낼 때 지운다."""
+        other = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/verify_gate.py"'
+        notice = lambda cmd, text: {"type": "attachment", "timestamp": now_ts(), "attachment": {
+            "type": "hook_system_message", "hookName": "Stop", "hookEvent": "Stop", "command": cmd, "content": text}}
+        start = {"type": "user", "timestamp": now_ts(), "cwd": "/w/proj", "message": {"content": "일"}}
+        self.session("s1", [start] + [notice(other, "[검증 게이트] 문서 1개(01_고객사_PoC_보고서_261105.md)")] * 3,
+                     project="d--Users-someone-work-client-proj")
+        self.session("s2", [start] + [notice(ENGINE_HOOK, "[TAMPER] D:\\Users\\someone\\work\\client\\tests\\고객_시험.py "
+                                                          "· CURRENT_SESSION.md 확인")] * 3)
+        self.configured()
+        self.assertEqual(self.run_script("send")[0], 0)
+        with open(os.path.join(self.remote, "harness-inbox", self.received()[0]), encoding="utf-8") as f:
+            text = f.read()
+        rows = {r["session"]: r for r in (json.loads(x) for x in text.splitlines()[1:])}
+        self.assertNotIn("고객", text)
+        self.assertNotIn("someone", text)
+        self.assertEqual(rows["s1"]["folder"], "")
+        self.assertEqual(rows["s1"]["max_repeat_notice"], {"count": 3, "text": "", "owner": "verify_gate.py"})
+        self.assertEqual(rows["s2"]["max_repeat_notice"]["text"], "[TAMPER] <경로> · CURRENT_SESSION.md 확인")
+        self.assertEqual(rows["s2"]["project"], "proj")                      # 프로젝트 이름(폴더 끝 이름)은 남긴다
+
     def test_receive_strips_meta_and_counts_a_resent_session_once(self):
         sys.path.insert(0, HERE)
         import harness_report as hr

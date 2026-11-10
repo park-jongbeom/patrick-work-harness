@@ -68,6 +68,18 @@ LOADED_NOTE = re.compile(r"^Skill /(?:[\w-]+:)?([\w-]+) is already loaded above"
 TOKENS_PER_CHAR = 0.45
 #: 문맥에 실리는 첨부 → 「문맥 출처」 칸. 도구 목록·환경 같은 시스템 첨부는 첫 응답 문맥에 이미 들어 있어 세지 않는다.
 #: 대기 중 입력(queued_command)은 뒤에 사용자 메시지로 다시 남지 않는다(이 서버 기록 305건 확인) — 여기서 센다.
+#: Gate A 승인 표지 — gate-a 가 승인으로 읽는 문구(「진행」「ok」 는 승인이 아니다). 다음 Gate 호출도 승인 뒤로 본다.
+APPROVAL_PHRASE = re.compile(r"Gate\s*A\s*승인|계획대로\s*구현|Gate\s*A\s*대로\s*구현|자율\s*레인\s*승인|[CD]\s*~\s*E\s*일괄")
+#: 코드 편집으로 세는 도구. Bash 로 쓴 편집(sed -i·리다이렉트)은 셀 수 없어 하한이다.
+CODE_EDIT_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+
+
+def _is_code(path):
+    """계획·기록 문서(.md·.txt)와 하네스 설정(.claude/)은 코드 편집이 아니다 — Gate A 가 승인 전에 쓰는 것들이다."""
+    p = str(path).replace("\\", "/").lower()
+    return not (p.endswith((".md", ".markdown", ".txt")) or "/.claude/" in p or p.endswith("session-dashboard.html"))
+
+
 CONTEXT_ATTACHMENTS = {"invoked_skills": "reattach:skills", "file": "reattach:files", "instructions": "instructions",
                        "nested_memory": "instructions", "hook_additional_context": "hook_context"}
 #: 새 문맥 검토(fresh_review.py, 2026-11-10)의 흔적 — 검토자 지시문 첫머리 표지, Gate A 블록에 쓴 기록 줄(자리표시 `지적 N` 은
@@ -80,13 +92,16 @@ TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>
                         r".*?<duration_ms>(\d+)</duration_ms>")
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
 #: v1.7.0 전 회차에는 둘 다 없어 응답의 「질문 N」도 본다(실제 기록 12회에서 질문 회차와 정확히 일치했다).
-GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]")
+GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]|「진행」이라고 답하면")
+#: 확인형 Gate B(2026-11-10) — 질문 대신 되돌리기 어려운 부분·가장 깨지기 쉬운 곳·되돌리는 법 세 줄을 보이고 「진행」 한 마디로 넘어간다.
+GATE_B_CONFIRM = re.compile(r"「진행」이라고 답하면")
+GATE_B_ACK = re.compile(r"(?:확인|진행|계속|ok|오케이|좋아|구현)(?:했다|함|해|해라|합니다|하자)?[.!]?", re.I)
 GATE_B_PLACEHOLDER = re.compile(r"\*\*평가\*\*\s*[:：]\s*\(\s*(?:답변\s*후\s*기록|평가\s*전|filled after the answer)\s*\)")
 GATE_B_SKIP = re.compile(r"스킵|스킴|skip", re.I)       # 「스킴」은 실제 기록의 오타
 GATE_B_SKIP_MAX = 40                                    # 긴 글 안의 「스킵」은 답이다(실제 스킵은 7~9자였다)
 GATE_B_GO = re.compile(r"(?:(?:계획대로 )?구현|진행|계속|gate[ -]?c(?: 시작)?)(?:해라|해)?[.!]?", re.I)
 GATE_B_PLAN = re.compile(r"\*\*계획 변경\*\*\s*[:：]\s*(있음|없음)")
-GATE_B_ASKED = ("answered", "partial", "skipped", "unanswered")
+GATE_B_ASKED = ("confirmed", "answered", "partial", "skipped", "unanswered")
 
 
 def as_text(value):
@@ -196,7 +211,8 @@ def gate_b_rounds(path):
     「이상 패턴 없음」으로 냈다. 회차는 Gate 호출로 열리고, 스킵·다음 Gate 호출·기록 끝, 또는 모델이 다시 묻지 않고
     넘어간 뒤의 사람 입력에서 닫힌다 — Gate C 호출 없이 구현으로 넘어가는 대화가 있어 호출만 기다리면 회차가 끝나지 않는다.
 
-    칸: none 질문 없음 · answered 답함 · partial 일부 답 뒤 스킵 · skipped 답 없이 스킵 · unanswered 답도 스킵도 없이 끝남,
+    칸: none 질문 없음 · confirmed 확인형 회차를 「진행」으로 넘김 · answered 답함(확인형에서 묻거나 바꾼 것 포함) ·
+    partial 일부 답 뒤 스킵 · skipped 답 없이 스킵 · unanswered 답도 스킵도 없이 끝남,
     plan_changed·plan_same 평가 아래 적은 「계획 변경」(있음이 하나라도 있으면 있음).
 
     한계: Skill·슬래시 호출 없이 진행한 회차는 못 본다(하한). 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한).
@@ -215,7 +231,7 @@ def gate_b_rounds(path):
         elif current["skipped"]:
             counts["partial" if current["answers"] else "skipped"] += 1
         else:
-            counts["answered" if current["answers"] else "unanswered"] += 1
+            counts["answered" if current["answers"] else "confirmed" if current["confirmed"] else "unanswered"] += 1
         if current["plan"]:
             counts["plan_changed" if "있음" in current["plan"] else "plan_same"] += 1
         current = None
@@ -224,7 +240,8 @@ def gate_b_rounds(path):
         nonlocal current
         close()
         if letter == "b":
-            current = {"asked": False, "waiting": False, "answers": 0, "skipped": False, "plan": set()}
+            current = {"asked": False, "waiting": False, "answers": 0, "skipped": False, "plan": set(),
+                       "confirm": False, "confirmed": False}
 
     def waiting():
         current["asked"] = current["waiting"] = True
@@ -244,6 +261,7 @@ def gate_b_rounds(path):
                         continue
                     if block.get("type") == "text" and current and GATE_B_WAITING.search(as_text(block.get("text"))):
                         waiting()
+                        current["confirm"] = current["confirm"] or bool(GATE_B_CONFIRM.search(as_text(block.get("text"))))
                     elif block.get("type") == "tool_use":
                         inp = block.get("input") or {}
                         m = GATE_SKILL.search(str(inp.get("skill", ""))) if block.get("name") == "Skill" else None
@@ -269,6 +287,8 @@ def gate_b_rounds(path):
                 if GATE_B_SKIP.search(text) and len(text) <= GATE_B_SKIP_MAX:
                     current["skipped"] = True
                     close()
+                elif current["confirm"] and (GATE_B_GO.fullmatch(text) or GATE_B_ACK.fullmatch(text)):
+                    current["confirmed"] = True       # 확인형에서는 「진행」이 정식 응답이다
                 elif not GATE_B_GO.fullmatch(text):
                     current["answers"] += 1
     close()
@@ -286,6 +306,7 @@ def read_session(path):
     guards = collections.defaultdict(_new_guard)
     durations = collections.defaultdict(list)
     sources, notices, asks, ask_owner = set(), collections.Counter(), {}, {}
+    notice_owner = {}                               # 알림 첫 줄 → 그 알림을 낸 훅(보낼 때 문구를 거르는 기준)
     # 문맥 비용: 응답마다 실린 입력 토큰(입력+캐시 생성+캐시 읽기). 한 응답이 내용 블록마다 여러 줄로 남으므로
     # message.id 로 묶는다. 스킬 본문은 적재 직전·직후 응답의 문맥 차로 잰다.
     call_index, calls, stops, loads = {}, [], [], []
@@ -297,6 +318,7 @@ def read_session(path):
     seq, names, boundaries, items, images = 0, {}, [], [], []
     reattached, gate_a_starts, dups, skill_calls, typed_at = [], [], set(), {}, {}
     present, reload, versions, fresh_heads = set(), collections.Counter(), set(), []
+    gate_events, approvals, code_edits = [], [], []  # 승인 전 편집(2026-11-10): (seq, Gate 글자) · 승인 입력 seq · 코드 편집 seq
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -344,6 +366,8 @@ def read_session(path):
                     inp = block.get("input") if isinstance(block.get("input"), dict) else {}
                     names[tid] = name
                     items.append((len(calls), seq, "model:tool_input", len(json.dumps(inp, ensure_ascii=False))))
+                    if name in CODE_EDIT_TOOLS and _is_code(inp.get("file_path") or inp.get("notebook_path") or ".md"):
+                        code_edits.append(seq)
                     if name == "Skill":
                         skill = str(inp.get("skill", ""))
                         row["skills"][skill.split(":")[-1]] += 1
@@ -366,6 +390,8 @@ def read_session(path):
                     note = LOADED_NOTE.match(text)
                     if note and note.group(1) in HARNESS_SKILLS and not side:
                         reload["notes"] += 1
+                        if re.fullmatch(r"gate-[a-e]", note.group(1)):
+                            gate_events.append((seq, note.group(1)[-1]))
                         if note.group(1) == "gate-a":
                             gate_a_starts.append(len(calls))
                 if event.get("isCompactSummary") and not side:
@@ -385,6 +411,8 @@ def read_session(path):
                             call = skill_calls.get(name)
                             reload["typed" if seq - typed_at.get(name, -99) <= 8 else
                                    ("args" if call[1] else "tool") if call and seq - call[0] <= 8 else "other"] += 1
+                            if re.fullmatch(r"gate-[a-e]", name):
+                                gate_events.append((seq, name[-1]))
                             if name in present:             # 앞 사본이 아직 문맥에 있다(그사이 압축 없음)
                                 dups.add(seq)
                             present.add(name)
@@ -393,6 +421,8 @@ def read_session(path):
                 if _is_typed_prompt(event):
                     text = " ".join(_texts(content))
                     items.append((len(calls), seq, "user", len(text)))
+                    if APPROVAL_PHRASE.search(text):
+                        approvals.append(seq)
                     row["user_prompts"] += 1
                     row["cross_check_requests"] += "대조 검증" in text
                     row["batch_requests"] += ("C~E 일괄" in text) or ("D~E 일괄" in text)
@@ -475,7 +505,9 @@ def read_session(path):
                     text = as_text(att.get("content")).strip()
                     g["notice"] += 1
                     g["fired"] += 1
-                    notices[text.splitlines()[0] if text else ""] += 1
+                    first_line = text.splitlines()[0] if text else ""
+                    notices[first_line] += 1
+                    notice_owner.setdefault(first_line, name)
                     for key, needle in SPECIAL_NOTICES.items():
                         row["special"][key] += needle in text
                 elif atype == "hook_additional_context":
@@ -544,6 +576,7 @@ def read_session(path):
         if fresh_heads:
             row["fresh_review"]["unknown_heads"] = fresh_heads[:5]
     row["cc_versions"] = sorted(versions, key=lambda v: (_version_key(v) or (), v))
+    row["edits"] = _edit_timing(gate_events, approvals, code_edits)
     out_guards = {}
     for name, counter in guards.items():
         entry = {k: v for k, v in counter.items() if v}
@@ -558,7 +591,7 @@ def read_session(path):
             out_guards[name] = {"ms_median": int(statistics.median(times)), "ms_max": int(max(times))}
     row["guards"] = out_guards
     text, count = (notices.most_common(1)[0] if notices else ("", 0))
-    row["max_repeat_notice"] = {"count": count, "text": text[:160]}
+    row["max_repeat_notice"] = {"count": count, "text": text[:160], "owner": notice_owner.get(text, "")}
     for key in ("models", "skills", "special"):
         row[key] = dict(row[key])
     row["context"] = {"calls": len(calls), "first": calls[0] if calls else 0, "max": max(calls, default=0),
@@ -566,6 +599,23 @@ def read_session(path):
                       **_context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts,
                                             dups, reload)}
     return row, bad
+
+
+def _edit_timing(gate_events, approvals, code_edits):
+    """코드 편집이 Gate 회차의 어디에서 났나. 바로 앞 Gate 가 A 이고 그 뒤 승인 입력이 없으면 「승인 전」, 바로 앞 Gate 가
+    E 이거나 그 세션에서 Gate 를 아직 부르지 않았으면 「회차 밖」. Gate 를 한 번도 부르지 않은 세션은 회차 밖으로 세지 않는다."""
+    events = sorted(gate_events)
+    pre, outside, cycles = 0, 0, set()
+    for at in code_edits:
+        last = next((g for g in reversed(events) if g[0] < at), None)
+        if last is None:
+            outside += bool(events)
+        elif last[1] == "a" and not any(last[0] < a < at for a in approvals):
+            pre += 1
+            cycles.add(last[0])
+        elif last[1] == "e":
+            outside += 1
+    return {"code": len(code_edits), "pre_approval": pre, "pre_approval_cycles": len(cycles), "outside_cycle": outside}
 
 
 def _context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts, dups, reload):
@@ -775,6 +825,10 @@ METRICS = [
      "발동한 새 문맥 검토 수(--force 제외) — 내용 고침·올림·건너뜀은 「새 문맥 검토」 표"),
     ("작업 PC 의 사용 기록 요약을 응답 종료 훅이", len, None,
      "결정일 뒤 활동한 받은 세션 수 — 받은 세션 전체와 PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
+    ("Gate B 를 시험에서 확인으로 바꾼다", lambda rows: _gate_b_asked(rows), 10,
+     "멈춘 Gate B 회차 수 — 확인(진행)·답함·계획 변경은 「Gate B 질문 결과」 표, 판단 기준은 이 결정의 예측 칸"),
+    ("외부 평가의 남은 항목 — 보존 권장을 90일로", lambda rows: sum((r.get("edits") or {}).get("pre_approval_cycles", 0) for r in rows),
+     None, "승인 전 코드 편집이 있던 Gate A 회차 수 — 「코드 편집 시점」 표, 판단은 갱신 뒤 하네스 세션 10개(이 결정의 예측 칸)"),
     ("외부 평가가 짚은 문서 과장과 꺼진 체크섬을", None, 3,
      "릴리스 자산 두 파일(`gh release view vX.Y.Z --json assets`)·설치 출력의 「SHA256 검증 완료」·린트 35·36 오탐 — 다음 릴리스 3회"),
     ("요약이 압축·회차 이월·문맥 출처를 센다", lambda rows: sum(1 for r in rows if _accounted(r)), 10,
@@ -865,7 +919,7 @@ def render(data, progress, projects_dir, since):
         lines.append("- ⚠️ **형식 확인 필요** — 세션이나 훅 기록이 하나도 없다. 대화 기록 형식이 바뀌었거나 경로가 틀렸을 수 있다.")
     by_project = collections.defaultdict(list)
     for r in sessions:
-        by_project[r["project"] or r["folder"]].append(r)
+        by_project[r.get("project") or r.get("folder") or "?"].append(r)
     lines += ["", "## 프로젝트", "", "| 프로젝트 | 세션 | 하네스 출처 | 모델(응답 수) | 사용자 입력 | 대조 검증 요청 |", "|---|---|---|---|---|---|"]
     for name, rows in sorted(by_project.items()):
         src = sorted({s for r in rows for s in r["engine_source"]}) or ["(하네스 훅 없음)"]
@@ -899,7 +953,9 @@ def render(data, progress, projects_dir, since):
     repeats = sorted((r for r in sessions if r["max_repeat_notice"]["count"] >= 3),
                      key=lambda r: -r["max_repeat_notice"]["count"])
     lines += ["", "## 반복된 알림 (한 세션에서 같은 알림 3회 이상 — 경고 피로 후보)", ""]
-    lines += [f"- {r['project']} `{r['session'][:8]}`: {r['max_repeat_notice']['count']}회 — {r['max_repeat_notice']['text']}"
+    lines += [f"- {r['project']} `{r['session'][:8]}`: {r['max_repeat_notice']['count']}회 — "
+              + (r['max_repeat_notice']['text']
+                 or f"({r['max_repeat_notice'].get('owner') or '다른 훅'} 의 알림 — 문구는 보내지 않았다)")
               for r in repeats[:15]] or ["- 없음"]
     lines += ["", "## 문맥 비용 (응답마다 실린 입력 토큰)", "",
               "- 첫 응답 문맥 = 시스템 프롬프트·도구·CLAUDE.md·스킬 목록의 고정 몫. 하네스 없는 프로젝트의 값과 비교한다.",
@@ -955,6 +1011,17 @@ def render(data, progress, projects_dir, since):
             cc = versions[0] if len(versions) == 1 else (f"{versions[0]}~{versions[-1]}" if versions else "—")
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {rl['typed']} | {rl['args']} | {rl['tool']} | "
                          f"{rl['other']} | {rl['dup']} / {rl['dup_tokens']} | {rl['notes']} | {cc} |")
+    timed = [r for r in sorted(sessions, key=lambda r: r["last"], reverse=True) if r.get("gates") and "edits" in r]
+    if timed:
+        lines += ["", "## 코드 편집 시점 (Gate A 승인 전 · 회차 밖)", "",
+                  "- 코드 편집 = Write·Edit·MultiEdit·NotebookEdit 로 .md·.txt·.claude/ 밖의 파일을 바꾼 호출. Bash 로 쓴 편집은 세지 못한다(하한).",
+                  "- 승인 = 「Gate A 승인」「계획대로 구현」「자율 레인 승인」「C~E 일괄」 입력 또는 다음 Gate 호출. 회차 밖 = 그 세션의 첫 Gate 전, "
+                  "또는 Gate E 뒤(작은 수정을 Gate 없이 한 것일 수 있다 — 위반인지는 사람이 본다).", "",
+                  "| 프로젝트 | 세션 | Gate A 회차 | 코드 편집 | 승인 전 편집(회차 수) | 회차 밖 편집 |", "|---|---|---|---|---|---|"]
+        for r in timed:
+            e = r["edits"]
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['gates'].split().count('a')} | {e['code']} | "
+                         f"{e['pre_approval']} ({e['pre_approval_cycles']}) | {e['outside_cycle']} |")
     lines += ["", "## Gate 순서 (세션별)", "", "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E |", "|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:
@@ -963,9 +1030,10 @@ def render(data, progress, projects_dir, since):
               "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
               "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",
               "- 스킵 수 하나로 판단하지 않는다 — 낮아도 의례일 수 있고 높아도 정당할 수 있다. 계획 변경 칸은 gate-b Step 3 이 적기 시작한 뒤 회차부터 쌓인다.", "",
-              "| 프로젝트 | 세션 | 마지막 활동 | 질문 없음 | 답함 | 일부 답 뒤 스킵 | 스킵 | 답 없음 | 계획 변경 있음/없음 |",
-              "|---|---|---|---|---|---|---|---|---|"]
-    gate_b_cols = ("none", "answered", "partial", "skipped", "unanswered")
+              "- 확인(진행) = 확인형 Gate B(2026-11-10~)에서 세 줄을 보고 「진행」으로 넘긴 회차. 그 자리에서 묻거나 계획을 바꾸면 「답함」이다.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | 질문 없음 | 확인(진행) | 답함 | 일부 답 뒤 스킵 | 스킵 | 답 없음 | 계획 변경 있음/없음 |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
+    gate_b_cols = ("none", "confirmed", "answered", "partial", "skipped", "unanswered")
     gate_b_total = collections.Counter()
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         g = r.get("gate_b") or {}

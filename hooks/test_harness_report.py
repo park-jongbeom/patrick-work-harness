@@ -141,6 +141,25 @@ class TestHookDecisions(ReportCase):
         self.assertEqual(r["max_repeat_notice"]["count"], 5)
         self.assertTrue(r["max_repeat_notice"]["text"].startswith("[COMPREHENSION-LEDGER-STALE]"))
         self.assertEqual(r["guards"]["comprehension-ledger-stale-guard.py"]["notice"], 5)   # 꼬리표 → 그 훅 파일
+        self.assertEqual(r["max_repeat_notice"]["owner"], "comprehension-ledger-stale-guard.py")
+
+    def test_repeated_notice_of_another_hook_names_that_hook(self):
+        other = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/verify_gate.py"'
+        self.session([hook("hook_system_message", "Stop", other, content="[검증 게이트] 문서 1개(01_고객사_보고서.md)")] * 3)
+        self.assertEqual(self.rows()["s1"]["max_repeat_notice"]["owner"], "verify_gate.py")
+
+    def test_report_shows_the_owner_when_the_text_was_not_sent(self):
+        path = os.path.join(self.root, "sent.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"session": "s1", "project": "p", "last": "2026-11-10T00:00:00Z", "first": "", "guards": {},
+                                "models": {}, "skills": {}, "special": {}, "gates": "", "engine_source": [],
+                                "user_prompts": 0, "cross_check_requests": 0, "auto_mode_denials": 0,
+                                "safety_check_denials": 0, "context": {},
+                                "max_repeat_notice": {"count": 4, "text": "", "owner": "verify_gate.py"}}) + "\n")
+        out = os.path.join(self.root, "out")
+        hr.main(["--sessions", path, "--out", out])
+        with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
+            self.assertIn("4회 — (verify_gate.py 의 알림 — 문구는 보내지 않았다)", f.read())
 
     def test_list_shaped_attachment_content(self):
         """실제 기록에서 알림 content 가 문자열이 아니라 블록 목록인 경우가 있었다(2026-10-22 첫 실행에서 발견)."""
@@ -506,16 +525,31 @@ class TestGateBRounds(ReportCase):
     def test_session_without_gate_b_has_no_rounds(self):
         self.assertEqual(self.rounds([gate("a"), gate("c")]), {})
 
+    CONFIRM = ("**다음 단계**: 위 세 줄을 확인하고 「진행」이라고 답하면 구현을 시작합니다. 묻고 싶은 것이나 바꿀 것이 있으면 "
+               "그대로 적어 주세요 — 「질문해 줘」라고 하면 이해 확인 질문을 하나 냅니다.")
+
     def test_report_shows_responses_next_to_gate_order(self):
         self.session([gate("b"), said(self.ASKED), user("스킵하고 구현해라"), gate("c")])
         data = hr.collect(self.root)
         md = hr.render(data, None, self.root, None)
         self.assertIn("## Gate B 질문 결과", md)
-        self.assertRegex(md, r"\| 합계 \|.*\| 0 \| 0 \| 0 \| 1 \| 0 \| 0/0 \|")
+        # 질문 없음 · 확인(진행) · 답함 · 일부 답 뒤 스킵 · 스킵 · 답 없음 · 계획 변경
+        self.assertRegex(md, r"\| 합계 \|.*\| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \| 0/0 \|")
+
+    def test_confirmation_round_closes_on_a_go_word(self):
+        """확인형 Gate B(2026-11-10) — 되돌리기 어려운 변경 앞에서 한 번 멈추고 「진행」 한 마디로 넘어간다. 시험이 아니다."""
+        self.assertEqual(self.rounds([gate("b"), said(self.CONFIRM), user("진행"), gate("c")]), {"confirmed": 1})
+
+    def test_confirmation_round_with_a_change_counts_as_engaged(self):
+        write = assistant(tools=[("w1", "Edit", {"file_path": "/w/proj-a/CURRENT_SESSION.md", "old_string": "a",
+                                                  "new_string": "- **평가**: 확인 — 계획 변경\n- **계획 변경**: 있음 — 운영 반영을 뺐다"})])
+        self.assertEqual(self.rounds([gate("b"), said(self.CONFIRM), user("운영 DB 반영은 빼고 개발 DB 에만 하자"), write, gate("c")]),
+                         {"answered": 1, "plan_changed": 1})
 
     def test_question_rounds_feed_the_pending_prediction(self):
         self.assertEqual(hr._gate_b_asked([{"gate_b": {"none": 3, "answered": 1, "partial": 1, "skipped": 2, "unanswered": 1}},
                                            {"gate_b": {}}, {}]), 5)
+        self.assertEqual(hr._gate_b_asked([{"gate_b": {"confirmed": 2, "none": 4}}]), 2)   # 확인 회차도 멈춘 회차다
 
 
 if __name__ == "__main__":
@@ -725,6 +759,43 @@ class TestContextAccounting(ReportCase):
         self.assertIn("## 문맥 출처", md)
         self.assertRegex(md, r"\| proj-a \| `s1` \|[^\n]*tool:Read \d+%")
         self.assertIn("## 스킬 다시 싣기", md)
+
+
+def edit(tid, path):
+    return [assistant(tools=[(tid, "Edit", {"file_path": path, "old_string": "a", "new_string": "b"})]), tool_result(tid)]
+
+
+class TestEditTiming(ReportCase):
+    """Gate A 승인 전 코드 편집 — 승인 전 편집을 막는 훅을 둘지는 이 수를 보고 정한다(2026-11-10, 외부 평가의 P0)."""
+
+    def test_edits_before_approval_and_outside_the_cycle(self):
+        self.session([user("작업하자"), *edit("e0", "/w/proj-a/src/early.py"),             # 회차 밖(Gate A 전)
+                      typed("gate-a"), body("gate-a", 500), *edit("e1", "/w/proj-a/src/app.py"),   # 승인 전
+                      *edit("e2", "/w/proj-a/CURRENT_SESSION.md"),                         # 계획 문서 — 코드 아님
+                      *edit("e3", "C:\\w\\proj-a\\.claude\\settings.json"),       # 하네스 설정 — 코드 아님
+                      user("Gate A 승인"), *edit("e4", "/w/proj-a/src/app.py"),            # 승인 뒤
+                      *skill_call("t1", "gate-c"), body("gate-c", 300), *edit("e5", "/w/proj-a/src/b.ts"),
+                      *skill_call("t2", "gate-e"), body("gate-e", 300), *edit("e6", "/w/proj-a/src/late.kt"),  # 회차 밖(Gate E 뒤)
+                      typed("gate-a"), body("gate-a", 500), *skill_call("t3", "gate-c"), body("gate-c", 300),
+                      *edit("e7", "/w/proj-a/src/c.py"),                                   # 다음 Gate 호출이 승인 표지
+                      assistant(tools=[("b1", "Bash", {"command": "sed -i s/a/b/ src/d.py"})]), tool_result("b1")])
+        self.assertEqual(self.rows()["s1"]["edits"],
+                         {"code": 6, "pre_approval": 1, "pre_approval_cycles": 1, "outside_cycle": 2})
+
+    def test_session_without_gates_counts_no_outside_edits(self):
+        self.session([user("고쳐줘"), *edit("e1", "/w/proj-a/src/app.py")])
+        self.assertEqual(self.rows()["s1"]["edits"], {"code": 1, "pre_approval": 0, "pre_approval_cycles": 0,
+                                                      "outside_cycle": 0})
+
+    def test_report_has_the_edit_timing_section(self):
+        self.session([user("시작"), call("m1", 30000), typed("gate-a"), body("gate-a", 500),
+                      *edit("e1", "/w/proj-a/src/app.py"), call("m2", 31000)])
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--out", out])
+        with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
+            md = f.read()
+        self.assertIn("## 코드 편집 시점", md)
+        self.assertIn("| proj-a | `s1` | 1 | 1 | 1 (1) | 0 |", md)
 
 
 class TestFreshReviewHeads(ReportCase):
