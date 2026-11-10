@@ -279,7 +279,9 @@ When both hold, `Read` `SKILL_DETAIL.md §Lane Routing` and apply its trigger ta
    > Keep the ⓐ/ⓑ/ⓒ tags from `0-Claim` in the plan text — the panel counts ⓒ and flags it amber,
    > which is the one number a reviewer should check first.
 
-3. STOP — await user document review·approval
+3. **Fresh-context review** (trial) — run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/fresh_review.py" "${CURRENT_SESSION_FILE}"` and follow its output.
+
+4. STOP — await user document review·approval
 
 ### Layer 2 documents
 

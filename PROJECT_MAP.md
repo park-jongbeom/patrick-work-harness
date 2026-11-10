@@ -71,6 +71,7 @@ patrick-work-harness/
 | File | Role |
 |------|------|
 | `gate_b_trigger.py` | Gate B 발동 판정 |
+| `fresh_review.py` | Gate A 새 문맥 검토 준비(시험 운영) |
 | `gate_transcript.py` | 대화 기록에서 Gate 호출·쓰기 판정 |
 | `harness_report.py` · `skill_usage_aggregator.py` | 사용 보고서(수동 실행) |
 | `lane_card.py` · `session_ledger.py` · `report_facts.py` | 자율 레인 카드·세션 원장·변경 사실 |
