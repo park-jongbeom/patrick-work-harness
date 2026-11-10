@@ -165,6 +165,47 @@ class TestHookDecides(FeedbackCase):
         self.run_script()
         self.assertIn("보냄 — 바뀐 세션 10개", self.read("send.log"))
 
+    def test_errors_already_sent_do_not_send_again(self):
+        """오류가 난 세션을 이어 쓰면 6시간마다 같은 오류로 다시 보냈다 — 마지막 전송 뒤 새 오류만 센다(2026-11-10)."""
+        self.errored("s1")
+        self.configured()
+        self.run_script()
+        with open(os.path.join(self.projects, "-w-proj", "s1.jsonl"), "a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "user", "timestamp": now_ts(-1), "message": {"content": "이어서"}}) + "\n")
+        state = self.read("state.json")
+        state["last_check"] = "2000-01-01T00:00:00Z"
+        self.write("state.json", state)
+        self.run_script()
+        self.assertEqual(len(self.received()), 1)
+        self.assertIn("보낼 조건 아님(바뀐 세션 1개)", self.read("send.log"))
+        att = {"type": "hook_non_blocking_error", "hookName": "Stop", "hookEvent": "Stop", "command": ENGINE_HOOK,
+               "stderr": "Traceback", "durationMs": 40}
+        with open(os.path.join(self.projects, "-w-proj", "s1.jsonl"), "a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "attachment", "timestamp": now_ts(-2), "attachment": att}) + "\n")
+        state = self.read("state.json")
+        state["last_check"] = "2000-01-01T00:00:00Z"
+        self.write("state.json", state)
+        self.run_script()                                         # 같은 초에 보내면 파일 이름이 같아 덮어쓴다 — 기록으로 센다
+        self.assertEqual(self.read("send.log").count("보냄 — 내부 오류 1건"), 2)
+
+    def test_engine_version_first_seen_is_kept_and_sent(self):
+        """갱신 시각 — 예측은 「갱신 뒤 세션」으로 판정해야 하는데 결정일로는 갈리지 않았다(2026-11-10)."""
+        self.plain("s1")
+        recent = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.configured(last_check=recent, versions_seen={"0.9.0": "2000-01-01T00:00:00Z"})
+        self.run_script()                                         # 판정은 6시간 뒤지만 버전은 그때그때 적는다
+        seen = self.read("state.json")["versions_seen"]
+        version = load_module()._engine_version()
+        self.assertEqual(sorted(seen), sorted({"0.9.0", version}))
+        first = seen[version]
+        self.run_script()
+        self.assertEqual(self.read("state.json")["versions_seen"][version], first)
+        self.assertEqual(self.run_script("send")[0], 0)
+        with open(os.path.join(self.remote, "harness-inbox", self.received()[0]), encoding="utf-8") as f:
+            lines = [json.loads(x) for x in f if x.strip()]
+        self.assertEqual(lines[0]["_meta"]["versions_seen"], seen)
+        self.assertEqual(lines[1]["engine_at_start"], "0.9.0")    # 세션이 시작할 때 이미 깔려 있던 버전
+
     def test_fewer_sessions_wait_until_fourteen_days(self):
         self.plain("s1")
         self.configured()

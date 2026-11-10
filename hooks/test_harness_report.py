@@ -267,7 +267,8 @@ class TestContextCost(ReportCase):
         hr.main(["--projects-dir", self.root, "--out", out])
         md = open(os.path.join(out, "report.md"), encoding="utf-8").read()
         self.assertIn("## 문맥 비용", md)
-        self.assertIn("| proj-a | `s1` | 2 | 30000 | 34000 | gate-b 4000 | 6% | 0 |", md)
+        # 응답 · 첫 응답 · 응답당 평균 · 최대 · 압축(자동/수동) · Gate A 회차 · 이월 · 새 대화 절감 · 적재 · 몫 · 출력 한도
+        self.assertIn("| proj-a | `s1` | 2 | 30000 | 32000 | 34000 | 0/0 | 0 | — | 0% | gate-b 4000 | 6% | 0 |", md)
 
 
 class TestComprehensionSkipped(ReportCase):
@@ -589,6 +590,189 @@ class TestFreshReviewTraces(ReportCase):
         self.assertIn("## 새 문맥 검토", md)
         self.assertIn("없음(건너뜀?)", md)
         self.assertRegex(md, r"\| 2026-10-01 \| Gate A 계획을 대화 밖 검토자가[^|]*\| 1 \| 10 \|")
+
+
+def boundary(trigger="auto", pre=0):
+    """압축 경계 — 실제 기록(2.1.312~2.1.319)의 system 줄: compactMetadata 에 trigger·preTokens."""
+    return {"type": "system", "subtype": "compact_boundary", "timestamp": "2026-10-23T10:00:03Z",
+            "content": "Conversation compacted", "compactMetadata": {"trigger": trigger, "preTokens": pre}}
+
+
+def compact_summary(text="이전 대화 요약"):
+    return {"type": "user", "isCompactSummary": True, "timestamp": "2026-10-23T10:00:03Z", "message": {"content": text}}
+
+
+def reattached(name, chars):
+    """자동 압축 뒤 Claude Code 가 다시 붙인 스킬 본문(`invoked_skills` 첨부, 문서상 스킬마다 앞 5,000토큰)."""
+    return {"type": "attachment", "timestamp": "2026-10-23T10:00:03Z",
+            "attachment": {"type": "invoked_skills", "skills": [{"name": name, "path": "projectSettings:" + name,
+                                                                 "content": "x" * chars}]}}
+
+
+def body(name, chars):
+    head = f"Base directory for this skill: /w/.claude/skills/{name}\n\n"
+    return {"type": "user", "isMeta": True, "timestamp": "2026-10-23T10:00:02Z",
+            "message": {"content": [{"type": "text", "text": head + "x" * (chars - len(head))}]}}
+
+
+def typed(name):
+    return user(f"<command-message>{name}</command-message>\n<command-name>/{name}</command-name>")
+
+
+def loaded_note(name):
+    """같은 스킬을 같은 내용으로 다시 부르면 본문 대신 이 한 줄이 붙는다(2.1.312·2.1.319 실제 기록). 본문과 달리
+    내용이 목록이 아니라 문자열이다 — 목록으로 만든 첫 시험은 통과했지만 실제 기록 7건을 하나도 세지 못했다."""
+    return {"type": "user", "isMeta": True, "timestamp": "2026-10-23T10:00:02Z",
+            "message": {"content": f"Skill /{name} is already loaded above; instructions unchanged."}}
+
+
+def skill_call(tid, name, args=None):
+    return [assistant(tools=[(tid, "Skill", {"skill": name, **({"args": args} if args else {})})]),
+            tool_result(tid, f"Launching skill: {name}")]
+
+
+def image_result(tid, count):
+    image = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "A" * 5000}}
+    return {"type": "user", "timestamp": "2026-10-23T10:00:02Z",
+            "message": {"content": [{"type": "tool_result", "tool_use_id": tid, "content": [image] * count}]}}
+
+
+class TestContextAccounting(ReportCase):
+    """요약이 압축·회차 이월·문맥 출처·스킬 다시 싣기를 센다 — 판단은 노트북 피드백을 받은 뒤에 한다(2026-11-10)."""
+
+    def test_skill_share_stops_at_compaction_and_counts_the_reattached_copy(self):
+        self.session([user("시작"), call("m1", 30000), typed("gate-a"), body("gate-a", 32000),
+                      call("m2", 46000), call("m3", 47000),
+                      boundary("auto", 47000), compact_summary(), reattached("gate-a", 16000),
+                      call("m4", 20000), call("m5", 21000)])
+        c = self.rows()["s1"]["context"]
+        self.assertEqual(c["compactions"], {"auto": 1, "manual": 0, "pre_tokens": [47000]})
+        # 본문 16000 토큰(글자 32000 → 글자당 0.5)은 압축 전 응답 2번, 다시 붙은 사본 8000 토큰은 압축 뒤 응답 2번
+        self.assertEqual(c["harness_skill_tokens"], 16000 * 2 + 8000 * 2)
+
+    def test_load_right_after_a_compaction_is_estimated_not_negative(self):
+        self.session([user("시작"), call("m1", 30000), call("m2", 400000), boundary("auto", 400000),
+                      *skill_call("t1", "doc-cleanup"), body("doc-cleanup", 20000), call("m3", 50000), call("m4", 51000)])
+        c = self.rows()["s1"]["context"]
+        self.assertGreater(c["skill_loads"]["doc-cleanup"][0], 0)    # 50000-400000 은 본문 크기가 아니다
+        self.assertGreater(c["harness_skill_tokens"], 0)
+
+    def test_cycle_carry_and_fresh_start_saving(self):
+        lines = [user("시작"), call("m1", 30000), typed("gate-a"), body("gate-a", 2000), call("m2", 50000), call("m3", 80000),
+                 *skill_call("t2", "gate-a"), loaded_note("gate-a"), call("m4", 90000), call("m5", 100000)]
+        self.session(lines)
+        c = self.rows()["s1"]["context"]
+        self.assertEqual((c["cycles"], c["carry"]), (2, [0, 50000]))
+        self.assertEqual(c["fresh_saving"], 50000 + 50000)           # 둘째 회차의 응답 2번이 이월분만큼 덜 실렸을 것
+        self.session(lines[:-1] + [boundary("auto", 90000), call("m5", 20000)])
+        self.assertEqual(self.rows()["s1"]["context"]["fresh_saving"], 50000)   # 압축 뒤에는 이미 줄었다
+
+    def test_reload_modes_duplicates_and_loaded_notes(self):
+        self.session([user("시작"), call("m1", 30000),
+                      typed("gate-b"), body("gate-b", 1000), call("m2", 31000),
+                      *skill_call("t1", "gate-c"), body("gate-c", 1000), call("m3", 32000),
+                      *skill_call("t2", "gate-a", "작업 이름"), body("gate-a", 1000), call("m4", 33000),
+                      *skill_call("t3", "gate-b"), loaded_note("gate-b"), call("m5", 33100),
+                      typed("gate-c"), body("gate-c", 1000), call("m6", 34000),          # 앞 사본이 아직 문맥에 있다
+                      boundary("manual", 34000), typed("gate-c"), body("gate-c", 1000), call("m7", 20000)])
+        r = self.rows()["s1"]["context"]["reloads"]
+        self.assertEqual(r, {"typed": 3, "tool": 1, "args": 1, "other": 0, "dup": 1, "dup_tokens": 900, "notes": 1})
+
+    def test_sources_are_weighted_by_residency_and_images_are_counted_apart(self):
+        self.session([user("시작해"), call("m1", 30000),
+                      assistant(tools=[("r1", "Read", {"file_path": "/w/a.py"})]), tool_result("r1", "y" * 1000),
+                      call("m2", 31000),
+                      assistant(tools=[("r2", "Read", {"file_path": "/w/a.png"})]), image_result("r2", 2),
+                      call("m3", 32000),
+                      assistant(tools=[("b1", "Bash", {"command": "ls"})]), tool_result("b1", "z" * 500),
+                      call("m4", 33000), boundary("manual", 33000), call("m5", 9000)])
+        c = self.rows()["s1"]["context"]
+        s = c["sources"]
+        # 응답 m1 뒤에 들어온 Read 결과는 m2·m3·m4 에 실리고 압축에서 끝난다(m5 에는 없다)
+        self.assertEqual((s["tool:Read"], s["tool:Bash"], s["user"]), (1000 * 3, 500 * 1, 3 * 4))
+        self.assertEqual(c["images"], {"count": 2, "resident": 2 * 2})
+        self.assertNotIn("A" * 100, json.dumps(s))
+
+    def test_pasted_images_are_counted_with_tool_images(self):
+        image = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "A" * 5000}}
+        pasted = {"type": "user", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/w/proj-a",
+                  "message": {"content": [{"type": "text", "text": "이 화면"}, image]}}
+        self.session([pasted, call("m1", 30000), call("m2", 31000)])
+        self.assertEqual(self.rows()["s1"]["context"]["images"], {"count": 1, "resident": 2})
+
+    def test_claude_code_versions_are_recorded(self):
+        self.session([user("a", version="2.1.319"), call("m1", 30000), user("b", version="2.1.320"),
+                      user("c", version="2.1.99")])
+        self.assertEqual(self.rows()["s1"]["cc_versions"], ["2.1.99", "2.1.319", "2.1.320"])   # 글자순이 아니라 버전순
+
+    def test_windows_skill_path_is_read_on_any_computer(self):
+        """윈도 대화 기록을 이 서버에서 읽으면 `\\` 가 나뉘지 않아 경로 전체가 스킬 이름이 됐다(2026-11-10 실제 기록)."""
+        win = {"type": "user", "isMeta": True, "timestamp": "2026-10-23T10:00:02Z",
+               "message": {"content": [{"type": "text", "text": "Base directory for this skill: "
+                                                                "d:\\Users\\u\\work\\proj\\.claude\\skills\\gate-b\n\n# 절차"}]}}
+        self.session([user("시작"), call("m1", 30000), typed("gate-b"), win, call("m2", 34000)])
+        c = self.rows()["s1"]["context"]
+        self.assertEqual((list(c["skill_loads"]), c["reloads"]["typed"]), (["gate-b"], 1))
+
+    def test_report_shows_the_new_columns_and_sections(self):
+        self.session([user("시작"), call("m1", 30000), typed("gate-a"), body("gate-a", 2000), call("m2", 31000),
+                      assistant(tools=[("r1", "Read", {"file_path": "/w/a.py"})]), tool_result("r1", "y" * 1000),
+                      call("m3", 32000)])
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--out", out])
+        md = open(os.path.join(out, "report.md"), encoding="utf-8").read()
+        self.assertIn("| 압축(자동/수동) |", md)
+        self.assertIn("## 문맥 출처", md)
+        self.assertRegex(md, r"\| proj-a \| `s1` \|[^\n]*tool:Read \d+%")
+        self.assertIn("## 스킬 다시 싣기", md)
+
+
+class TestFreshReviewHeads(ReportCase):
+    """「알 수 없음」 회차의 첫 줄을 남긴다 — 노트북 실사용 4회 중 3회가 여기 들어갔다(2026-11-10)."""
+
+    RUN, PROMPT, run_script = TestFreshReviewTraces.RUN, TestFreshReviewTraces.PROMPT, TestFreshReviewTraces.run_script
+
+    def test_unknown_runs_keep_their_first_line_and_list_results_are_read_as_text(self):
+        listed = tool_result("f2", [{"type": "text", "text": "발동 — R=6\n…"}])
+        self.session(self.run_script("f1", "Python was not found; run without arguments to install")
+                     + [assistant(tools=[("f2", "Bash", {"command": self.RUN})]), listed])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f.get("unknown"), f.get("fired")), (1, 1))
+        self.assertEqual(f["unknown_heads"], ["Python was not found; run without arguments to install"])
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--out", out])
+        md = open(os.path.join(out, "report.md"), encoding="utf-8").read()
+        self.assertIn("| 알 수 없음 |", md)
+        self.assertIn("Python was not found", md)
+
+    def test_review_that_ran_without_a_record_is_flagged_even_if_no_run_was_recognised(self):
+        self.session([assistant(tools=[("r1", "Agent", {"subagent_type": "Plan", "prompt": self.PROMPT})]),
+                      tool_result("r1", "다시 쓴 계획")])
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--out", out])
+        with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
+            self.assertIn("없음(건너뜀?)", f.read())
+
+
+class TestPredictionsAfterTheUpdate(ReportCase):
+    """갱신 시각이 기록된 PC 의 세션은 그 결정이 든 릴리스 뒤에 시작한 세션만 센다 — 결정일로 세면 갱신 전 세션이 섞인다."""
+
+    def test_rows_with_an_engine_version_are_counted_only_after_the_release(self):
+        log = os.path.join(self.root, "DECISION_LOG.md")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("### [2026-11-11] 훅이 막은 Skill 호출은 Gate 순서에 넣지 않는다\n- **결과**:\n")
+        changelog = os.path.join(self.root, "CHANGELOG.md")
+        with open(changelog, "w", encoding="utf-8") as f:
+            f.write("# Changelog\n\n## [Unreleased]\n\n## [1.19.0] - 2026-11-11\n\n## [1.18.0] - 2026-11-10\n")
+        rows = [{"last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 1, "engine_at_start": v}
+                for v in ("1.18.0", "1.19.0", "1.20.1", None)]
+        rows.append({"last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 1})        # 갱신 시각이 없는 곳(이 서버)
+        p = hr.prediction_progress(log, rows, changelog=changelog)[0]
+        self.assertEqual(p["count"], 3)
+
+    def test_feedback_metric_says_what_it_counts(self):
+        source = next(m[3] for m in hr.METRICS if m[0].startswith("작업 PC 의 사용 기록 요약을"))
+        self.assertIn("결정일 뒤", source)
 
 
 class TestRepeatedSends(ReportCase):

@@ -12,6 +12,10 @@
   - 훅의 exit 2 거부: 도구 결과 「PreToolUse:X hook error: [명령]: …」
   - Stop 훅 묶음: system `stop_hook_summary`(hookInfos 의 command·durationMs)
   - 묻기(ask)의 결과: 같은 toolUseID 의 도구 결과가 오류면 거부, 아니면 허용
+  - 압축(2.1.312~2.1.319 에서 확인, 2026-11-10): system `compact_boundary`(compactMetadata.trigger·preTokens), 요약은
+    isCompactSummary 사용자 줄, 자동 압축 뒤 다시 붙은 스킬은 `invoked_skills` 첨부, 파일은 `file` 첨부
+  - 스킬 다시 싣기: 본문은 「Base directory for this skill:」 로 시작하는 목록 모양 사용자 줄, 같은 내용의 재호출은
+    문자열 모양의 「Skill /x is already loaded above」 한 줄
 
 결과에는 프로젝트 이름과 대화 내용 조각이 들어가므로 저장소 밖(기본 ~/.claude/harness-reports/)에 쓴다.
 
@@ -57,6 +61,15 @@ SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehensi
 HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update",
                   "harness-feedback"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
+#: 같은 스킬을 같은 내용으로 다시 부르면 본문 대신 붙는 한 줄(2.1.312·2.1.319 실제 기록) — 인자를 주거나 직접 입력하면 본문이 다시 실린다
+LOADED_NOTE = re.compile(r"^Skill /(?:[\w-]+:)?([\w-]+) is already loaded above")
+#: 글자 → 토큰 어림. 세션 안에 깨끗하게 잰 적재(앞뒤 응답 사이에 압축이 없는 것)가 있으면 그 비율을, 없으면 이 값을 쓴다.
+#: 엔진 스킬 다섯 개의 본문 글자 수와 노트북 실측 적재량(2026-11-10)의 비가 0.40~0.52 였다.
+TOKENS_PER_CHAR = 0.45
+#: 문맥에 실리는 첨부 → 「문맥 출처」 칸. 도구 목록·환경 같은 시스템 첨부는 첫 응답 문맥에 이미 들어 있어 세지 않는다.
+#: 대기 중 입력(queued_command)은 뒤에 사용자 메시지로 다시 남지 않는다(이 서버 기록 305건 확인) — 여기서 센다.
+CONTEXT_ATTACHMENTS = {"invoked_skills": "reattach:skills", "file": "reattach:files", "instructions": "instructions",
+                       "nested_memory": "instructions", "hook_additional_context": "hook_context"}
 #: 새 문맥 검토(fresh_review.py, 2026-11-10)의 흔적 — 검토자 지시문 첫머리 표지, Gate A 블록에 쓴 기록 줄(자리표시 `지적 N` 은
 #: 빼고 숫자나 「실패」만), 하위 에이전트가 뒤에서 돌았을 때의 완료 알림(`queue-operation` 줄 — 사용량은 여기에만 남는다).
 FRESH_MARKER = "[새 문맥 검토]"
@@ -85,6 +98,17 @@ def as_text(value):
     if isinstance(value, list):
         return "\n".join(as_text(v.get("text", v) if isinstance(v, dict) else v) for v in value)
     return json.dumps(value, ensure_ascii=False)
+
+
+def _text_size(value):
+    """첨부의 글자 수 — 중첩된 칸의 문자열만 더한다(JSON 으로 바꾸면 이스케이프가 글자로 세진다)."""
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, dict):
+        return sum(_text_size(v) for v in value.values())
+    if isinstance(value, list):
+        return sum(_text_size(v) for v in value)
+    return 0
 
 
 def engine_source(command):
@@ -268,6 +292,11 @@ def read_session(path):
     bad = 0
     gate_calls, blocked = set(), 0                  # 훅이 막은 Gate 호출(2026-11-10)
     fresh, fresh_calls, review_calls, review_usage, notified, records = collections.Counter(), {}, set(), {}, {}, set()
+    # 문맥 회계(2026-11-10): 무엇이 언제(응답 위치 = 그때까지의 응답 수, 사건 순번 seq) 들어와 다음 압축까지 몇 응답에
+    # 실렸는지 센다. 압축 경계 뒤에는 앞의 내용이 빠진다.
+    seq, names, boundaries, items, images = 0, {}, [], [], []
+    reattached, gate_a_starts, dups, skill_calls, typed_at = [], [], set(), {}, {}
+    present, reload, versions, fresh_heads = set(), collections.Counter(), set(), []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -277,6 +306,10 @@ def read_session(path):
                 continue
             if not isinstance(event, dict):
                 continue
+            seq += 1
+            side = bool(event.get("isSidechain"))
+            if event.get("version") and not side:
+                versions.add(str(event["version"]))
             if "<task-notification>" in line:
                 for m in TASK_USAGE.finditer(line):
                     notified.setdefault(m.group(1), (int(m.group(2)), int(m.group(3))))
@@ -303,13 +336,18 @@ def read_session(path):
                         calls[call_index[mid]] = size
                         stops[call_index[mid]] = message.get("stop_reason") or stops[call_index[mid]]
                 for block in message.get("content") or []:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        items.append((len(calls), seq, "model:text", len(as_text(block.get("text")))))
                     if not (isinstance(block, dict) and block.get("type") == "tool_use"):
                         continue
                     name, tid = block.get("name"), block.get("id")
                     inp = block.get("input") if isinstance(block.get("input"), dict) else {}
+                    names[tid] = name
+                    items.append((len(calls), seq, "model:tool_input", len(json.dumps(inp, ensure_ascii=False))))
                     if name == "Skill":
                         skill = str(inp.get("skill", ""))
                         row["skills"][skill.split(":")[-1]] += 1
+                        skill_calls[skill.split(":")[-1]] = (seq, bool(str(inp.get("args") or "").strip()))
                         if tid and GATE_SKILL.search(skill):
                             gate_calls.add(tid)
                     elif name in ("Bash", "PowerShell") and FRESH_RUN.search(str(inp.get("command", ""))):
@@ -321,12 +359,40 @@ def read_session(path):
                             records.update(m.group(1).strip() for m in FRESH_RECORD.finditer(written))
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
+                for text in _texts(content):
+                    for typed_name in COMMAND_NAME.findall(text[:400]):
+                        typed_at[typed_name] = seq
+                    # 「already loaded」 줄은 본문과 달리 내용이 문자열로 남는다(실제 기록 7건 모두)
+                    note = LOADED_NOTE.match(text)
+                    if note and note.group(1) in HARNESS_SKILLS and not side:
+                        reload["notes"] += 1
+                        if note.group(1) == "gate-a":
+                            gate_a_starts.append(len(calls))
+                if event.get("isCompactSummary") and not side:
+                    items.append((len(calls), seq, "summary", len(" ".join(_texts(content)))))
+                if isinstance(content, list) and not side:      # 사용자가 붙여 넣은 이미지(도구 결과의 이미지는 아래에서)
+                    images.extend((len(calls), seq) for b in content if isinstance(b, dict) and b.get("type") == "image")
                 for text in (_texts(content) if isinstance(content, list) else []):
                     body = SKILL_BODY.match(text)
                     if body:
-                        loads.append((os.path.basename(body.group(1).rstrip("/")), len(calls)))
+                        # 윈도 기록을 다른 컴퓨터에서 읽어도 `\` 로 나눈다(os.path 는 그 컴퓨터의 구분자만 안다)
+                        name = re.split(r"[\\/]", body.group(1).rstrip("/\\"))[-1]
+                        loads.append((name, len(calls), len(text), seq))
+                        if side:
+                            continue
+                        items.append((len(calls), seq, "skill:harness" if name in HARNESS_SKILLS else "skill:other", len(text)))
+                        if name in HARNESS_SKILLS:
+                            call = skill_calls.get(name)
+                            reload["typed" if seq - typed_at.get(name, -99) <= 8 else
+                                   ("args" if call[1] else "tool") if call and seq - call[0] <= 8 else "other"] += 1
+                            if name in present:             # 앞 사본이 아직 문맥에 있다(그사이 압축 없음)
+                                dups.add(seq)
+                            present.add(name)
+                            if name == "gate-a":
+                                gate_a_starts.append(len(calls))
                 if _is_typed_prompt(event):
                     text = " ".join(_texts(content))
+                    items.append((len(calls), seq, "user", len(text)))
                     row["user_prompts"] += 1
                     row["cross_check_requests"] += "대조 검증" in text
                     row["batch_requests"] += ("C~E 일괄" in text) or ("D~E 일괄" in text)
@@ -337,16 +403,26 @@ def read_session(path):
                     for block in content:
                         if not (isinstance(block, dict) and block.get("type") == "tool_result"):
                             continue
-                        text = block.get("content")
-                        text = text if isinstance(text, str) else json.dumps(text, ensure_ascii=False)
+                        raw = block.get("content")
+                        text = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                        # 글 부분과 이미지 — 이미지의 base64 를 글자로 세면 출처가 뒤틀린다(이 서버 Read 결과의 96%가 이미지였다)
+                        parts = raw if isinstance(raw, list) else []
+                        plain = text if isinstance(raw, str) else "\n".join(
+                            as_text(p.get("text")) for p in parts if isinstance(p, dict) and p.get("type") == "text")
                         tid = block.get("tool_use_id")
+                        if not side:
+                            items.append((len(calls), seq, "tool:" + str(names.get(tid, "?")), len(plain)))
+                            images.extend((len(calls), seq) for p in parts if isinstance(p, dict) and p.get("type") == "image")
                         if tid in gate_calls and block.get("is_error"):
                             blocked += 1
                         if tid in fresh_calls:
-                            first = (text.strip().splitlines() or [""])[0]
-                            fresh[("forced" if fresh_calls.pop(tid) else "fired") if first.startswith("발동")
-                                  else "not_run" if first.startswith("미실행")
-                                  else "failed" if first.startswith("실패") else "unknown"] += 1
+                            first = (plain.strip().splitlines() or [""])[0]
+                            key = (("forced" if fresh_calls.pop(tid) else "fired") if first.startswith("발동")
+                                   else "not_run" if first.startswith("미실행")
+                                   else "failed" if first.startswith("실패") else "unknown")
+                            fresh[key] += 1
+                            if key == "unknown":                # 하네스 스크립트가 낸 첫 줄이라 제품 내용이 아니다
+                                fresh_heads.append(("목록 " if parts else "") + first[:80])
                         if tid in review_calls:
                             res = event.get("toolUseResult")
                             if isinstance(res, dict) and isinstance(res.get("totalTokens"), int):
@@ -367,6 +443,19 @@ def read_session(path):
             elif kind == "attachment":
                 att = event.get("attachment") or {}
                 atype = str(att.get("type", ""))
+                if not side and atype == "invoked_skills":     # 자동 압축 뒤 다시 붙은 스킬 본문
+                    for s in att.get("skills") or []:
+                        if isinstance(s, dict):
+                            n = len(as_text(s.get("content")))
+                            items.append((len(calls), seq, CONTEXT_ATTACHMENTS[atype], n))
+                            reattached.append((str(s.get("name", "")).split(":")[-1], len(calls), seq, n))
+                elif not side and atype == "queued_command":
+                    prompt = as_text(att.get("prompt"))
+                    items.append((len(calls), seq, "notification" if prompt.lstrip().startswith("<task-notification>")
+                                  else "user", len(prompt)))
+                elif not side and atype in CONTEXT_ATTACHMENTS:
+                    value = att.get("content") if atype == "file" else {k: v for k, v in att.items() if k != "type"}
+                    items.append((len(calls), seq, CONTEXT_ATTACHMENTS[atype], _text_size(value)))
                 if not atype.startswith("hook"):
                     continue
                 command = as_text(att.get("command"))
@@ -416,6 +505,11 @@ def read_session(path):
                         fired = True
                     if fired:
                         g["fired"] += 1
+            elif kind == "system" and event.get("subtype") == "compact_boundary" and not side:
+                meta = event.get("compactMetadata") or {}
+                boundaries.append((len(calls), seq, "manual" if meta.get("trigger") == "manual" else "auto",
+                                   meta.get("preTokens")))
+                present.clear()
             elif kind == "system" and event.get("subtype") == "stop_hook_summary":
                 for err in event.get("hookErrors") or []:
                     text = as_text(err)
@@ -447,6 +541,9 @@ def read_session(path):
         usage = [u for u in (review_usage.get(t) or notified.get(t) for t in review_calls) if u]
         row["fresh_review"] = {**dict(fresh), "reviews": len(review_calls), "tokens": [u[0] for u in usage],
                                "ms": [u[1] for u in usage], "records": sorted(records)}
+        if fresh_heads:
+            row["fresh_review"]["unknown_heads"] = fresh_heads[:5]
+    row["cc_versions"] = sorted(versions, key=lambda v: (_version_key(v) or (), v))
     out_guards = {}
     for name, counter in guards.items():
         entry = {k: v for k, v in counter.items() if v}
@@ -464,17 +561,72 @@ def read_session(path):
     row["max_repeat_notice"] = {"count": count, "text": text[:160]}
     for key in ("models", "skills", "special"):
         row[key] = dict(row[key])
-    skill_loads, harness_tokens = collections.defaultdict(list), 0
-    for name, k in loads:                      # k = 적재 뒤 첫 응답의 위치
-        if 0 < k < len(calls):
-            jump = calls[k] - calls[k - 1]
-            skill_loads[name].append(jump)
-            if name in HARNESS_SKILLS:
-                harness_tokens += jump * (len(calls) - k)   # 적재 뒤 모든 응답에 다시 실린다(상한 — 같이 들어온 입력 포함)
     row["context"] = {"calls": len(calls), "first": calls[0] if calls else 0, "max": max(calls, default=0),
                       "input_total": sum(calls), "max_tokens_stops": stops.count("max_tokens"),
-                      "skill_loads": dict(skill_loads), "harness_skill_tokens": harness_tokens}
+                      **_context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts,
+                                            dups, reload)}
     return row, bad
+
+
+def _context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts, dups, reload):
+    """압축을 반영한 스킬 몫·회차 이월·문맥 출처·스킬 다시 싣기 (2026-11-10).
+
+    위치 k 에 들어온 것은 응답 k 부터 다음 압축 경계(그 뒤 사건)의 위치 전까지 실린다. 옛 계산은 적재 뒤 모든 응답에
+    실린다고 보아 압축으로 빠진 본문까지 셌고, 압축과 겹친 적재는 큰 음수가 되어 오히려 뺐다."""
+    cut = {b[0] for b in boundaries}
+
+    def resident(pos, at):
+        for bpos, bseq, _, _ in boundaries:
+            if bseq > at:
+                return max(0, bpos - pos)
+        return max(0, len(calls) - pos)
+
+    # 앞뒤 응답 사이에 압축이 없는 적재만 문맥 차로 잰다 — 그 비율로 나머지(압축과 겹친 적재·다시 붙은 사본)를 어림한다
+    clean = [(calls[k] - calls[k - 1], chars) for _, k, chars, _ in loads
+             if 0 < k < len(calls) and k not in cut and calls[k] > calls[k - 1]]
+    clean_chars = sum(c for _, c in clean)
+    ratio = sum(j for j, _ in clean) / clean_chars if clean_chars else TOKENS_PER_CHAR
+    skill_loads, harness_tokens, dup_tokens = collections.defaultdict(list), 0, 0
+    for name, k, chars, at in loads:           # k = 적재 뒤 첫 응답의 위치
+        if k >= len(calls):
+            continue
+        valid = 0 < k and k not in cut and calls[k] > calls[k - 1]
+        tokens = calls[k] - calls[k - 1] if valid else int(chars * ratio)
+        skill_loads[name].append(tokens)
+        if name in HARNESS_SKILLS:
+            harness_tokens += tokens * resident(k, at)        # 상한 — 같은 차례에 함께 들어온 입력이 섞인다
+            if at in dups:
+                dup_tokens += tokens
+    for name, k, at, chars in reattached:
+        if name in HARNESS_SKILLS and k < len(calls):
+            harness_tokens += int(chars * ratio) * resident(k, at)
+    # 회차 이월: Gate A 를 부르기 직전 문맥 − 첫 응답 문맥. 새 대화 어림 절감: 회차마다 새 대화로 시작했다면 그 회차의
+    # 응답마다 이월만큼 덜 실렸을 것(가정 — 회차 안에서 늘어나는 양은 같다). 회차 안에서 압축되면 그 뒤로는 0.
+    first = calls[0] if calls else 0
+    starts = sorted(set(gate_a_starts))
+    carry, saving = [], 0
+    for i, p in enumerate(starts):
+        if not 0 < p < len(calls):
+            continue
+        end = starts[i + 1] if i + 1 < len(starts) else len(calls)
+        c = 0 if p in cut else max(0, calls[p - 1] - first)
+        carry.append(c)
+        stop = min([b for b in cut if p < b <= end] + [end])
+        saving += sum(min(c, max(0, calls[j] - first)) for j in range(p, stop))
+    sources = collections.Counter()
+    for pos, at, cat, n in items:
+        if n and pos < len(calls):
+            sources[cat] += n * resident(pos, at)
+    return {"skill_loads": dict(skill_loads), "harness_skill_tokens": harness_tokens,
+            "compactions": {"auto": sum(1 for b in boundaries if b[2] == "auto"),
+                            "manual": sum(1 for b in boundaries if b[2] == "manual"),
+                            "pre_tokens": [b[3] for b in boundaries if isinstance(b[3], int)]},
+            "cycles": len(starts), "carry": carry, "fresh_saving": saving,
+            "reloads": {**{k: reload.get(k, 0) for k in ("typed", "tool", "args", "other")}, "dup": len(dups),
+                        "dup_tokens": dup_tokens, "notes": reload.get("notes", 0)},
+            "sources": dict(sources),
+            "images": {"count": sum(1 for p, _ in images if p < len(calls)),
+                       "resident": sum(resident(p, at) for p, at in images if p < len(calls))}}
 
 
 def collect(projects_dir, since=None, include_tmp=False):
@@ -622,8 +774,14 @@ METRICS = [
     ("Gate A 계획을 대화 밖 검토자가", _fresh("fired"), 10,
      "발동한 새 문맥 검토 수(--force 제외) — 내용 고침·올림·건너뜀은 「새 문맥 검토」 표"),
     ("작업 PC 의 사용 기록 요약을 응답 종료 훅이", len, None,
-     "받은 세션 수 — PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
+     "결정일 뒤 활동한 받은 세션 수 — 받은 세션 전체와 PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
+    ("요약이 압축·회차 이월·문맥 출처를 센다", lambda rows: sum(1 for r in rows if _accounted(r)), 10,
+     "새 항목이 든 하네스 세션 수 — 판단 기준은 이 결정의 예측 칸, 값은 「문맥 비용」「문맥 출처」「스킬 다시 싣기」 표"),
 ]
+
+
+def _accounted(row):
+    return bool(row.get("gates")) and "compactions" in (row.get("context") or {})
 
 
 def _engine_skill_session(row):
@@ -642,10 +800,39 @@ def pending_entries(decision_log):
     return out
 
 
-def prediction_progress(decision_log, sessions):
+def _version_key(version):
+    try:
+        return tuple(int(x) for x in str(version).split("."))
+    except ValueError:
+        return None
+
+
+def release_dates(changelog):
+    """CHANGELOG 의 `## [X.Y.Z] - 날짜` → [(날짜, 버전)] 날짜순. 설치본에는 CHANGELOG 가 없다 — 그때는 빈 목록."""
+    try:
+        with open(changelog, encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, TypeError):
+        return []
+    found = re.findall(r"^## \[(\d+(?:\.\d+)*)\] - (\d{4}-\d{2}-\d{2})", text, re.M)
+    return sorted(((d, v) for v, d in found), key=lambda x: (x[0], _version_key(x[1]) or ()))
+
+
+def prediction_progress(decision_log, sessions, changelog=None):
+    """대기 예측마다 지금까지의 수. 갱신 시각이 기록된 PC 의 행(`engine_at_start` 칸이 있다)은 그 결정이 든 릴리스
+    (결정일 이후 첫 릴리스) 뒤에 시작한 세션만 센다 — 결정일로 세면 갱신 전 세션이 섞였다(2026-11-10 노트북 자료)."""
     progress = []
+    releases = release_dates(changelog) if changelog else []
     for date, title in pending_entries(decision_log):
-        rows = [r for r in sessions if (r.get("last") or "")[:10] >= date]
+        shipped = _version_key(next((v for d, v in releases if d >= date), None))
+
+        def counted(r):
+            if "engine_at_start" in r and releases:
+                have = _version_key(r["engine_at_start"]) if r["engine_at_start"] else None
+                return bool(have and shipped and have >= shipped)
+            return (r.get("last") or "")[:10] >= date
+
+        rows = [r for r in sessions if counted(r)]
         metric = next((m for m in METRICS if title.startswith(m[0])), None)
         if metric is None:
             progress.append({"date": date, "title": title, "countable": False, "count": None, "target": None,
@@ -658,6 +845,13 @@ def prediction_progress(decision_log, sessions):
 
 
 # ── 출력 ───────────────────────────────────────────────────────────────
+def _top_sources(sources, n=5):
+    total = sum(sources.values())
+    if not total:
+        return "—"
+    return ", ".join(f"{k} {100 * v / total:.0f}%" for k, v in collections.Counter(sources).most_common(n))
+
+
 def render(data, progress, projects_dir, since):
     sessions = data["sessions"]
     hook_events = sum(len(r["guards"]) for r in sessions)   # 실행 기록이든 발동이든 훅 흔적이 있는 가드 수
@@ -707,17 +901,58 @@ def render(data, progress, projects_dir, since):
               for r in repeats[:15]] or ["- 없음"]
     lines += ["", "## 문맥 비용 (응답마다 실린 입력 토큰)", "",
               "- 첫 응답 문맥 = 시스템 프롬프트·도구·CLAUDE.md·스킬 목록의 고정 몫. 하네스 없는 프로젝트의 값과 비교한다.",
-              "- 하네스 스킬 몫 = 하네스 스킬 적재로 늘어난 문맥 × 적재 뒤 응답 수 ÷ 입력 합(상한 — 같은 차례의 입력 포함).", "",
-              "| 프로젝트 | 세션 | 응답 | 첫 응답 문맥 | 최대 문맥 | 스킬 적재(토큰) | 하네스 스킬 몫 | 출력 한도 중단 |",
-              "|---|---|---|---|---|---|---|---|"]
+              "- 하네스 스킬 몫 = 스킬 본문 토큰 × 다음 압축까지 실린 응답 수(압축 뒤 다시 붙은 사본 포함) ÷ 입력 합"
+              "(상한 — 같은 차례의 입력 포함). †는 압축을 반영하지 않은 옛 계산(이전 엔진이 보낸 행).",
+              "- 이월 = Gate A 를 부르기 직전 문맥 − 첫 응답 문맥(2회차부터의 중앙값). 새 대화 어림 절감 = 회차마다 새 대화로"
+              " 시작했다면 덜 실렸을 입력 ÷ 입력 합(가정: 회차 안에서 늘어나는 양은 같다, 회차 안에서 압축된 뒤로는 0).", "",
+              "| 프로젝트 | 세션 | 응답 | 첫 응답 문맥 | 응답당 평균 | 최대 문맥 | 압축(자동/수동) | Gate A 회차 | 이월(중앙) | "
+              "새 대화 어림 절감 | 스킬 적재(토큰) | 하네스 스킬 몫 | 출력 한도 중단 |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         c = r.get("context") or {}
         if not c.get("calls"):
             continue
         loads = ", ".join(f"{n} {'/'.join(str(j) for j in js)}" for n, js in sorted(c["skill_loads"].items())) or "—"
-        share = f"{100 * c['harness_skill_tokens'] / c['input_total']:.0f}%" if c["input_total"] else "—"
-        lines.append(f"| {r['project']} | `{r['session'][:8]}` | {c['calls']} | {c['first']} | {c['max']} | "
+        new = "compactions" in c
+        share = (f"{100 * c['harness_skill_tokens'] / c['input_total']:.0f}%" + ("" if new else "†")
+                 if c["input_total"] else "—")
+        if new:
+            comp = f"{c['compactions']['auto']}/{c['compactions']['manual']}"
+            later = c["carry"][1:]
+            carry = int(statistics.median(later)) if later else "—"
+            saving = f"{100 * c['fresh_saving'] / c['input_total']:.0f}%" if c["input_total"] else "—"
+            cycles = c["cycles"]
+        else:
+            comp = cycles = carry = saving = "?"
+        lines.append(f"| {r['project']} | `{r['session'][:8]}` | {c['calls']} | {c['first']} | "
+                     f"{c['input_total'] // c['calls']} | {c['max']} | {comp} | {cycles} | {carry} | {saving} | "
                      f"{loads} | {share} | {c['max_tokens_stops']} |")
+    accounted = [r for r in sorted(sessions, key=lambda r: r["last"], reverse=True)
+                 if r.get("gates") and "sources" in (r.get("context") or {})]
+    if accounted:
+        lines += ["", "## 문맥 출처 (하네스 세션, 머문 글자 기준 — 어림)", "",
+                  "- 글자 수 × 다음 압축까지 실린 응답 수의 비율. 시스템 프롬프트·도구 정의(첫 응답 문맥)는 빠진다.",
+                  "- 이미지는 base64 를 글자로 세지 않고 장수와 머문 응답 수만 센다. 한글과 영문은 글자당 토큰이 달라 비율은 어림이다.", "",
+                  "| 프로젝트 | 세션 | 상위 출처 | 이미지(장 / 머문 응답) |", "|---|---|---|---|"]
+        total, total_img = collections.Counter(), collections.Counter()
+        for r in accounted:
+            c = r["context"]
+            total.update(c["sources"])
+            total_img.update(c.get("images") or {})
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {_top_sources(c['sources'])} | "
+                         f"{c['images']['count']} / {c['images']['resident']} |")
+        lines.append(f"| 합계 | | {_top_sources(total, 8)} | {total_img['count']} / {total_img['resident']} |")
+        lines += ["", "## 스킬 다시 싣기 (하네스 스킬)", "",
+                  "- 본문 전체가 다시 실린 방식. 같은 내용으로 Skill 도구를 다시 부르면 본문 대신 「already loaded」 한 줄이 붙는다.",
+                  "- 겹친 적재 = 같은 스킬의 앞 사본이 아직 문맥에 있는데(그사이 압축 없음) 본문이 또 실린 것.", "",
+                  "| 프로젝트 | 세션 | 직접 입력 | Skill(인자 있음) | Skill(인자 없음) | 기타 | 겹친 적재(회 / 토큰) | already loaded | "
+                  "Claude Code |", "|---|---|---|---|---|---|---|---|---|"]
+        for r in accounted:
+            rl = r["context"]["reloads"]
+            versions = r.get("cc_versions") or []
+            cc = versions[0] if len(versions) == 1 else (f"{versions[0]}~{versions[-1]}" if versions else "—")
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {rl['typed']} | {rl['args']} | {rl['tool']} | "
+                         f"{rl['other']} | {rl['dup']} / {rl['dup_tokens']} | {rl['notes']} | {cc} |")
     lines += ["", "## Gate 순서 (세션별)", "", "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E |", "|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:
@@ -744,18 +979,25 @@ def render(data, progress, projects_dir, since):
         lines += ["", "## 새 문맥 검토 (Gate A, 시험 운영)", "",
                   "- 발동·강제·미실행·실패는 `fresh_review.py` 출력 첫 줄, 검토는 `[새 문맥 검토]` Agent 호출 수, 기록은 Gate A 블록에 쓴 줄이다.",
                   "- 발동했는데 기록이 없으면 건너뛴 회차다. 토큰·시간은 바로 끝난 호출은 결과에서, 뒤에서 돈 호출은 완료 알림에서 읽는다.", "",
-                  "| 프로젝트 | 세션 | 발동 | 강제 | 미실행 | 실패 | 검토 | 토큰(중앙) | 시간(중앙, 초) | 기록 |",
-                  "|---|---|---|---|---|---|---|---|---|---|"]
+                  "| 프로젝트 | 세션 | 발동 | 강제 | 미실행 | 실패 | 알 수 없음 | 검토 | 토큰(중앙) | 시간(중앙, 초) | 기록 |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|"]
+        heads = []
         for r in sorted(reviewed, key=lambda r: r["last"], reverse=True):
             f = r["fresh_review"]
             tokens = int(statistics.median(f["tokens"])) if f.get("tokens") else "—"
             secs = int(statistics.median(f["ms"]) / 1000) if f.get("ms") else "—"
-            rec = "; ".join(f.get("records") or []) or ("없음(건너뜀?)" if f.get("fired") else "—")
+            # 검토가 돌았는데 기록이 없어도 건너뛴 회차다 — 발동 줄을 알아보지 못한 회차가 있었다(2026-11-10 노트북)
+            rec = "; ".join(f.get("records") or []) or ("없음(건너뜀?)" if f.get("fired") or f.get("reviews") else "—")
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {f.get('fired', 0)} | {f.get('forced', 0)} | "
-                         f"{f.get('not_run', 0)} | {f.get('failed', 0)} | {f.get('reviews', 0)} | {tokens} | {secs} | {rec} |")
+                         f"{f.get('not_run', 0)} | {f.get('failed', 0)} | {f.get('unknown', 0)} | {f.get('reviews', 0)} | "
+                         f"{tokens} | {secs} | {rec} |")
+            heads += [f"- `{r['session'][:8]}` 알 수 없음 첫 줄: {h}" for h in f.get("unknown_heads") or []]
+        lines += ([""] + heads) if heads else []
     if progress is not None:
-        lines += ["", "## DECISION_LOG 대기 예측의 진행", "",
-                  "| 결정일 | 결정 | 지금 | 확인 시점 목표 | 자료 |", "|---|---|---|---|---|"]
+        lines += ["", "## DECISION_LOG 대기 예측의 진행", ""]
+        if any("engine_at_start" in r for r in sessions):
+            lines += ["- 갱신 시각이 기록된 PC 의 세션은 그 결정이 든 릴리스 뒤에 시작한 세션만 센다(기록 전에 시작한 세션은 버전을 몰라 세지 않는다). 나머지는 결정일 뒤 활동한 세션.", ""]
+        lines += ["| 결정일 | 결정 | 지금 | 확인 시점 목표 | 자료 |", "|---|---|---|---|---|"]
         for p in progress:
             now = p["count"] if p["countable"] else "셀 수 없음"
             lines.append(f"| {p['date']} | {p['title'][:60]} | {now} | {p['target'] if p['target'] is not None else '—'} | {p['source']} |")
@@ -780,7 +1022,9 @@ def main(argv=None):
         data = collect(args.projects_dir, since=args.since or None, include_tmp=args.include_tmp)
         source = args.projects_dir
     decision_log = args.decision_log or os.path.join(os.path.dirname(HERE), "DECISION_LOG.md")
-    progress = prediction_progress(decision_log, data["sessions"]) if os.path.isfile(decision_log) else None
+    changelog = os.path.join(os.path.dirname(os.path.abspath(decision_log)), "CHANGELOG.md")
+    progress = (prediction_progress(decision_log, data["sessions"], changelog=changelog)
+                if os.path.isfile(decision_log) else None)
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "sessions.jsonl"), "w", encoding="utf-8") as f:
         for row in data["sessions"]:

@@ -12,13 +12,15 @@ effort: low
 ## What is sent, where, and when
 
 - **What**: the session rows `harness_report.py` builds from the last 30 days (Gate order, guard counts and errors, Gate B
-  answers, fresh-context review counts, context cost). Each row carries the project name, this PC's folder name and guard
-  notice text. One file per send, first line = PC name, time, reason, engine version.
+  answers, fresh-context review counts, context cost — compactions, context per Gate A, what fills it by tool name and
+  character count, how skills were reloaded, Claude Code version). Each row carries the project name, this PC's folder
+  name, guard notice text and the engine version the session started with. One file per send, first line = PC name,
+  time, reason, engine version, and when each engine version was first seen on this PC.
 - **Where**: one SSH address, `[user@]host[:folder]` (folder defaults to `harness-inbox`). It uses this PC's own SSH
   config and keys with `BatchMode=yes` — it never asks for a password. For a port or key, put a `Host` alias in
   `~/.ssh/config` and use the alias. The address is stored only in `~/.claude/harness-feedback/config.json`.
 - **When (automatic)**: the Stop hook checks at most once every 6 hours, in a detached process. It sends when, since the last
-  send, there is ≥ 1 harness internal error (an engine hook execution error or a fresh-review script failure), ≥ 10
+  send, there is ≥ 1 new harness internal error (an engine hook execution error or a fresh-review script failure), ≥ 10
   changed sessions, or 14 days have passed with ≥ 1 changed session. A failed send is logged and retried at the next check.
 
 ## Procedure

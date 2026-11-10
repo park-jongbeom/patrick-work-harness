@@ -6,11 +6,12 @@
 
 무엇을: `harness_report.py` 가 만드는 세션 행(최근 30일 전체 — 받는 쪽이 같은 세션을 한 번만 센다)과 보낸 이유·엔진 버전
         한 파일. 대화 원문과 코드는 보내지 않는다. 행에는 프로젝트 이름·PC 의 폴더 이름·알림 문구가 들어 있다.
+        엔진 버전마다 이 PC 에서 처음 본 시각과, 행마다 세션 시작 때의 엔진 버전도 붙인다(받는 쪽이 갱신 뒤 세션을 가른다).
 어디로: 설정 파일의 주소 하나(`[사용자@]호스트[:폴더]`, 폴더 기본 `harness-inbox`). 그 PC 의 SSH 설정과 키를 그대로 쓴다
         (`ssh`·`scp`, 암호를 묻지 않는 방식). 포트·키가 따로 필요하면 `~/.ssh/config` 의 Host 별칭을 주소로 쓴다.
         주소는 PC 의 사용자 폴더(`~/.claude/harness-feedback/`)에만 있고 저장소에는 없다.
 언제: 응답이 끝날 때마다 훅으로 불리지만, 마지막 판정 뒤 6시간이 지났을 때만 판정한다(나머지는 시각 파일 하나만 보고 끝).
-      마지막으로 보낸 뒤 ① 하네스 내부 오류(엔진 훅의 실행 오류·새 문맥 검토 스크립트 실패) 1건 이상 ② 바뀐 세션 10개 이상
+      마지막으로 보낸 뒤 ① 새로 난 하네스 내부 오류(엔진 훅의 실행 오류·새 문맥 검토 스크립트 실패) 1건 이상 ② 바뀐 세션 10개 이상
       ③ 14일이 지났고 바뀐 세션 1개 이상 — 이면 보낸다. 판정과 전송은 떼어 낸 프로세스가 해서 응답을 기다리게 하지 않는다.
       실패하면 기록만 남기고 다음 판정 때 다시 보낸다. 설정이 없으면 아무것도 하지 않는다.
 
@@ -124,10 +125,12 @@ def harness_errors(row):
 
 
 def due(rows, state, now):
-    """→ (보낼 이유 또는 None, 바뀐 세션 수). 바뀐 세션 = 마지막으로 보낸 뒤 새로 생기거나 마지막 활동이 늘어난 세션."""
-    sent = state.get("sent") or {}
+    """→ (보낼 이유 또는 None, 바뀐 세션 수). 바뀐 세션 = 마지막으로 보낸 뒤 새로 생기거나 마지막 활동이 늘어난 세션.
+    오류는 마지막 전송 뒤 새로 난 것만 센다 — 세션 누적으로 세면 오류가 한 번 난 세션을 이어 쓰는 동안 6시간마다
+    같은 오류로 다시 보냈다(2026-11-10)."""
+    sent, sent_errors = state.get("sent") or {}, state.get("sent_errors") or {}
     changed = [r for r in rows if (r.get("last") or "") > sent.get(r.get("session"), "")]
-    errors = sum(harness_errors(r) for r in changed)
+    errors = sum(max(0, harness_errors(r) - sent_errors.get(r.get("session"), 0)) for r in changed)
     if errors:
         return f"내부 오류 {errors}건", len(changed)
     if len(changed) >= SESSIONS_DUE:
@@ -163,6 +166,26 @@ def _engine_version():
     return "?"
 
 
+def note_version(state, now):
+    """이 PC 에서 엔진 버전을 처음 본 시각을 적는다 → 새로 적었으면 True. 받는 쪽이 「갱신 뒤 세션」을 가르는 근거다 —
+    결정일로 가르면 갱신 전 세션이 섞였다(2026-11-10). 처음 본 시각은 갱신 뒤 첫 응답 종료라 실제 갱신보다 조금 늦다."""
+    version = _engine_version()
+    seen = state.setdefault("versions_seen", {})
+    if version == "?" or version in seen:
+        return False
+    seen[version] = _iso(now)
+    return True
+
+
+def engine_at(first, seen):
+    """세션이 시작할 때 이미 깔려 있던 엔진 버전 — 시작보다 먼저 처음 본 버전 중 가장 늦은 것. 모르면 None."""
+    best = None
+    for version, t in (seen or {}).items():
+        if (t or "")[:19] <= (first or "")[:19] and (best is None or t > seen[best]):
+            best = version
+    return best
+
+
 def send(rows, reason, address, dry_run=False, now=None):
     """세션 행을 한 파일로 보낸다 → (성공, 한 줄 설명). 성공하면 상태의 마지막 전송과 보낸 세션을 바꾼다."""
     now = now or _now()
@@ -172,8 +195,12 @@ def send(rows, reason, address, dry_run=False, now=None):
     host, folder = target
     pc = re.sub(r"[^\w.-]", "_", socket.gethostname() or "pc")[:40]
     name = f"{pc}-{now.strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+    probe = _load("state.json")
+    note_version(probe, now)                        # 훅이 아직 한 번도 안 돈 수동 전송에서도 지금 버전이 들어간다
+    seen = probe["versions_seen"]
+    rows = [{**r, "engine_at_start": engine_at(r.get("first"), seen)} for r in rows]
     meta = {"_meta": {"pc": pc, "sent_at": _iso(now), "reason": reason, "engine_version": _engine_version(),
-                      "sessions": len(rows), "keep_days": KEEP_DAYS}}
+                      "versions_seen": seen, "sessions": len(rows), "keep_days": KEEP_DAYS}}
     summary = f"{reason} · 세션 {len(rows)}개 → {host}:{folder}/{name}"
     if dry_run:
         return True, "보낼 예정(--dry-run): " + summary
@@ -196,8 +223,11 @@ def send(rows, reason, address, dry_run=False, now=None):
     if not ok:
         return False, f"실패 — {summary} — {err}"
     state = _load("state.json")
+    note_version(state, now)
     state["last_sent"] = _iso(now)
     state["sent"] = {r.get("session"): r.get("last") or "" for r in rows if r.get("session")}
+    errors = {r.get("session"): harness_errors(r) for r in rows if r.get("session")}
+    state["sent_errors"] = {s: n for s, n in errors.items() if n}
     _save("state.json", state)
     return True, "보냄 — " + summary
 
@@ -220,8 +250,11 @@ def hook():
         if not _load("config.json").get("address"):
             return 0
         state, now = _load("state.json"), _now()
+        noted = note_version(state, now)            # 판정은 6시간마다지만 갱신 시각은 그때그때 적는다
         last = _parse(state.get("last_check") or "")
         if last and (now - last).total_seconds() < CHECK_EVERY_H * 3600:
+            if noted:
+                _save("state.json", state)
             return 0
         state["last_check"] = _iso(now)            # 떼어 내기 전에 적는다 — 동시에 끝난 응답들이 여러 번 띄우지 않게
         _save("state.json", state)
@@ -338,7 +371,9 @@ def cmd_receive(inbox=INBOX_DIR, out=""):
                 f.writelines(rows)
             cleaned.append(dst)
         for pc, m in sorted(metas.items()):
-            print(f"{pc}: 마지막 전송 {m.get('sent_at')} · {m.get('reason')} · 엔진 {m.get('engine_version')}")
+            seen = ", ".join(f"{v} {t}" for v, t in sorted((m.get("versions_seen") or {}).items(), key=lambda x: x[1]))
+            print(f"{pc}: 마지막 전송 {m.get('sent_at')} · {m.get('reason')} · 엔진 {m.get('engine_version')}"
+                  + (f" · 처음 본 시각 {seen}" if seen else ""))
         args = [a for p in cleaned for a in ("--sessions", p)]
         return hr.main(args + (["--out", out] if out else []))
     finally:

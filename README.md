@@ -98,7 +98,7 @@ Hooks run automatically around each Claude Code response and tool call (Stop, Pr
 | `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E, and sends the session back when this conversation wrote ✅E without a Gate D record |
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
-| `harness-feedback-sync.py` | Stop | Sends this PC's usage summary to the engine server over SSH when due (a harness internal error · 10 changed sessions · 14 days), checking at most every 6 h in a detached process; does nothing until `/harness-feedback` sets an address |
+| `harness-feedback-sync.py` | Stop | Sends this PC's usage summary to the engine server over SSH when due (a new harness internal error · 10 changed sessions · 14 days), checking at most every 6 h in a detached process; does nothing until `/harness-feedback` sets an address |
 | `session-dashboard-sync.py` | PostToolUse | Auto-regenerates `session-dashboard.html` after each Edit/Write |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
@@ -255,7 +255,10 @@ the only gate that runs tests.)
 report: per session, which harness copy ran (plugin, `install.sh`, or a source copy), the models used, the Gate order,
 and per guard how often it fired, asked, denied, blocked or warned — including whether you allowed or denied each
 confirmation prompt — plus warnings repeated within one session, and how you responded to each Gate B question
-(answered, skipped partway, skipped, or passed with no answer). Run from this repository it also shows how far each
+(answered, skipped partway, skipped, or passed with no answer). It also accounts for the context: compactions (auto or
+manual), the context already carried into each Gate A, the share of harness skill bodies up to each compaction, what
+fills the context (tool results per tool, skill bodies, your input, model output — images counted apart), and how
+harness skills were loaded again (typed, Skill call with or without arguments, duplicates). Run from this repository it also shows how far each
 pending prediction in `DECISION_LOG.md` has come. It only reads; the output contains project names and conversation
 snippets, so it is written outside any repository (`~/.claude/harness-reports/<date>/`). Transcripts are deleted after
 30 days unless `cleanupPeriodDays` is raised (see `/init` Step 6-b).
@@ -400,7 +403,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지, 이 대화가 Gate D 기록 없이 ✅E 를 쓰면 되돌려 보냄 |
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
-| `harness-feedback-sync.py` | Stop | 조건이 차면(하네스 내부 오류·바뀐 세션 10개·14일) 이 PC 의 사용 기록 요약을 SSH 로 엔진 서버에 보냄. 6시간에 한 번 떼어 낸 프로세스로 판정하고, `/harness-feedback` 로 주소를 넣기 전에는 아무것도 하지 않음 |
+| `harness-feedback-sync.py` | Stop | 조건이 차면(새 하네스 내부 오류·바뀐 세션 10개·14일) 이 PC 의 사용 기록 요약을 SSH 로 엔진 서버에 보냄. 6시간에 한 번 떼어 낸 프로세스로 판정하고, `/harness-feedback` 로 주소를 넣기 전에는 아무것도 하지 않음 |
 | `session-dashboard-sync.py` | PostToolUse | Edit·Write 뒤 `session-dashboard.html` 자동 재생성 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
@@ -555,7 +558,9 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 `python3 hooks/harness_report.py` 는 Claude Code 대화 기록(`~/.claude/projects`)을 읽어 보고서를 만든다. 세션마다 어느
 하네스 사본이 돌았는지(플러그인·`install.sh`·원본 사본), 쓰인 모델, Gate 순서, 가드별 발동·묻기·거부·차단·알림 수와
 확인 창에 사용자가 허용했는지 거부했는지, 한 세션 안에서 반복된 경고, Gate B 질문에 어떻게 응답했는지(답함·일부 답 뒤
-스킵·스킵·답 없음)를 센다. 이 저장소에서 돌리면 `DECISION_LOG.md` 의
+스킵·스킵·답 없음)를 센다. 문맥도 센다 — 압축(자동·수동), Gate A 를 부를 때 이미 실려 있던 문맥, 압축까지의 하네스 스킬
+본문 몫, 문맥을 채운 것(도구별 결과·스킬 본문·사용자 입력·모델 출력, 이미지는 따로), 하네스 스킬이 다시 실린 방식(직접
+입력·인자 유무·겹친 적재). 이 저장소에서 돌리면 `DECISION_LOG.md` 의
 대기 예측이 확인 시점까지 얼마나 왔는지도 보여 준다. 읽기만 하고, 결과에 프로젝트 이름과 대화 조각이 들어가므로 저장소
 밖(`~/.claude/harness-reports/<날짜>/`)에 쓴다. 대화 기록은 `cleanupPeriodDays` 를 늘리지 않으면 30일 뒤 지워진다
 (`/init` 6-b 단계).
