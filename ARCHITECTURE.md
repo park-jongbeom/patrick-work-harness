@@ -4,7 +4,7 @@
 
 - `install.sh` — CLI installer (--version / --target / --dry-run / SHA256 체크섬)
 - `sync-from-source.sh` — 소스 저장소 → 배포본 파일 동기화
-- `skills/*/SKILL.md` — 하네스 스킬 정의 (9종, frontmatter `name:` 식별)
+- `skills/*/SKILL.md` — 하네스 스킬 정의 (10종, frontmatter `name:` 식별)
 - `hooks/*.py` — Stop / PreToolUse 이벤트 핸들러
 
 ## Layer Structure

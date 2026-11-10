@@ -54,7 +54,8 @@ SAFETY_DENIAL = "denied by a built-in Claude Code safety check"
 SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehension_earlier_plan": "이전 계획의 미답 질문"}
 #: 문맥 비용에서 「하네스 몫」으로 셀 스킬 — skills/ 의 폴더 이름과 같아야 한다(시험이 대조한다).
 #: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
-HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update"}
+HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update",
+                  "harness-feedback"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
 #: 새 문맥 검토(fresh_review.py, 2026-11-10)의 흔적 — 검토자 지시문 첫머리 표지, Gate A 블록에 쓴 기록 줄(자리표시 `지적 N` 은
 #: 빼고 숫자나 「실패」만), 하위 에이전트가 뒤에서 돌았을 때의 완료 알림(`queue-operation` 줄 — 사용량은 여기에만 남는다).
@@ -620,6 +621,8 @@ METRICS = [
      "훅이 막은 Gate 호출 수 — 막힌 글자가 Gate 순서에서 빠졌는지는 「Gate 순서」 표"),
     ("Gate A 계획을 대화 밖 검토자가", _fresh("fired"), 10,
      "발동한 새 문맥 검토 수(--force 제외) — 내용 고침·올림·건너뜀은 「새 문맥 검토」 표"),
+    ("작업 PC 의 사용 기록 요약을 응답 종료 훅이", len, None,
+     "받은 세션 수 — PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
 ]
 
 

@@ -82,6 +82,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
 | `/harness-update` | Full upgrade — compare version → show CHANGELOG → 7-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
+| `/harness-feedback` | Send this PC's harness usage summary to the engine server over SSH — set the address once; a Stop hook then sends when due |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks for a source copy |
 
 ---
@@ -97,6 +98,7 @@ Hooks run automatically around each Claude Code response and tool call (Stop, Pr
 | `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E, and sends the session back when this conversation wrote ✅E without a Gate D record |
 | `error-topics-guard.py` | Stop | Detects missing error records after Gate E |
 | `test-tampering-guard.py` | Stop | Detects reward-hacking patterns at the end of every response (4 types: `@Disabled` · reduced assertions · mock reduction · CI tampering) in uncommitted test files and — once per session, as a warning — in commits made during the session |
+| `harness-feedback-sync.py` | Stop | Sends this PC's usage summary to the engine server over SSH when due (a harness internal error · 10 changed sessions · 14 days), checking at most every 6 h in a detached process; does nothing until `/harness-feedback` sets an address |
 | `session-dashboard-sync.py` | PostToolUse | Auto-regenerates `session-dashboard.html` after each Edit/Write |
 | `docker-command-guard.py` | PreToolUse | Blocks invalid Docker commands (`-it`, wrong container names, etc.) |
 | `commit-msg-guard.py` | PreToolUse | Validates `git commit -m` messages against Korean Conventional Commits format |
@@ -166,7 +168,7 @@ Files created after installation:
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 9 slash commands
+    └── skills/          ← 10 slash commands
         ├── gate-a/
         ├── gate-b/
         ├── ...
@@ -258,9 +260,10 @@ pending prediction in `DECISION_LOG.md` has come. It only reads; the output cont
 snippets, so it is written outside any repository (`~/.claude/harness-reports/<date>/`). Transcripts are deleted after
 30 days unless `cleanupPeriodDays` is raised (see `/init` Step 6-b).
 
-When the work runs on another computer, run the report there and copy its output folder here; then
-`python3 hooks/harness_report.py --sessions <copied>/sessions.jsonl` checks the predictions against this repository's
-`DECISION_LOG.md` without the transcripts.
+When the work runs on another computer, run `/harness-feedback` there once to set an SSH address; its Stop hook then
+sends the session rows when due, and `python3 hooks/harness-feedback-sync.py receive` here builds the report from every
+received file and checks the predictions against this repository's `DECISION_LOG.md` without the transcripts. Copying
+a report folder by hand and running `python3 hooks/harness_report.py --sessions <copied>/sessions.jsonl` still works.
 
 #### Direction check — /audit
 
@@ -381,6 +384,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
 | `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→7 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
+| `/harness-feedback` | 이 PC 의 하네스 사용 기록 요약을 SSH 로 엔진 서버에 보냄 — 주소를 한 번 넣으면 이후 응답 종료 훅이 조건이 찰 때 보냄 |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·소스 사본의 hook 배선 |
 
 ---
@@ -396,6 +400,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지, 이 대화가 Gate D 기록 없이 ✅E 를 쓰면 되돌려 보냄 |
 | `error-topics-guard.py` | Stop | Gate E 오류 기록 누락 감지 |
 | `test-tampering-guard.py` | Stop | 응답이 끝날 때마다 reward-hacking 패턴 감지 (4종: `@Disabled`·단언 감소·mock 축소·CI 변조). 커밋 안 된 시험 파일 전체와, 이번 세션에서 한 커밋(세션당 한 번 경고) |
+| `harness-feedback-sync.py` | Stop | 조건이 차면(하네스 내부 오류·바뀐 세션 10개·14일) 이 PC 의 사용 기록 요약을 SSH 로 엔진 서버에 보냄. 6시간에 한 번 떼어 낸 프로세스로 판정하고, `/harness-feedback` 로 주소를 넣기 전에는 아무것도 하지 않음 |
 | `session-dashboard-sync.py` | PostToolUse | Edit·Write 뒤 `session-dashboard.html` 자동 재생성 |
 | `docker-command-guard.py` | PreToolUse | 잘못된 Docker 명령 실행 차단 (`-it`, 잘못된 컨테이너명 등) |
 | `commit-msg-guard.py` | PreToolUse | `git commit -m` 메시지의 한국어 Conventional Commits 형식 검증 |
@@ -464,7 +469,7 @@ Claude Code 는 이 변수를 플러그인 스킬에서만 채우고, 프로젝�
 ```
 your-project/
 └── .claude/
-    └── skills/          ← 슬래시 커맨드 9종
+    └── skills/          ← 슬래시 커맨드 10종
         ├── gate-a/
         ├── gate-b/
         ├── ...
@@ -555,9 +560,10 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 밖(`~/.claude/harness-reports/<날짜>/`)에 쓴다. 대화 기록은 `cleanupPeriodDays` 를 늘리지 않으면 30일 뒤 지워진다
 (`/init` 6-b 단계).
 
-작업이 다른 컴퓨터에서 돌면 그쪽에서 보고서를 만들어 결과 폴더를 이리로 복사한다. 그다음
-`python3 hooks/harness_report.py --sessions <복사한 폴더>/sessions.jsonl` 이 대화 기록 없이 이 저장소의
-`DECISION_LOG.md` 예측과 맞댄다.
+작업이 다른 컴퓨터에서 돌면 그쪽에서 `/harness-feedback` 로 SSH 주소를 한 번 넣는다. 그 뒤 응답 종료 훅이 조건이 찰 때
+세션 행을 보내고, 이쪽의 `python3 hooks/harness-feedback-sync.py receive` 가 받은 파일 전부로 보고서를 만들어 대화 기록
+없이 이 저장소의 `DECISION_LOG.md` 예측과 맞댄다. 보고서 폴더를 손으로 복사해 `python3 hooks/harness_report.py
+--sessions <복사한 폴더>/sessions.jsonl` 로 돌리는 방법도 그대로 된다.
 
 #### 방향성 점검 — /audit
 

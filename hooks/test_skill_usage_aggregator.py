@@ -165,7 +165,7 @@ class TestDashboardOutput(AggregatorTestBase):
         start = now - timedelta(days=30)
         r = sua.aggregate(self.root, start)
         md = sua.format_dashboard(r, now.strftime("%Y-%m"), start, now)
-        for s in sua.NINE_SKILLS:
+        for s in sua.SHIPPED_SKILLS:
             self.assertIn(s, md, f"{s} 가 표에 없다")
 
     def test_creates_missing_output_directory(self):
@@ -194,7 +194,7 @@ class TestDashboardOutput(AggregatorTestBase):
         self.assertIn("gate-a", out.read_text(encoding="utf-8"))
 
     def test_deployed_skill_list_matches_shipped_skills(self):
-        """집계 대상 9종이 실제 배포 스킬과 일치한다.
+        """집계 대상이 실제 배포 스킬과 일치한다.
 
         2026-09-24 이식 시 원본 목록(`error-log`·`export-roles`)이 이 배포본에
         없는 스킬을 세고 있었다. 목록이 어긋나면 **없는 스킬을 0회로 보고**
@@ -203,10 +203,10 @@ class TestDashboardOutput(AggregatorTestBase):
         skills_dir = Path(__file__).resolve().parent.parent / "skills"
         shipped = {p.name for p in skills_dir.iterdir()
                    if p.is_dir() and not p.name.startswith(".")}
-        self.assertEqual(set(sua.NINE_SKILLS), shipped,
+        self.assertEqual(set(sua.SHIPPED_SKILLS), shipped,
                          f"집계 목록과 배포 스킬이 다르다: "
-                         f"집계만={set(sua.NINE_SKILLS) - shipped} "
-                         f"배포만={shipped - set(sua.NINE_SKILLS)}")
+                         f"집계만={set(sua.SHIPPED_SKILLS) - shipped} "
+                         f"배포만={shipped - set(sua.SHIPPED_SKILLS)}")
 
 
 class TestWindowTimezone(unittest.TestCase):
@@ -292,7 +292,7 @@ class TestAnomalyRules(unittest.TestCase):
     def test_recommendations_name_the_current_flow(self):
         recs = sua.build_recommendations({"anomalies": _anomalies(
             "gate-a→gate-b→gate-c→gate-e", "gate-a→gate-c→gate-d→gate-e"),
-            "total_by_skill": {s: 1 for s in sua.NINE_SKILLS}, "hour_counter": {}})
+            "total_by_skill": {s: 1 for s in sua.SHIPPED_SKILLS}, "hour_counter": {}})
         text = "\n".join(recs)
         self.assertIn("gate-c→gate-e", text)
         self.assertIn("gate-a→gate-c", text)

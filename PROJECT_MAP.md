@@ -16,6 +16,7 @@ patrick-work-harness/
 │   ├── gate-c/
 │   ├── gate-d/
 │   ├── gate-e/
+│   ├── harness-feedback/
 │   ├── harness-update/
 │   ├── init/
 │   └── SKILL_DETAIL.md       # Shared rubric / advisor escalation detail
@@ -36,7 +37,7 @@ patrick-work-harness/
 
 ## Module List
 
-### Skills (9종)
+### Skills (10종)
 
 | Skill | File |
 |-------|------|
@@ -47,6 +48,7 @@ patrick-work-harness/
 | gate-c | `skills/gate-c/SKILL.md` |
 | gate-d | `skills/gate-d/SKILL.md` |
 | gate-e | `skills/gate-e/SKILL.md` |
+| harness-feedback | `skills/harness-feedback/SKILL.md` |
 | harness-update | `skills/harness-update/SKILL.md` |
 | init | `skills/init/SKILL.md` |
 
@@ -60,6 +62,7 @@ patrick-work-harness/
 | `error-topics-guard.py` | 오류 주제 파일 동기화 |
 | `gate-a-sync-guard.py` | Gate A 승인 대기 일관성 |
 | `gate-e-sync-guard.py` | Gate E ✅ 완료 일관성, Gate D 기록 확인 |
+| `harness-feedback-sync.py` | 사용 기록 요약을 조건이 차면 SSH 로 엔진 서버에 전송(설정·받기 명령 포함) |
 | `lane-scope-guard.py` | 자율 레인 범위 검사 |
 | `master-plan-stale-guard.py` | 마스터 플랜 스테일 감지 |
 | `session-dashboard-sync.py` | session-dashboard.html 자동 갱신 |

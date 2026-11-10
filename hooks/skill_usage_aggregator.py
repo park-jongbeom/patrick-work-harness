@@ -26,12 +26,12 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# 배포본이 싣는 스킬 9종 (2026-09-24 실측으로 맞춤).
+# 배포본이 싣는 스킬 (2026-09-24 실측으로 맞춤, 2026-11-10 harness-feedback 추가 — 시험이 skills/ 폴더와 대조한다).
 # 원본 목록에 있던 error-log·export-roles 는 이 배포본에 없고,
 # 대신 harness-update·init 이 있다.
-NINE_SKILLS = [
+SHIPPED_SKILLS = [
     "gate-a", "gate-b", "gate-c", "gate-d", "gate-e",
-    "audit", "doc-cleanup", "harness-update", "init",
+    "audit", "doc-cleanup", "harness-update", "init", "harness-feedback",
 ]
 
 # 배포본 일반화 (2026-09-24, HARNESS-ANALYTICS-PORT-1): 원본은 사설 절대경로였다.
@@ -142,7 +142,7 @@ def _collect_invocation(entry: dict, invocations: dict) -> None:
             text = ""
         for m in _COMMAND_TAG_RE.finditer(text):
             name = _skill_name(m.group(1))
-            if name in NINE_SKILLS:
+            if name in SHIPPED_SKILLS:
                 key = f"tag:{entry.get('uuid') or ts.isoformat()}:{name}"
                 invocations.setdefault(key, (name, ts, session_id))
 
@@ -249,7 +249,7 @@ def build_recommendations(result: dict) -> list:
         recs.append(f"게이트 건너뜀 {gs}세션 (`gate-a`·`gate-b`→`gate-e`) — 구현·검증 없이 기록")
     if po:
         recs.append(f"계획 후 미진행 {po}세션 (`gate-a` 단독) — 계획 적체 점검")
-    zero_total = [s for s in NINE_SKILLS if result["total_by_skill"].get(s, 0) == 0]
+    zero_total = [s for s in SHIPPED_SKILLS if result["total_by_skill"].get(s, 0) == 0]
     if zero_total:
         recs.append(f"0회 누적 스킬 {', '.join(f'`{s}`' for s in zero_total)} — 통합·폐기 검토 (§4 연계)")
     hour_counter = result.get("hour_counter", {})
@@ -277,7 +277,7 @@ def aggregate(projects_dir: Path, window_start: datetime, include_tmp: bool = Fa
     for project_name, command_name, ts, session_id in iter_skill_invocations(projects_dir, include_tmp):
         projects_seen.add(project_name)
         event_count += 1
-        if command_name in NINE_SKILLS:
+        if command_name in SHIPPED_SKILLS:
             total_by_project_skill[(project_name, command_name)] += 1
             total_by_skill[command_name] += 1
             hour_counter[ts.astimezone(KST).hour] += 1
@@ -326,7 +326,7 @@ def format_dashboard(result: dict, month: str, window_start: datetime, window_en
     lines.append("")
     lines.append("| 스킬 | 30일 윈도우 | 누적 | 비고 |")
     lines.append("|------|------------|------|------|")
-    for skill in NINE_SKILLS:
+    for skill in SHIPPED_SKILLS:
         window = result["window_by_skill"].get(skill, 0)
         total = result["total_by_skill"].get(skill, 0)
         note = ""
@@ -340,13 +340,13 @@ def format_dashboard(result: dict, month: str, window_start: datetime, window_en
     lines.append("")
     lines.append("## 2. 9스킬 × 프로젝트별 누적")
     lines.append("")
-    header = "| 프로젝트 | " + " | ".join(f"`{s}`" for s in NINE_SKILLS) + " |"
-    separator = "|" + "---|" * (len(NINE_SKILLS) + 1)
+    header = "| 프로젝트 | " + " | ".join(f"`{s}`" for s in SHIPPED_SKILLS) + " |"
+    separator = "|" + "---|" * (len(SHIPPED_SKILLS) + 1)
     lines.append(header)
     lines.append(separator)
     for project in result["projects"]:
         cells = []
-        for skill in NINE_SKILLS:
+        for skill in SHIPPED_SKILLS:
             count = result["total_by_project_skill"].get((project, skill), 0)
             cells.append(str(count) if count > 0 else "·")
         lines.append(f"| {project} | " + " | ".join(cells) + " |")
@@ -357,16 +357,16 @@ def format_dashboard(result: dict, month: str, window_start: datetime, window_en
     lines.append(separator)
     for project in result["projects"]:
         cells = []
-        for skill in NINE_SKILLS:
+        for skill in SHIPPED_SKILLS:
             count = result["window_by_project_skill"].get((project, skill), 0)
             cells.append(str(count) if count > 0 else "·")
         lines.append(f"| {project} | " + " | ".join(cells) + " |")
     lines.append("")
     lines.append("## 4. 통합·폐기 후보 식별 (§5 인계 권고)")
     lines.append("")
-    zero_total = [s for s in NINE_SKILLS if result["total_by_skill"].get(s, 0) == 0]
-    low_total = [s for s in NINE_SKILLS if 0 < result["total_by_skill"].get(s, 0) < 5]
-    zero_window = [s for s in NINE_SKILLS
+    zero_total = [s for s in SHIPPED_SKILLS if result["total_by_skill"].get(s, 0) == 0]
+    low_total = [s for s in SHIPPED_SKILLS if 0 < result["total_by_skill"].get(s, 0) < 5]
+    zero_window = [s for s in SHIPPED_SKILLS
                    if result["total_by_skill"].get(s, 0) > 0
                    and result["window_by_skill"].get(s, 0) == 0]
     if zero_total:

@@ -429,6 +429,11 @@ NEW_HOOKS = {
             "matcher": ".*",
             "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/test-tampering-guard.py"}]
         },
+        # 작업 PC 의 사용 기록 요약을 받는 서버로 — 주소를 설정하기 전에는 아무것도 하지 않는다 (2026-11-10)
+        {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/harness-feedback-sync.py"}]
+        },
     ],
 }
 
