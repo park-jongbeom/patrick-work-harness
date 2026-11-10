@@ -129,16 +129,25 @@ if [[ -n "$SOURCE_DIR" ]]; then
   SRC="$(realpath "$SOURCE_DIR")"
   echo "[3/5] 로컬 원본 사용: ${SRC}"
 else
-TARBALL_URL="${BASE_URL}/archive/refs/tags/${VERSION}.tar.gz"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
-
-echo "[3/5] 다운로드 중: ${TARBALL_URL}"
 TARBALL="${TMP_DIR}/harness.tar.gz"
-curl -fsSL "$TARBALL_URL" -o "$TARBALL"
 
-# SHA256 체크섬 검증 (릴리스에 .sha256 파일이 있을 때만 수행)
-SHA256_URL="${BASE_URL}/releases/download/${VERSION}/patrick-work-harness-${VERSION}.sha256"
+# 🔴 릴리스 자산(release-assets.sh 가 만든 압축 파일)을 먼저 받는다 (2026-11-10). GitHub 이 만드는 소스 압축본의
+#    바이트는 보장되지 않아 체크섬을 걸 수 없다. 자산이 없는 옛 릴리스만 소스 압축본으로 내려간다.
+ASSET_URL="${BASE_URL}/releases/download/${VERSION}/patrick-work-harness-${VERSION}.tar.gz"
+if curl -fsSL "$ASSET_URL" -o "$TARBALL" 2>/dev/null; then
+  echo "[3/5] 다운로드: ${ASSET_URL}"
+else
+  TARBALL_URL="${BASE_URL}/archive/refs/tags/${VERSION}.tar.gz"
+  echo "[3/5] 다운로드 중: ${TARBALL_URL} (이 릴리스에 자산 압축 파일이 없다)"
+  curl -fsSL "$TARBALL_URL" -o "$TARBALL"
+fi
+
+# SHA256 체크섬 검증 (릴리스에 .sha256 파일이 있을 때만 수행 — v1.19.0 부터 릴리스마다 올린다)
+# 이름이 `<압축 파일>.sha256` 인 까닭: 옛 install.sh 는 `patrick-work-harness-<태그>.sha256` 을 소스 압축본과 비교한다 —
+# 같은 이름으로 자산의 체크섬을 올리면 옛 스크립트가 불일치로 멈춘다.
+SHA256_URL="${BASE_URL}/releases/download/${VERSION}/patrick-work-harness-${VERSION}.tar.gz.sha256"
 if curl -fsSL --head "$SHA256_URL" 2>/dev/null | grep -q "^HTTP.*200"; then
   EXPECTED=$(curl -fsSL "$SHA256_URL" | awk '{print $1}')
   ACTUAL=$(sha256sum "$TARBALL" | awk '{print $1}')

@@ -7,7 +7,9 @@
 ## English
 
 A process automation harness for Claude Code.  
-Prevents the most common failure mode: **AI writing code before a plan is approved.**  
+Targets the most common failure mode — **AI writing code before a plan is approved** — by making the plan its own step
+and checking the session records when a response ends. It is a procedure Claude is told to follow, not a hard block
+(see the design note below).  
 Provides the **Gate A~E 5-step process** and **Stop hook quality guards** as slash commands.
 
 ### What is this?
@@ -159,6 +161,11 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 `install.sh` needs `bash`, `python3` and `curl` (for a release download); it uses `rsync` when present and falls back to
 `python3` otherwise (Git Bash on Windows, minimal containers).
 
+A release download is checked: from v1.19.0 each release carries its own tarball and its `.tar.gz.sha256`, and `install.sh`
+stops if the tarball does not match. The tarball comes from `git archive` and `gzip -n`, so `./release-assets.sh vX.Y.Z` in a
+clone rebuilds the same bytes with the same git and gzip. Older releases have no checksum; `install.sh` then downloads GitHub's source archive and says the check was skipped.
+The checksum guards against a broken or swapped download, not against a compromised repository (both come from GitHub).
+
 `install.sh` rewrites the `${CLAUDE_PLUGIN_ROOT}/hooks/` paths inside the copied skills to the installed hooks folder
 (`~/.claude/hooks/patrick-work-harness/`). Claude Code fills that variable in only for plugin skills; in a skill copied into
 a project it is empty, and the Gate D facts block, Gate E review card and session ledger commands would fail.
@@ -216,7 +223,8 @@ When starting new work:
 ```
 
 Claude Code automatically reads `00_MASTER_PLAN.md` · `SESSION_INDEX.md` · `CURRENT_SESSION.md` and builds a change plan.  
-**No code changes happen until the user approves.**
+**Gate A tells Claude to stop and wait for your approval before changing code** — a procedure, not a hard block: no hook
+stops an early edit (see the design note above).
 
 How to approve:
 ```
@@ -313,7 +321,8 @@ MIT
 ## 한국어
 
 Claude Code 기반 소프트웨어 개발 프로세스 자동화 하네스입니다.  
-AI가 계획 승인 전에 코드를 작성하는 가장 흔한 실패 패턴을 차단합니다.  
+AI가 계획 승인 전에 코드를 작성하는 가장 흔한 실패 패턴을 겨냥합니다 — 계획을 따로 한 단계로 두고, 응답이 끝날 때 세션
+기록을 검사합니다. Claude 가 따르도록 지시한 절차이지 사전 차단은 아닙니다(아래 설계 원칙 참고).  
 **Gate A~E 5단계 프로세스**와 **Stop hook 품질 가드**를 슬래시 커맨드로 제공합니다.
 
 ### 이 도구는?
@@ -463,6 +472,11 @@ curl -fsSL https://raw.githubusercontent.com/park-jongbeom/patrick-work-harness/
 `install.sh` 는 `bash`·`python3`·`curl`(릴리스 내려받기)이 필요하다. `rsync` 가 있으면 쓰고, 없으면(Windows Git Bash, 최소 컨테이너)
 `python3` 으로 같은 규칙대로 복사한다.
 
+릴리스 내려받기는 검증한다 — v1.19.0 부터 릴리스마다 자체 압축 파일과 그 `.tar.gz.sha256` 이 올라가고, `install.sh` 는 압축 파일이 맞지 않으면
+멈춘다. 압축 파일은 `git archive` 와 `gzip -n` 으로 만들어, 같은 git·gzip 이면 클론에서 `./release-assets.sh vX.Y.Z` 로 같은 바이트를 다시 만든다. 그 전 릴리스에는 체크섬이 없어
+GitHub 소스 압축본을 받고 검증을 건너뛰었다고 출력한다. 체크섬은 깨지거나 바뀐 내려받기를 막을 뿐, 저장소 자체가 털린 경우는 막지 못한다
+(둘 다 GitHub 에서 온다).
+
 `install.sh` 는 복사한 스킬 안의 `${CLAUDE_PLUGIN_ROOT}/hooks/` 경로를 훅 설치 폴더(`~/.claude/hooks/patrick-work-harness/`)로 바꿔 쓴다.
 Claude Code 는 이 변수를 플러그인 스킬에서만 채우고, 프로젝트에 복사한 스킬에서는 빈 문자열이라 Gate D 사실 블록·Gate E 검토 카드·
 세션 원장 명령이 실패한다.
@@ -520,7 +534,8 @@ cd patrick-work-harness
 ```
 
 Claude Code가 자동으로 `00_MASTER_PLAN.md`·`SESSION_INDEX.md`·`CURRENT_SESSION.md`를 읽고 변경 계획을 수립합니다.  
-**코드 변경은 사용자 승인 전까지 일어나지 않습니다.**
+**Gate A 는 코드를 바꾸기 전에 멈추고 사용자 승인을 기다리라고 Claude 에게 지시합니다** — 절차이며, 이른 편집을 막는 훅은
+없습니다(위 설계 원칙 참고).
 
 승인 방법:
 ```

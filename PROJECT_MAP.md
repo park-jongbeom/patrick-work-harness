@@ -25,6 +25,7 @@ patrick-work-harness/
 ├── RELEASE_POLICY.md
 ├── install.sh                # CLI installer (--version / --target / --dry-run)
 ├── plugin.json               # Root plugin descriptor
+├── release-assets.sh         # Release tarball + .sha256 (install.sh verifies them)
 └── sync-from-source.sh       # Source → deploy sync helper
 ```
 
@@ -32,7 +33,7 @@ patrick-work-harness/
 
 - **Runtime**: Python 3.x (hooks), Markdown (skills)
 - **Test**: pytest (hooks unit tests)
-- **CI/CD**: GitHub Actions (`.github/workflows/`)
+- **CI/CD**: 없음 — 시험은 릴리스 전에 로컬과 깨끗한 컨테이너에서 돌린다(`RELEASE_POLICY.md`). 배포 워크플로는 2026-07-20 에 뺐다
 - **Plugin system**: Claude Code plugin spec (`.claude-plugin/`)
 
 ## Module List

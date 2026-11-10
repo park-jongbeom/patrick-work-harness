@@ -229,5 +229,139 @@ class TestUnknownSourceFails(unittest.TestCase):
         self.assertIn("/nonexistent-harness-src", proc.stdout + proc.stderr)
 
 
+FAKE_CURL = """#!/bin/sh
+# 가짜 curl — URL 의 마지막 조각을 FAKE_SERVER 폴더에서 찾는다. 없으면 `curl -f` 처럼 22 로 끝난다.
+out=""; head=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o|-w) [ "$1" = "-o" ] && out="$2"; shift 2;;
+    --head|-I) head=1; shift;;
+    -*) shift;;
+    *) url="$1"; shift;;
+  esac
+done
+echo "$url" >> "$FAKE_LOG"
+f="$FAKE_SERVER/${url##*/}"
+[ -f "$f" ] || exit 22
+if [ -n "$head" ]; then printf 'HTTP/2 302\\r\\n\\r\\nHTTP/2 200\\r\\n'; exit 0; fi
+if [ -n "$out" ]; then cp "$f" "$out"; else cat "$f"; fi
+"""
+
+
+@unittest.skipIf(os.name == "nt", "가짜 curl 이 sh 스크립트다")
+class TestReleaseDownload(unittest.TestCase):
+    """릴리스 내려받기 — 자산 압축 파일을 먼저 받고 `.sha256` 으로 검증한다. 전에는 어느 릴리스에도 체크섬이 없어
+    검증이 한 번도 돌지 않았다(2026-11-10, 릴리스 30개 모두 자산 0개)."""
+
+    TAG = "v1.19.0"
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.home, self.proj, self.server, self.bin = (os.path.join(self.root, n) for n in ("home", "proj", "server", "bin"))
+        for d in (self.home, self.proj, self.server, self.bin):
+            os.makedirs(d)
+        with open(os.path.join(self.bin, "curl"), "w") as f:
+            f.write(FAKE_CURL)
+        os.chmod(os.path.join(self.bin, "curl"), 0o755)
+        self.log = os.path.join(self.root, "fetched.log")
+
+    def tarball(self, name):
+        import tarfile
+        path = os.path.join(self.server, name)
+        prefix = "patrick-work-harness-" + self.TAG[1:]
+        with tarfile.open(path, "w:gz") as tar:
+            for item in ("plugin.json", ".claude-plugin", "skills", "hooks"):
+                tar.add(os.path.join(ROOT, item), arcname=f"{prefix}/{item}",
+                        filter=lambda t: None if "__pycache__" in t.name else t)
+        return path
+
+    def checksum(self, path, wrong=False):
+        with open(path, "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+        with open(os.path.join(self.server, f"patrick-work-harness-{self.TAG}.tar.gz.sha256"), "w") as f:
+            f.write(("0" * 64 if wrong else digest) + f"  patrick-work-harness-{self.TAG}.tar.gz\n")
+
+    def install(self):
+        env = {**os.environ, "HOME": self.home, "PATH": self.bin + os.pathsep + os.environ.get("PATH", ""),
+               "FAKE_SERVER": self.server, "FAKE_LOG": self.log}
+        proc = subprocess.run(["bash", INSTALL, "--version", self.TAG, "--target", self.proj], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", env=env, stdin=subprocess.DEVNULL, timeout=120)
+        with open(self.log, encoding="utf-8") as f:
+            fetched = f.read()
+        return proc.returncode, proc.stdout + proc.stderr, fetched
+
+    def installed(self):
+        return os.path.isfile(os.path.join(self.home, ".claude", "hooks", "patrick-work-harness", "harness_report.py"))
+
+    def test_release_asset_is_checked_and_installed(self):
+        self.checksum(self.tarball(f"patrick-work-harness-{self.TAG}.tar.gz"))
+        rc, out, fetched = self.install()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("SHA256 검증 완료", out)
+        self.assertIn(f"releases/download/{self.TAG}/patrick-work-harness-{self.TAG}.tar.gz", fetched)
+        self.assertNotIn("archive/refs/tags", fetched)
+        self.assertTrue(self.installed())
+
+    def test_mismatch_stops_before_anything_is_installed(self):
+        self.checksum(self.tarball(f"patrick-work-harness-{self.TAG}.tar.gz"), wrong=True)
+        rc, out, _ = self.install()
+        self.assertEqual(rc, 1)
+        self.assertIn("SHA256 체크섬 불일치", out)
+        self.assertFalse(self.installed())
+
+    def test_old_release_without_assets_falls_back_and_says_the_check_was_skipped(self):
+        self.tarball(f"{self.TAG}.tar.gz")                    # GitHub 소스 압축본 이름(archive/refs/tags/<태그>.tar.gz)
+        rc, out, fetched = self.install()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("자산 압축 파일이 없다", out)
+        self.assertIn("체크섬 파일 없음", out)
+        self.assertIn(f"archive/refs/tags/{self.TAG}.tar.gz", fetched)
+        self.assertTrue(self.installed())
+
+
+@unittest.skipUnless(shutil.which("git") and shutil.which("gzip") and shutil.which("sha256sum"), "git·gzip·sha256sum 이 없다")
+class TestReleaseAssetsScript(unittest.TestCase):
+    """release-assets.sh — 같은 태그는 다시 만들어도 같은 바이트여야 올린 체크섬을 누구나 대조할 수 있다."""
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.repo, True)
+        git = ["git", "-C", self.repo, "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        subprocess.run(["git", "init", "-q", self.repo], check=True)
+        with open(os.path.join(self.repo, "plugin.json"), "w") as f:
+            f.write('{"version": "0.0.1"}\n')
+        subprocess.run(git + ["add", "."], check=True)
+        subprocess.run(git + ["commit", "-qm", "init"], check=True)
+        subprocess.run(git + ["tag", "v0.0.1"], check=True)
+
+    def build(self, tag="v0.0.1"):
+        proc = subprocess.run(["bash", os.path.join(ROOT, "release-assets.sh"), tag], cwd=self.repo, capture_output=True,
+                              text=True, encoding="utf-8", stdin=subprocess.DEVNULL, timeout=60)
+        out = proc.stdout.strip().splitlines()
+        return proc.returncode, (out[-1] if out else ""), proc.stdout + proc.stderr
+
+    def test_same_tag_builds_the_same_bytes_and_a_checksum_that_verifies(self):
+        hashes = []
+        for _ in range(2):
+            rc, folder, out = self.build()
+            self.addCleanup(shutil.rmtree, folder, True)
+            self.assertEqual(rc, 0, out)
+            # 체크섬 이름은 `<압축 파일>.sha256` 뿐이다 — `…-v0.0.1.sha256` 이 생기면 옛 install.sh 가 소스 압축본과 비교해 멈춘다
+            self.assertEqual(sorted(os.listdir(folder)), ["patrick-work-harness-v0.0.1.tar.gz",
+                                                          "patrick-work-harness-v0.0.1.tar.gz.sha256"])
+            with open(os.path.join(folder, "patrick-work-harness-v0.0.1.tar.gz.sha256"), encoding="utf-8") as f:
+                line = f.read()
+            self.assertTrue(line.endswith("  patrick-work-harness-v0.0.1.tar.gz\n"), line)
+            with open(os.path.join(folder, "patrick-work-harness-v0.0.1.tar.gz"), "rb") as f:
+                self.assertEqual(hashlib.sha256(f.read()).hexdigest(), line.split()[0])
+            hashes.append(line.split()[0])
+        self.assertEqual(hashes[0], hashes[1])
+
+    def test_bad_tag_is_refused(self):
+        self.assertEqual(self.build("1.0")[0], 2)
+        self.assertEqual(self.build("v9.9.9")[0], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

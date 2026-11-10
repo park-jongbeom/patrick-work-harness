@@ -65,6 +65,11 @@
      한국어 윈도 PC 의 한글 문서 프로젝트에서 10/22 부터 Stop 680회를 이렇게 실패해 검사가 통째로 빠졌다 (2026-11-06).
  34. install.sh 의 따옴표 없는 heredoc(변수를 펼치는 파이썬 블록) 안에는 백틱·`$(` 를 쓰지 않는다 — 주석이라도 bash 가 명령으로 실행한다.
      설치 때마다 주석 속 `python3 없는파일.py` 가 실제로 돌았다 (2026-11-06).
+ 35. README·ARCHITECTURE·PROJECT_MAP 은 Gate A 승인 전 편집을 도구가 막는다고 말하지 않는다 — 막는 훅은 2026-09 에 뺐고(오탐·Bash 우회)
+     같은 README 의 설계 원칙이 「강제라고 말하면 안 된다」고 적었는데도 머리말 네 곳이 「막는다·일어나지 않는다」고 약속했다. 외부 평가가
+     짚었다 (2026-11-10).
+ 36. PROJECT_MAP 이 가리키는 저장소 경로와 구조도의 이름은 실제로 있다 — 2026-07-20 에 뺀 `.github/workflows/` 를 CI 라고 적고 있었다
+     (2026-11-10).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -106,6 +111,23 @@ def hits(pattern, files=None):
 
 
 GATE_B = ROOT / "skills" / "gate-b" / "SKILL.md"
+#: 규칙 35 — 승인 전 편집을 도구가 막는다는 주장. 부정문(「막지 않는다」「does not block」)은 걸리지 않게 동사를 좁혔다.
+ENFORCEMENT_CLAIMS = (r"(?i)\bprevents?\b[^.\n]*before (?:a|the) plan is approved",
+                      r"승인\s*전[^\n]*(?:차단합니다|막습니다|막는다)",
+                      r"승인\s*전까지[^\n]*(?:일어나지|발생하지)\s*않",
+                      r"(?i)\bno code (?:changes?|edits?)\b[^.\n]*\b(?:until|before)\b[^.\n]*approv")
+
+
+def repo_names():
+    """저장소 안의 파일·폴더 이름과 상대 경로(.git·__pycache__ 제외). git 이 없는 트리(ENGINE_LINT_ROOT)에서도 돈다."""
+    names, paths = set(), set()
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__")]
+        rel = pathlib.Path(base).relative_to(ROOT)
+        for n in dirs + files:
+            names.add(n)
+            paths.add((rel / n).as_posix())
+    return names, paths
 #: Gate A~E 본문 바이트 합의 상한. 2026-11-05 축소 뒤 값에 여유를 조금 둔 것이다.
 GATE_SKILLS_BUDGET = 79_000
 RETIRED_HOOKS = ("claude-gate-guard.py", "comprehension-ledger-stale-guard.py", "skill-usage-auto.py")
@@ -436,6 +458,37 @@ class EngineLint(unittest.TestCase):
                 if (piped or opened) and "encoding" not in kw:
                     found.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
         self.assertEqual(found, [], "인코딩 없이 연 텍스트 — 한국어 윈도에서 cp949 로 읽힌다:\n" + "\n".join(found))
+
+    def test_docs_do_not_claim_the_tooling_blocks_early_edits(self):
+        docs = [d for d in (ROOT / "README.md", ROOT / "ARCHITECTURE.md", ROOT / "PROJECT_MAP.md") if d.is_file()]
+        found = [h for pattern in ENFORCEMENT_CLAIMS for h in hits(pattern, files=docs)]
+        self.assertEqual(found, [], "승인 전 편집을 도구가 막는다는 주장 — 절차이지 사전 차단이 아니다:\n" + "\n".join(found))
+
+    def test_project_map_points_at_files_that_exist(self):
+        names, paths = repo_names()
+        missing, in_tree = [], False
+        for i, line in enumerate(lines_of(ROOT / "PROJECT_MAP.md"), 1):
+            if line.startswith("```"):
+                in_tree = not in_tree
+                continue
+            if in_tree:                                  # 구조도: `├── 이름/   # 설명`
+                m = re.search(r"[├└]──\s+([^\s#]+)", line)
+                if m and m.group(1).rstrip("/") not in names:
+                    missing.append(f"PROJECT_MAP.md:{i}: {m.group(1)}")
+                continue
+            for token in re.findall(r"`([^`\s]+)`", line):
+                if re.search(r"[~$<>*{}]|://", token):
+                    continue
+                path = token.rstrip("/").split(":")[0]
+                if "/" in path:
+                    ok = path in paths
+                elif re.search(r"\.(?:py|md|json|sh)$", path):
+                    ok = path in names
+                else:
+                    continue
+                if not ok:
+                    missing.append(f"PROJECT_MAP.md:{i}: {token}")
+        self.assertEqual(missing, [], "PROJECT_MAP 이 없는 경로를 가리킨다:\n" + "\n".join(missing))
 
     def test_install_heredocs_run_no_shell_inside(self):
         install = (ROOT / "install.sh").read_text(encoding="utf-8")

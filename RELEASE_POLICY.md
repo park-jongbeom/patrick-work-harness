@@ -17,7 +17,7 @@
 
 ## 릴리스 절차
 
-> **전부 로컬 절차** (2026-07-20, v1.2.1 직후 확정): GitHub Actions "Deploy Plugin" 워크플로우는 제거됨 — 하던 일(JSON 검증·버전 정합·Release 생성)이 전부 로컬로 수행 가능한데 러너 큐 지연에 릴리스가 인질로 잡히고, 봇 생성 Release가 수동 정리 노트를 덮어쓰는 충돌만 남기기 때문. Release 객체 자체는 여전히 필수(`install.sh`가 `releases/latest`로 버전 해석) — 아래 7단계에서 gh CLI로 생성한다.
+> **전부 로컬 절차** (2026-07-20, v1.2.1 직후 확정): GitHub Actions "Deploy Plugin" 워크플로우는 제거됨 — 하던 일(JSON 검증·버전 정합·Release 생성)이 전부 로컬로 수행 가능한데 러너 큐 지연에 릴리스가 인질로 잡히고, 봇 생성 Release가 수동 정리 노트를 덮어쓰는 충돌만 남기기 때문. Release 객체 자체는 여전히 필수(`install.sh`가 `releases/latest`로 버전 해석) — 아래 7단계에서 gh CLI로 생성하고, 8단계에서 설치용 압축 파일과 체크섬을 올린다.
 
 ```
 0. 원본 반영 (소스 저장소 수정이 있을 때만)
@@ -34,7 +34,12 @@
 5. git tag vX.Y.Z
 6. git push origin main && git push origin vX.Y.Z
 7. gh release create vX.Y.Z --title "vX.Y.Z — <한 줄 요약>" --notes-file <해당 버전 CHANGELOG 절만 담은 파일>
-   (CHANGELOG 전문 붙여넣기 금지 — 해당 버전 절만. 자산 첨부 불요: install.sh는 태그 소스 tarball을 사용)
+   (CHANGELOG 전문 붙여넣기 금지 — 해당 버전 절만)
+8. ./release-assets.sh vX.Y.Z --upload
+   (릴리스 자산 두 개 — `patrick-work-harness-vX.Y.Z.tar.gz` 와 `patrick-work-harness-vX.Y.Z.tar.gz.sha256`. 체크섬 이름을
+   `patrick-work-harness-vX.Y.Z.sha256` 으로 바꾸지 않는다 — 옛 install.sh 가 그 이름을 소스 압축본과 비교해 설치를 멈춘다. install.sh 는 이 압축 파일을 받아 체크섬으로
+   검증하고, 맞지 않으면 멈춘다. 빼먹으면 GitHub 소스 압축본으로 내려가 검증 없이 설치된다 — 2026-11-10 전까지 30개 릴리스가 모두
+   그랬다. 올린 뒤 `gh release view vX.Y.Z --json assets` 로 두 파일을 확인한다)
 ```
 
 ## CHANGELOG 작성 규약
@@ -76,4 +81,5 @@ git commit -m "fix: <이슈 한 줄 설명>"
 git tag v1.0.1
 git push origin main && git push origin v1.0.1
 gh release create v1.0.1 --title "v1.0.1 — <한 줄 요약>" --notes-file <해당 버전 CHANGELOG 절만 담은 파일>
+./release-assets.sh v1.0.1 --upload
 ```
