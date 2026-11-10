@@ -436,3 +436,10 @@
 - **예측**: R0 뒤 노트북 보고서에서 commit-msg-guard 의 거부에 PowerShell 커밋이 섞여 나온다. 0 이면 PowerShell 로 커밋하지 않은 것이다 — 가드 결함의 증거가 아니다.
 - **확인 시점**: homepage 갱신 뒤 첫 노트북 보고서
 - **결과**:
+
+### [2026-11-10] 훅이 막은 Skill 호출은 Gate 순서에 넣지 않는다 — 결과를 기다리는 호출만 짝지어 본다
+- **결정**: 수정 → `hooks/gate_transcript.py`(`gate_sequence`·`invoked` 가 호출 id 로 결과를 짝지어 `is_error` 인 호출을 뺀다. 결과를 기다리는 id 가 든 줄만 더 읽는다), `hooks/test_test_write_guard.py`(시험 4건). 바꾸지 않음 → `autonomous_approved`(gate-a 를 막는 훅이 없다), 사용자가 입력한 `/gate-x` 가 UserPromptExpansion 에서 막힌 경우(기록에 어떻게 남는지 확인하지 않았다), 결과가 `api-request-blob` 줄에만 남는 경우(user 줄만 짝짓는다 — 이 서버의 막힘 8건은 모두 user 줄에 있었다). 보류 → `skill_usage_aggregator.py` 의 같은 계수(가드 동작과 무관하고 사용 횟수만 바뀐다).
+- **근거**: google/elephant-goldfish-model 검토에서 그 저장소의 시험 원칙(「호출 요청만으로는 실행이 아니다 — 오류 없는 결과가 짝지어져야 한다」)을 엔진에 대 보다 찾았다. 재현: 자율 레인 Gate D 루프 중(상태 C) /gate-e 가 「Gate D 기록 없음」으로 막힌 뒤, Gate C 가 만든 새 시험(기준 커밋에 없음)을 고쳐도 test-write-guard·lane-scope-guard 둘 다 묻지 않았다. 기준 커밋에 있던 시험은 lane-scope-guard 가 따로 물었다. 이 서버 기록 1,529개의 Skill 호출 153건(본 대화 150·하위 에이전트 3) 중 훅이 막은 것은 8건이고 모두 /tmp 시험 프로젝트의 본 대화였다(범위 이탈 정지 5·Gate D 기록 없음 1·이해도 질문 대기 2). 새 판정은 그 7개 기록에서 막힌 글자만 뺐고(예: `a c e e d e → a c d e`), 나머지 1,522개는 옛 판정과 같았다. 196MB 기록의 판정은 452 → 460ms(/tmp 사본)·529 → 536ms(원래 자리, 대조 검증)로 늘어난 폭이 2% 안쪽이다 — 줄마다 오류 표지를 훑는 첫 구현은 첫 측정과 같은 조건에서 625ms 였다. 실제 기록의 성공 결과 줄에는 `is_error` 키가 대개 없다(Skill 결과 160줄 중 false 8줄) — 참일 때만 실패로 센다.
+- **예측**: 노트북 보고서에서 훅이 막은 Skill 호출이 있는 대화의 Gate 순서에 그 글자가 나오지 않는다. 그런 대화가 몇 건인지 처음 센다(문턱 없음 — 실사용 노출 빈도를 모른다). 막힌 /gate-e 뒤 Gate D 중 시험 쓰기에서 test-write-guard 의 확인이 나오면 정탐 여부를 사람이 본다.
+- **확인 시점**: 다음 노트북 보고서(`--sessions`)
+- **결과**:

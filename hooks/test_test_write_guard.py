@@ -14,10 +14,25 @@ def session(status):
     return f"# 현재 세션 상태\n\n> **세션 ID**: S-1\n> **현재 상태**: {status}\n\n| 항목 | 내용 |\n|---|---|\n| 현재 Gate | {status} |\n"
 
 
-def skill_call(name, sidechain=False):
-    """대화 기록의 Skill 도구 호출 한 줄."""
-    return {"type": "assistant", "isSidechain": sidechain, "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Skill", "input": {"skill": name}}]}}
+def skill_call(name, sidechain=False, tid=None):
+    """대화 기록의 Skill 도구 호출 한 줄. tid 를 주면 결과 줄과 짝지을 수 있다."""
+    block = {"type": "tool_use", "name": "Skill", "input": {"skill": name}}
+    if tid:
+        block["id"] = tid
+    return {"type": "assistant", "isSidechain": sidechain, "message": {"role": "assistant", "content": [block]}}
+
+
+def tool_result(tid, error, text="ok"):
+    """도구 호출의 결과 줄. 훅이 막은 호출은 `is_error: true` 로 남는다. error=None 이면 키를 뺀다 —
+    실제 기록의 성공 결과는 대개 이 키가 없다."""
+    block = {"type": "tool_result", "tool_use_id": tid, "content": text}
+    if error is not None:
+        block["is_error"] = error
+    return {"type": "user", "message": {"role": "user", "content": [block]}}
+
+
+#: 실제 기록 그대로의 막힘 결과. 「gate-」 글자가 없어도 읽어야 한다.
+BLOCKED = "PreToolUse:Skill hook error: [레인] Gate D 기록 없음 — CURRENT_SESSION.md 에 `## Gate D` 블록이 없다"
 
 
 def slash(name):
@@ -94,6 +109,54 @@ class TestTestWriteGuard(unittest.TestCase):
         self.assertEqual(run_hook("Edit", "tests/test_x.py", "C (확인 대기)", transcript=tx), (0, None))
         tx = [skill_call("gate-d"), slash("gate-a")]
         self.assertEqual(run_hook("Edit", "tests/test_x.py", "A (승인 대기)", transcript=tx), (0, None))
+
+    # ── 막힌 호출 (2026-11-10) ───────────────────────────────────────────────
+    # 훅이 막은 Skill 호출은 실행되지 않았다. Gate D 루프 중 /gate-e 가 막혀도 창은 그대로다.
+    # 재현: 막힌 /gate-e 한 줄 뒤에 Gate C 가 만든 새 시험을 고쳐도 묻지 않았다.
+
+    def test_blocked_gate_call_does_not_end_the_window(self):
+        tx = [skill_call("gate-c"), skill_call("gate-d"),
+              skill_call("patrick-work-harness:gate-e", tid="e1"), tool_result("e1", True, BLOCKED)]
+        _, out = run_hook("Edit", "tests/test_x.py", "C (확인 대기)", transcript=tx)
+        self.assertIsNotNone(out, "막힌 /gate-e 가 Gate D 창을 닫았다")
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask")
+
+    def test_blocked_call_in_compact_json_as_written_by_claude_code(self):
+        def compact(d):
+            return json.dumps(d, ensure_ascii=False, separators=(",", ":"))
+
+        tx =[compact(skill_call("gate-d")), compact(skill_call("gate-e", tid="e1")),
+              compact(tool_result("e1", True, BLOCKED))]
+        _, out = run_hook("Edit", "tests/test_x.py", "C (확인 대기)", transcript=tx)
+        self.assertIsNotNone(out, "막힌 /gate-e 가 Gate D 창을 닫았다")
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask")
+
+    def test_gate_call_that_ran_or_has_no_result_yet_still_ends_the_window(self):
+        for error in (False, None):     # None: 실제 기록처럼 is_error 키가 없는 성공 결과
+            ran = [skill_call("gate-d"), skill_call("gate-e", tid="e1"),
+                   tool_result("e1", error, "Launching skill: gate-e")]
+            self.assertEqual(run_hook("Edit", "tests/test_x.py", "C (확인 대기)", transcript=ran), (0, None), error)
+        # 현재 턴의 결과는 아직 기록되지 않았을 수 있다 — 결과가 없으면 부른 것으로 본다
+        pending = [skill_call("gate-d"), skill_call("gate-e", tid="e1")]
+        self.assertEqual(run_hook("Edit", "tests/test_x.py", "C (확인 대기)", transcript=pending), (0, None))
+
+    def test_invoked_ignores_blocked_calls(self):
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        from gate_transcript import invoked
+
+        cases = {
+            "blocked": ([skill_call("doc-cleanup", tid="x1"), tool_result("x1", True, "denied")], False),
+            "ran": ([skill_call("doc-cleanup", tid="x1"), tool_result("x1", False)], True),
+            "no result yet": ([skill_call("doc-cleanup", tid="x1")], True),
+            "blocked, then ran": ([skill_call("doc-cleanup", tid="x1"), tool_result("x1", True, "denied"),
+                                   skill_call("doc-cleanup", tid="x2"), tool_result("x2", False)], True),
+        }
+        for label, (lines, expected) in cases.items():
+            with tempfile.TemporaryDirectory() as base:
+                path = os.path.join(base, "t.jsonl")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.writelines(json.dumps(line, ensure_ascii=False) + "\n" for line in lines)
+                self.assertIs(invoked(path, "doc-cleanup"), expected, label)
 
     def test_subagent_lines_are_ignored(self):
         tx = [skill_call("gate-c"), skill_call("gate-d", sidechain=True)]
