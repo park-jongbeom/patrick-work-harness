@@ -626,6 +626,21 @@ def render_gate_a_plan(plan):
     )
 
 
+def _engine_version_label(engine_version):
+    """맨 윗줄에 붙는 하네스 버전(2026-11-11). 사용자는 맨 위로 판단한다 — 이 화면을 어느 판이 그렸는지 거기서 보인다.
+
+    안 넘기면 빈 문자열이라 화면이 예전과 같다. 값이 없으면 숨기지 않고 모른다고 적는다. 매니페스트가 아니라
+    프로젝트 설정에서 읽은 값은 돌고 있는 판과 다를 수 있어 그렇게 표시한다.
+    """
+    if engine_version is None:
+        return ""
+    value = str(engine_version.get("value") or "").strip()
+    if not value:
+        return " · 하네스 버전 모름"
+    label = f" · 하네스 v{_esc(value.lstrip('vV'))}"
+    return label if engine_version.get("source") == "plugin.json" else label + " (프로젝트 설정 기준)"
+
+
 def generate_html(
     current_session,
     sessions,
@@ -639,6 +654,7 @@ def generate_html(
     gate_a_plan=None,
     gate_docs=None,
     comprehension=None,
+    engine_version=None,
 ):
     """HTML 생성
 
@@ -647,6 +663,7 @@ def generate_html(
     바이트 동일하다 — 시험이 고정한 호출 계약을 깨지 않기 위함.
     `gate_docs`(계획 전문, DASHBOARD-FULL-PLAN)·`comprehension`(이해 브리핑·
     질문, HARNESS-DASH-LEARN-1-b-2)도 같은 규약의 선택 인자다.
+    `engine_version`(`session_ledger.engine_version` 의 결과)을 넘기면 맨 윗줄에 하네스 버전을 붙인다.
     """
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     css = _load_css()
@@ -777,7 +794,7 @@ def generate_html(
 <body>
     <div class="container">
         <div class="last-updated">
-            📅 마지막 업데이트: {now} KST
+            📅 마지막 업데이트: {now} KST{_engine_version_label(engine_version)}
         </div>
 
         <div class="purpose-banner">

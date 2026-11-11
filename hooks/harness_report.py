@@ -833,6 +833,8 @@ METRICS = [
      "릴리스 자산 두 파일(`gh release view vX.Y.Z --json assets`)·설치 출력의 「SHA256 검증 완료」·린트 35·36 오탐 — 다음 릴리스 3회"),
     ("요약이 압축·회차 이월·문맥 출처를 센다", lambda rows: sum(1 for r in rows if _accounted(r)), 10,
      "새 항목이 든 하네스 세션 수 — 판단 기준은 이 결정의 예측 칸, 값은 「문맥 비용」「문맥 출처」「스킬 다시 싣기」 표"),
+    ("대시보드 맨 윗줄에 하네스 버전을 보인다", None, None,
+     "사용자 확인 — 갱신한 PC 의 대시보드 맨 윗줄과 세션 원장 새 행의 `engine_version.source`"),
 ]
 
 

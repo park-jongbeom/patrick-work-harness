@@ -147,6 +147,27 @@ class TestEngineVersion(unittest.TestCase):
         v = sl.engine_version(repo, manifest_dirs=[repo])
         self.assertEqual(v, {"value": "1.8.0", "source": "harness-answers.yml"})
 
+    def test_reads_the_manifest_install_sh_puts_next_to_the_scripts(self):
+        """install.sh 는 plugin.json 을 훅 폴더 안에 둔다. 그 위 폴더만 보면 설치된 판을 못 읽고 프로젝트 설정의 옛 값을
+        낸다(2026-11-11 — 대시보드에 버전을 넣으며 확인: 전송 스크립트는 훅 폴더도 보는데 이 함수만 보지 않았다)."""
+        base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, base, True)
+        hooks = os.path.join(base, "hooks", "patrick-work-harness")
+        os.makedirs(hooks)
+        for name in ("session_ledger.py", "lane_card.py"):
+            shutil.copy(os.path.join(HERE, name), hooks)
+        with open(os.path.join(hooks, "plugin.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": "9.9.9"}, f)
+        repo = os.path.join(base, "project")
+        os.makedirs(os.path.join(repo, ".claude"))
+        with open(os.path.join(repo, ".claude", "harness-answers.yml"), "w", encoding="utf-8") as f:
+            f.write('_engine_version: "1.8.0"\n')
+        code = "import json, sys; sys.path.insert(0, sys.argv[1]); import session_ledger as m; print(json.dumps(m.engine_version(sys.argv[2])))"
+        p = subprocess.run([sys.executable, "-c", code, hooks, repo], capture_output=True, text=True, encoding="utf-8",
+                           stdin=subprocess.DEVNULL)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(json.loads(p.stdout), {"value": "9.9.9", "source": "plugin.json"})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

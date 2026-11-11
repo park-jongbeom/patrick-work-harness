@@ -53,6 +53,16 @@ def read_markdown(file_path):
         return f.read()
 
 
+def read_engine_version():
+    """이 화면을 그리는 하네스의 버전. 읽는 모듈이 없거나 실패해도 화면은 떠야 한다 — 그때는 모른다고 적는다."""
+    try:
+        from session_ledger import engine_version
+
+        return engine_version(str(PROJECT_ROOT))
+    except Exception:
+        return {"value": None, "source": "모름"}
+
+
 def main():
     """메인 함수"""
     try:
@@ -101,6 +111,7 @@ def main():
             gate_a_plan,
             gate_docs,
             comprehension,
+            engine_version=read_engine_version(),
         )
 
         # 파일 저장

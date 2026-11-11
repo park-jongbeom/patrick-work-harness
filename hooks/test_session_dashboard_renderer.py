@@ -440,6 +440,53 @@ class TestGateDocuments(unittest.TestCase):
                         with_docs.index("활성 세션"))
 
 
+class TestEngineVersionLabel(unittest.TestCase):
+    """화면 맨 윗줄에 하네스 버전을 보인다 (2026-11-11).
+
+    사용자는 대시보드 맨 위로 판단한다. 이 화면을 어느 판이 그렸는지 맨 위에서 보여야 작업 PC 가 갱신됐는지
+    화면만으로 안다(2026-11-11 — 받은 사용 기록으로 두 PC 가 옛 판에 머문 것을 뒤늦게 알았다).
+    """
+
+    ARGS = (cs(session_id="DEMO-1", status="A"), {"active": [], "completed": []}, "2026-11-11", "", "", "", "", "", "")
+
+    @staticmethod
+    def top_line(html):
+        import re as _re
+        return _re.search(r'<div class="last-updated">(.*?)</div>', html, _re.S).group(1)
+
+    def test_installed_version_shows_on_the_top_line(self):
+        html = sdr.generate_html(*self.ARGS, engine_version={"value": "1.20.0", "source": "plugin.json"})
+        self.assertIn("하네스 v1.20.0", self.top_line(html))
+        self.assertNotIn("프로젝트 설정 기준", self.top_line(html))
+        self.assertLess(html.index("하네스 v1.20.0"), html.index('class="purpose-banner"'))
+
+    def test_version_recorded_by_the_project_is_marked_as_such(self):
+        """매니페스트 없이 손으로 복사한 설치는 프로젝트 설정에 적힌 값뿐이다 — 돌고 있는 판과 다를 수 있다고 표시한다."""
+        html = sdr.generate_html(*self.ARGS, engine_version={"value": "1.18.0", "source": "harness-answers.yml"})
+        self.assertIn("하네스 v1.18.0 (프로젝트 설정 기준)", self.top_line(html))
+
+    def test_unknown_version_is_said_not_hidden(self):
+        html = sdr.generate_html(*self.ARGS, engine_version={"value": None, "source": "모름"})
+        self.assertIn("하네스 버전 모름", self.top_line(html))
+
+    def test_v_prefix_is_not_doubled_and_markup_is_escaped(self):
+        html = sdr.generate_html(*self.ARGS, engine_version={"value": "v1.20.0<b>", "source": "plugin.json"})
+        self.assertIn("하네스 v1.20.0&lt;b&gt;", self.top_line(html))
+
+    def test_omitting_the_version_keeps_the_page_identical(self):
+        """버전을 안 넘긴 호출은 예전과 바이트 동일하다 — 시험이 고정한 호출 계약."""
+        import re as _re
+
+        def mask(h):
+            return _re.sub(r"마지막 업데이트: [\d\-: ]+KST", "T", h)
+
+        plain = sdr.generate_html(*self.ARGS)
+        self.assertEqual(mask(plain), mask(sdr.generate_html(*self.ARGS, engine_version=None)))
+        self.assertNotIn("하네스 v", plain)
+        self.assertNotIn("하네스 버전", plain)
+        self.assertRegex(self.top_line(plain).strip(), r"KST$")
+
+
 class TestRiskTableColumns(unittest.TestCase):
     """요약 패널의 리스크 표 — 계획의 열을 그대로 따른다."""
 

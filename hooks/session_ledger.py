@@ -38,9 +38,13 @@ def cell(content, label):
 
 
 def engine_version(repo, manifest_dirs=None):
-    """플러그인 매니페스트(이 스크립트와 함께 배포된 것) → 없으면 프로젝트의 harness-answers.yml."""
+    """플러그인 매니페스트(이 스크립트와 함께 배포된 것) → 없으면 프로젝트의 harness-answers.yml.
+
+    매니페스트 자리는 설치 방식마다 다르다 — 플러그인·저장소는 훅 폴더의 위, install.sh 는 훅 폴더 안이다. 위 폴더만 보면
+    install.sh 로 깐 PC 에서는 프로젝트 설정에 적힌 옛 값을 냈다(2026-11-11). 찾는 순서는 전송 스크립트
+    (`harness-feedback-sync.py`)와 같다. 대시보드 맨 윗줄의 버전도 이 함수로 읽는다."""
     root = os.path.dirname(HERE)
-    for d in manifest_dirs if manifest_dirs is not None else [root, os.path.join(root, ".claude-plugin")]:
+    for d in manifest_dirs if manifest_dirs is not None else [root, os.path.join(root, ".claude-plugin"), HERE]:
         try:
             with open(os.path.join(d, "plugin.json"), encoding="utf-8") as f:
                 version = json.load(f).get("version")

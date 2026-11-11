@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **세션 대시보드 맨 윗줄에 하네스 버전이 보인다** (`hooks/session_dashboard_renderer.py`, `hooks/session-dashboard-sync.py`) — 「마지막 업데이트」 옆에 「하네스 vX.Y.Z」를 붙인다. 이 화면을 어느 판이 그렸는지, 작업 PC 가 갱신됐는지를 화면만 보고 안다. 설치된 매니페스트가 없어 프로젝트 설정(`_engine_version`)에서 읽은 값이면 「(프로젝트 설정 기준)」을 덧붙이고, 어디서도 못 읽으면 「하네스 버전 모름」이라고 적는다. 버전을 못 읽어도 화면은 그대로 뜬다.
+
+### Fixed
+
+- **세션 원장이 install.sh 로 깐 PC 에서 설치된 판을 적는다** (`hooks/session_ledger.py`) — install.sh 는 `plugin.json` 을 훅 폴더 안에 두는데 `engine_version` 은 그 위 폴더만 봐서, 설치된 판 대신 프로젝트 설정에 적힌 값(갱신 전 값일 수 있다)을 적어 왔다. 훅 폴더 안도 본다 — 사용 기록 전송 스크립트와 같은 순서다.
+
 ## [1.20.0] - 2026-11-10
 
 ### Added

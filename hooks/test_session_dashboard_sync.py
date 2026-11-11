@@ -11,8 +11,13 @@ T2: HTML byte-for-byte 동등성 — 인라인 fixture markdown → `parse_*` �
     타임스탬프 2곳(최종 동기화·마지막 업데이트)만 정규식 마스킹.
 """
 
+import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -267,6 +272,41 @@ class TestSessionDashboardSplit(unittest.TestCase):
         self.assertIn("직전: PREV-1 ✅E", note_prose)
         self.assertNotIn("HISTORY_BODY", note_prose)  # 실제 이력만 절단
         self.assertFalse(note_prose.endswith(chr(92)))  # trailing 백슬래시 0
+
+
+
+class TestSyncedPageNamesTheEngineVersion(unittest.TestCase):
+    """동기화 스크립트를 실제로 돌려 만든 화면에 하네스 버전이 있다 (2026-11-11)."""
+
+    def sync(self, hooks_dir):
+        base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, base, True)
+        (Path(base) / "CURRENT_SESSION.md").write_text(FIXTURE_CURRENT_SESSION_MD, encoding="utf-8")
+        (Path(base) / "SESSION_INDEX.md").write_text(FIXTURE_SESSION_INDEX_MD, encoding="utf-8")
+        env = dict(os.environ, DASHBOARD_SYNC_BASE=base)
+        env.pop("CLAUDE_PROJECT_DIR", None)
+        p = subprocess.run([sys.executable, str(Path(hooks_dir) / "session-dashboard-sync.py")], env=env,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+        out = Path(base) / "session-dashboard.html"
+        self.assertTrue(out.exists(), p.stderr)
+        return out.read_text(encoding="utf-8")
+
+    def test_page_shows_the_version_of_the_engine_that_drew_it(self):
+        version = json.loads((HOOKS_DIR.parent / "plugin.json").read_text(encoding="utf-8"))["version"]
+        html = self.sync(HOOKS_DIR)
+        top = re.search(r'<div class="last-updated">(.*?)</div>', html, re.S).group(1)
+        self.assertIn(f"하네스 v{version}", top)
+
+    def test_page_still_renders_when_the_version_cannot_be_read(self):
+        """일부 파일만 복사한 설치(버전 읽는 모듈 없음)에서도 화면은 뜨고, 버전은 모른다고 적는다."""
+        partial = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, partial, True)
+        for name in ("session-dashboard-sync.py", "session_dashboard_parsers.py", "session_dashboard_renderer.py",
+                     "dashboard.css"):
+            shutil.copy(HOOKS_DIR / name, partial)
+        html = self.sync(partial)
+        self.assertIn("하네스 버전 모름", html)
+        self.assertIn("고정 입력 배너 제목 회귀 가드", html)
 
 
 if __name__ == "__main__":
