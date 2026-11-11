@@ -58,6 +58,18 @@
             color: #333;
         }
 
+        .meta-more {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #555;
+        }
+
+        .meta-more summary {
+            cursor: pointer;
+            color: #667eea;
+        }
+
         .status-badge {
             display: inline-block;
             padding: 4px 12px;

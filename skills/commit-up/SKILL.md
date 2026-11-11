@@ -41,7 +41,7 @@ One request closes the work: documents → audit check → commits → report.
 ## Step 5. Record commit
 
 - Note the work commit's short hash in one place: a `**커밋**: <해시>` line on this work's WORKLOG entry (`<worklog_path>/YYYY-Www.md`). Do not copy it into the session documents as well. No entry yet (work outside a Gate cycle) → add one: date, one-line summary, hash. No `worklog_path` → skip the note.
-- Bring `next_action` in `${SESSION_INDEX_FILE}` (and 「다음 행동」 in `${CURRENT_SESSION_FILE}`, if present) to the state **after** the commit — a 「커밋 필요」 left behind costs another edit and another commit.
+- Bring `next_action` in `${SESSION_INDEX_FILE}` (and 「다음 행동」 in `${CURRENT_SESSION_FILE}`, if present) to the state **after** the commit. Replace the whole value with what comes next — drop finished items, including the commit just made; a 「커밋 필요」 left behind costs another edit and another commit.
 - Make these edits with the editing tool, not a one-off script.
 - Commit the record group. Another repository in play (a notes vault, a second code repository) → commit there too, in that repository's convention.
 

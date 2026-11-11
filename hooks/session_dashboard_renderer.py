@@ -626,6 +626,32 @@ def render_gate_a_plan(plan):
     )
 
 
+#: 머리 칸 값이 이보다 길면 앞부분만 보이고 전문은 접는다(2026-11-11 — 실제 next_action 이 1,000 바이트를 넘어 칸 하나가 화면 높이를 넘었다).
+META_HEAD_CHARS = 140
+
+
+def _meta_value(text):
+    """머리 칸의 값. 짧으면 그대로, 길면 앞부분(글자 경계에서 자름) + 접힌 전문."""
+    text = str(text or "")
+    if len(text) <= META_HEAD_CHARS:
+        return _md_inline(text)
+    cut = text.rfind(" ", 0, META_HEAD_CHARS)
+    head = text[:cut if cut > META_HEAD_CHARS // 2 else META_HEAD_CHARS].rstrip(" →,·—⓪①②③④⑤⑥⑦⑧⑨")
+    return (f"{_md_inline(head)} …"
+            f'<details class="meta-more"><summary>전체 보기 ({len(text)}자)</summary>{_md_inline(text)}</details>')
+
+
+#: 다시 그린 화면은 맨 위부터 보인다(2026-11-11). 브라우저는 새로고침 뒤 이전 스크롤 위치·주소의 #앵커로 돌아가, 맨 위 배너가
+#: 화면 밖에 있었다(실제 세션 사본에서 839px 아래 머리 칸으로 복원됨).
+_OPEN_AT_TOP = """    <script>
+        if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+        if (location.hash) { history.replaceState(null, '', location.pathname + location.search); }
+        window.scrollTo(0, 0);
+        window.addEventListener('load', function () { window.scrollTo(0, 0); });
+    </script>
+"""
+
+
 def _engine_version_label(engine_version):
     """맨 윗줄에 붙는 하네스 버전(2026-11-11). 사용자는 맨 위로 판단한다 — 이 화면을 어느 판이 그렸는지 거기서 보인다.
 
@@ -829,11 +855,11 @@ def generate_html(
                 </div>
 {f'''                <div class="meta-item">
                     <div class="meta-label">Gate 상태</div>
-                    <div class="meta-value">{_md_inline(gate_status)}</div>
+                    <div class="meta-value">{_meta_value(gate_status)}</div>
                 </div>
 ''' if gate_status else ''}{f'''                <div class="meta-item">
                     <div class="meta-label">다음 행동</div>
-                    <div class="meta-value">{_md_inline(next_action)}</div>
+                    <div class="meta-value">{_meta_value(next_action)}</div>
                 </div>
 ''' if next_action else ''}            </div>
         </header>
@@ -891,7 +917,7 @@ def generate_html(
             <p style="margin-top: 10px; opacity: 0.6;">⚙️ Gate 스킬 종료 시 자동 동기화</p>
         </div>
     </div>
-</body>
+{_OPEN_AT_TOP}</body>
 </html>"""
 
     return html

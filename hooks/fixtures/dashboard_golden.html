@@ -65,6 +65,18 @@
             color: #333;
         }
 
+        .meta-more {
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #555;
+        }
+
+        .meta-more summary {
+            cursor: pointer;
+            color: #667eea;
+        }
+
         .status-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -977,7 +989,7 @@
 <body>
     <div class="container">
         <div class="last-updated">
-            📅 마지막 업데이트: 2026-10-22 15:58 KST
+            📅 마지막 업데이트: 2026-11-11 15:25 KST
         </div>
 
         <div class="purpose-banner">
@@ -1145,5 +1157,11 @@
             <p style="margin-top: 10px; opacity: 0.6;">⚙️ Gate 스킬 종료 시 자동 동기화</p>
         </div>
     </div>
+    <script>
+        if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+        if (location.hash) { history.replaceState(null, '', location.pathname + location.search); }
+        window.scrollTo(0, 0);
+        window.addEventListener('load', function () { window.scrollTo(0, 0); });
+    </script>
 </body>
 </html>

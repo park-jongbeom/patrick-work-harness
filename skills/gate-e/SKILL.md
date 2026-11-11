@@ -106,7 +106,7 @@ If `DOC_INDEX.md` exists at the target repo root → `SKILL_DETAIL.md §Layer 2 
 
 4. **FIX-B / DEP handoff** — process Gate C's FIX-B·DEP items at the source in the same turn:
    - FIX-B item → register in the plan document (tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`) or as a next-session Gate A candidate
-   - Next-session decision → record in the `${SESSION_INDEX_FILE}` YAML `next_action` field
+   - Next-session decision → record in the `${SESSION_INDEX_FILE}` YAML `next_action` field. Replace the whole value with what comes next (≤ 2 sentences) — drop finished items; history lives in the WORKLOG and archive
    - `${SESSION_INDEX_FILE}` YAML `sessions_since_audit += 1`
    - ※ **The session-status ✅E flip is performed in bulk at Step 5, not this step** — preventing Step 4/5 duplication (GATE-E-ENFORCE-1)
    - ⛔ **No counter value in prose (AUDIT-COUNTER-STALE-FIX-1)**: Do not copy the `sessions_since_audit` **number or the `=N → /audit 권장` phrase** into the `next_action`·`priority_note`·`${CURRENT_SESSION_FILE}` 「다음 행동」 prose. Whether to recommend audit is announced by ② below, which reads the canonical YAML and **outputs only in this response** (a number baked into prose goes stale immediately after the audit reset → misleads the next session. The same recurring incident is recorded in the SESSION_INDEX YAML comment). If a recommendation must be left in prose, only the qualitative expression 「⚡ /audit 권장(정본 YAML 기준)」 without a number is allowed.

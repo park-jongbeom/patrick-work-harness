@@ -487,6 +487,51 @@ class TestEngineVersionLabel(unittest.TestCase):
         self.assertRegex(self.top_line(plain).strip(), r"KST$")
 
 
+class TestPageOpensAtTheTop(unittest.TestCase):
+    """다시 그려진 화면은 맨 위(「지금 하는 작업」)부터 보인다 (2026-11-11).
+
+    브라우저는 새로고침 뒤 이전 스크롤 위치를 되살린다. 실제 세션 사본으로 재현: 머리 칸을 읽던 자리(839px)로 돌아가
+    맨 위 배너가 화면 밖에 있었다. 사용자는 맨 위로 판단한다.
+    """
+
+    def test_reload_does_not_restore_the_old_scroll_position(self):
+        html = render(cs(session_id="DEMO-1"))
+        tail = html[html.rindex("</div>"):]
+        self.assertIn("history.scrollRestoration = 'manual'", tail)
+        self.assertIn("scrollTo(0, 0)", tail)
+        self.assertLess(html.index("<script>"), html.index("</body>"))
+
+
+class TestLongHeaderValues(unittest.TestCase):
+    """머리 칸의 긴 「다음 행동」·「Gate 상태」는 앞부분만 보이고 전문은 접는다 (2026-11-11).
+
+    실제 인덱스의 next_action 은 끝난 항목까지 이어 붙어 974~1,031 바이트였고, 머리 칸 하나가 화면 높이(1,025px)를 넘었다.
+    """
+
+    LONG = "⓪ 첫 일 Gate A 승인 대기 → " + " → ".join(f"끝난 항목 {i} 설명이 길게 이어진다" for i in range(1, 40))
+
+    def header(self, **kw):
+        html = render(cs(session_id="DEMO-1"), **kw)
+        return html[html.index("<header>"):html.index("</header>")]
+
+    def test_long_next_action_shows_its_head_and_folds_the_rest(self):
+        head = self.header(next_action=self.LONG)
+        visible = head[head.index("다음 행동"):head.index("meta-more")]
+        self.assertIn("⓪ 첫 일 Gate A 승인 대기", visible)
+        self.assertNotIn("끝난 항목 30", visible)
+        self.assertIn('<details class="meta-more">', head)
+        self.assertIn("끝난 항목 39", head)
+
+    def test_long_gate_status_folds_the_same_way(self):
+        head = self.header(gate_status=self.LONG)
+        self.assertIn('<details class="meta-more">', head)
+
+    def test_short_values_render_as_before(self):
+        head = self.header(next_action="CALC-SUB-1 계획(/gate-a).", gate_status="✅E")
+        self.assertNotIn("meta-more", head)
+        self.assertIn("CALC-SUB-1 계획(/gate-a).", head)
+
+
 class TestRiskTableColumns(unittest.TestCase):
     """요약 패널의 리스크 표 — 계획의 열을 그대로 따른다."""
 

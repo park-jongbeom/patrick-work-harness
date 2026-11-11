@@ -74,6 +74,8 @@
      doc-cleanup·audit 은 Skill 도구로 부른다(직접 입력한 명령은 스킬 본문을 회차마다 다시 싣는다). audit 문턱은 gate-e 와, 문서 임계값은
      doc-cleanup 과 같고, Gate E 의 끝 안내가 이 스킬을 가리킨다 (2026-11-11 — 실제 마무리 구간 15개에서 같은 입력을 회차마다 손으로 쳤고,
      「정리」로 한 일과 audit 을 건너뛴 사실의 표시가 매번 달랐다).
+ 38. `next_action` 을 쓰는 스킬(gate-e·commit-up)은 값을 통째로 바꾸고 끝난 항목을 빼라고 말한다 — 지시가 없어 끝난 항목이 이어 붙어
+     실제 인덱스에서 1,000 바이트를 넘었고 대시보드 머리 칸이 화면 높이를 넘었다 (2026-11-11).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -521,6 +523,13 @@ class EngineLint(unittest.TestCase):
                              f"{var} 임계값이 doc-cleanup 과 다름")
         closing = gate_e[gate_e.index("mandatory final output"):]
         self.assertIn("/commit-up", closing, "Gate E 의 끝 안내가 마무리 스킬을 가리키지 않음")
+
+    def test_next_action_writers_replace_instead_of_appending(self):
+        for name in ("gate-e", "commit-up"):
+            text = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+            line = next((ln for ln in text.splitlines() if "next_action" in ln and "Replace the whole value" in ln), None)
+            self.assertIsNotNone(line, f"{name}: next_action 을 통째로 바꾸라는 지시가 없음")
+            self.assertIn("drop finished items", line, f"{name}: 끝난 항목을 빼라는 지시가 없음")
 
     def test_install_heredocs_run_no_shell_inside(self):
         install = (ROOT / "install.sh").read_text(encoding="utf-8")
