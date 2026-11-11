@@ -70,6 +70,10 @@
      짚었다 (2026-11-10).
  36. PROJECT_MAP 이 가리키는 저장소 경로와 구조도의 이름은 실제로 있다 — 2026-07-20 에 뺀 `.github/workflows/` 를 CI 라고 적고 있었다
      (2026-11-10).
+ 37. 마무리 스킬(`/commit-up`)은 넓게 담지도 올리지도 않는다 — `git add -A`·`git add .`·`git commit -a`·`git push` 는 금지 문장으로만 나오고,
+     doc-cleanup·audit 은 Skill 도구로 부른다(직접 입력한 명령은 스킬 본문을 회차마다 다시 싣는다). audit 문턱은 gate-e 와, 문서 임계값은
+     doc-cleanup 과 같고, Gate E 의 끝 안내가 이 스킬을 가리킨다 (2026-11-11 — 실제 마무리 구간 15개에서 같은 입력을 회차마다 손으로 쳤고,
+     「정리」로 한 일과 audit 을 건너뛴 사실의 표시가 매번 달랐다).
 
 ENGINE_LINT_ROOT 로 다른 트리(예: `git archive` 로 푼 과거 커밋)를 검사할 수 있다.
 """
@@ -489,6 +493,34 @@ class EngineLint(unittest.TestCase):
                 if not ok:
                     missing.append(f"PROJECT_MAP.md:{i}: {token}")
         self.assertEqual(missing, [], "PROJECT_MAP 이 없는 경로를 가리킨다:\n" + "\n".join(missing))
+
+    def test_commit_up_stays_narrow_and_agrees_with_its_neighbours(self):
+        text = (ROOT / "skills" / "commit-up" / "SKILL.md").read_text(encoding="utf-8")
+        for needle in ("Never `git add -A`, `git add .` or `git commit -a`", "No `git push`", "through the Skill tool",
+                       "stop and ask before any commit"):
+            self.assertIn(needle, text, "마무리 스킬의 금지·호출 문장이 빠짐")
+        wide = [ln.strip()[:100] for ln in text.splitlines()
+                if re.search(r"git push|git add -A|git add \.(?!\w)|git commit -a", ln)
+                and not re.search(r"\b(?:No|Never)\b", ln)]
+        self.assertEqual(wide, [], "금지 문장 밖에서 넓은 담기·올리기를 말함:\n" + "\n".join(wide))
+
+        def number(pattern, source, what):
+            m = re.search(pattern, source)
+            self.assertIsNotNone(m, f"{what} 을 찾지 못함")
+            return m.group(1)
+
+        gate_e = (ROOT / "skills" / "gate-e" / "SKILL.md").read_text(encoding="utf-8")
+        cleanup = (ROOT / "skills" / "doc-cleanup" / "SKILL.md").read_text(encoding="utf-8")
+        audit = r"`sessions_since_audit ≥ (\d+)`"
+        self.assertEqual(number(audit, text, "commit-up 의 audit 문턱"), number(audit, gate_e, "gate-e 의 audit 문턱"),
+                         "audit 문턱이 gate-e 와 다름")
+        for var in ("CURRENT_SESSION_FILE", "SESSION_INDEX_FILE"):
+            label = re.escape("`${" + var + "}`")
+            self.assertEqual(number(label + r" over (\d+)", text, f"commit-up 의 {var} 임계값"),
+                             number(label + r" \| (\d+) lines", cleanup, f"doc-cleanup 의 {var} 임계값"),
+                             f"{var} 임계값이 doc-cleanup 과 다름")
+        closing = gate_e[gate_e.index("mandatory final output"):]
+        self.assertIn("/commit-up", closing, "Gate E 의 끝 안내가 마무리 스킬을 가리키지 않음")
 
     def test_install_heredocs_run_no_shell_inside(self):
         install = (ROOT / "install.sh").read_text(encoding="utf-8")

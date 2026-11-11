@@ -81,6 +81,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | `/gate-c` | Implement code — follow the Gate A plan exactly, then wait for confirmation |
 | `/gate-d` | Verify — test plan · execution · failure classification (FIX-B / DEP) · code review |
 | `/gate-e` | Session wrap-up — create WORKLOG · archive · flip 3 docs to ✅E |
+| `/commit-up` | Close the work in one request — slim over-threshold session documents, run the audit only when it is due, commit work and records by explicit path, report. Never pushes |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
 | `/harness-update` | Full upgrade — compare version → show CHANGELOG → 7-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
@@ -244,6 +245,10 @@ or
 /gate-e   ← record (WORKLOG + archive)
 ```
 
+After Gate E, say 「커밋하고 정리해라」 or run `/commit-up`. It slims the session documents when they are over
+threshold, runs `/audit` only when it is due (and says so when it skips it), commits work and records separately by
+explicit path, and reports what it left out. It does not push — you say when.
+
 **All work runs A→B→C→D→E.** Gate D is where tests are planned, run and classified, and where the
 `## Verification Checklist` marker that Gate C leaves behind gets filled — it is not an optional
 refactor step. (Pre-2026-09-24 this README said simple work could take A→B→C→E; that path skipped
@@ -394,6 +399,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `/gate-c` | 코드 구현 — Gate A 계획 그대로 구현 후 확인 대기 |
 | `/gate-d` | 검증 — 시험 계획·실행·실패 분류(FIX-B/DEP)·코드리뷰 |
 | `/gate-e` | 세션 정리 — WORKLOG·archive 생성·3문서 ✅E 갱신 |
+| `/commit-up` | 한 마디로 마무리 — 임계값 넘은 세션 문서 정리, 차례가 됐을 때만 audit, 작업과 기록을 경로 지정해 커밋, 결과 보고. 푸시는 하지 않음 |
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
 | `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→7 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
@@ -555,6 +561,10 @@ Gate A 승인
 /gate-d   ← 검증 (시험 계획·실행·실패 분류)
 /gate-e   ← 기록 (WORKLOG + archive)
 ```
+
+Gate E 뒤에는 「커밋하고 정리해라」 한 마디(또는 `/commit-up`)로 마무리합니다. 세션 문서가 임계값을 넘었으면 정리하고,
+`/audit` 은 차례가 됐을 때만 돌리며(건너뛰면 건너뛰었다고 적습니다), 작업과 기록을 경로를 지정해 따로 커밋하고, 담지 않은
+파일을 보고합니다. 푸시는 하지 않습니다 — 올릴 때는 따로 말합니다.
 
 **모든 작업은 A→B→C→D→E 를 따릅니다.** Gate D 는 시험을 계획·실행하고 실패를 분류하는 단계이며,
 Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 — 선택적인 리팩터 단계가 아닙니다.

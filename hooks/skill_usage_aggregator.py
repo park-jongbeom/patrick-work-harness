@@ -26,12 +26,12 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# 배포본이 싣는 스킬 (2026-09-24 실측으로 맞춤, 2026-11-10 harness-feedback 추가 — 시험이 skills/ 폴더와 대조한다).
+# 배포본이 싣는 스킬 (2026-09-24 실측으로 맞춤, 2026-11-10 harness-feedback·2026-11-11 commit-up 추가 — 시험이 skills/ 폴더와 대조한다).
 # 원본 목록에 있던 error-log·export-roles 는 이 배포본에 없고,
 # 대신 harness-update·init 이 있다.
 SHIPPED_SKILLS = [
     "gate-a", "gate-b", "gate-c", "gate-d", "gate-e",
-    "audit", "doc-cleanup", "harness-update", "init", "harness-feedback",
+    "audit", "doc-cleanup", "harness-update", "init", "harness-feedback", "commit-up",
 ]
 
 # 배포본 일반화 (2026-09-24, HARNESS-ANALYTICS-PORT-1): 원본은 사설 절대경로였다.

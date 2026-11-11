@@ -10,6 +10,7 @@ patrick-work-harness/
 ├── hooks/                    # Stop / PreToolUse event handlers (Python)
 ├── skills/                   # Gate A–E + utility skill definitions
 │   ├── audit/
+│   ├── commit-up/
 │   ├── doc-cleanup/
 │   ├── gate-a/
 │   ├── gate-b/
@@ -38,11 +39,12 @@ patrick-work-harness/
 
 ## Module List
 
-### Skills (10종)
+### Skills (11종)
 
 | Skill | File |
 |-------|------|
 | audit | `skills/audit/SKILL.md` |
+| commit-up | `skills/commit-up/SKILL.md` |
 | doc-cleanup | `skills/doc-cleanup/SKILL.md` |
 | gate-a | `skills/gate-a/SKILL.md` |
 | gate-b | `skills/gate-b/SKILL.md` |

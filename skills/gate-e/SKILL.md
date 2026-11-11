@@ -157,7 +157,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
   archive (장문 본문) : <archive_path>/ARCHIVE_YYYY-MM-DD_{세션ID}.md
   WORKLOG            : <worklog_path>/YYYY-Www.md (line N~M)
   문서 갱신 (✅E)     : ${SESSION_INDEX_FILE} · ${CURRENT_SESSION_FILE} 대시보드 · {plan_tier: "2"인 경우 detail_plan_file §7 / plan_tier: "1"인 경우 single_plan_file 해당 Phase}
-  ${CURRENT_SESSION_FILE} : 본문(Gate A~D 블록) 보존됨 — 슬림화는 별도 /doc-cleanup 호출 시 수행
+  ${CURRENT_SESSION_FILE} : 본문(Gate A~D 블록) 보존됨 — 슬림화는 /commit-up 이 이어서 한다
 ────────────────────────────────────────────
 ```
 
@@ -175,7 +175,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
   {또는 plan_tier: "1" 행 집합}
   <single_plan_file>          : N줄  (임계값 <single_plan_threshold>줄) ✅ / ⚠️ 초과
 ────────────────────────────────────────────
-  ⚠️ 초과 항목 있음 → `/doc-cleanup` 실행을 권장합니다.
+  ⚠️ 초과 항목 있음 → `/commit-up` 이 정리합니다 (따로 하려면 `/doc-cleanup`).
   (또는 모두 이하) → 문서 상태 정상
 ────────────────────────────────────────────
 ```
@@ -189,7 +189,7 @@ Judge based on the `sessions_since_audit` field of the `${SESSION_INDEX_FILE}` Y
 
 When recommending:
 ```
-⚡ 직전 /audit 이후 {sessions_since_audit}개 세션 완료 — `/audit` (방향성 점검) 호출을 권장합니다.
+⚡ 직전 /audit 이후 {sessions_since_audit}개 세션 완료 — `/audit` (방향성 점검) 차례입니다. `/commit-up` 이 이어서 돌립니다.
 ```
 
 If not applicable, omit this block.
@@ -198,5 +198,5 @@ If not applicable, omit this block.
 
 ```
 ---
-**세션 완료**: 다음 세션은 `${SESSION_INDEX_FILE}`의 `next_action` 항목을 확인하세요. 새 작업 시작 시 `/gate-a` (Gate A 계획)로 시작합니다.
+**세션 완료**: 결과를 확인한 뒤 「커밋하고 정리해라」(`/commit-up`) 한 마디로 문서 정리·audit 판정·커밋을 마칩니다. 다음 작업은 `${SESSION_INDEX_FILE}`의 `next_action` 을 보고 `/gate-a` 로 시작합니다.
 ```

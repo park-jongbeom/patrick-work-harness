@@ -11,7 +11,7 @@
 
 | Layer | Path | Role |
 |-------|------|------|
-| Skills | `skills/` | Gate A–E + audit + doc-cleanup + harness-update + init 스킬 정의 |
+| Skills | `skills/` | Gate A–E + commit-up + audit + doc-cleanup + harness-update + harness-feedback + init 스킬 정의 |
 | Hooks | `hooks/` | Stop / PreToolUse 이벤트 핸들러 (가드·동기화) |
 | Config | `plugin.json` · `.claude-plugin/` | 플러그인 메타데이터 · 마켓플레이스 등록 |
 | Docs | `README.md` · `CHANGELOG.md` · `RELEASE_POLICY.md` | 사용자 문서 |

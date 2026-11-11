@@ -59,7 +59,7 @@ SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehensi
 #: 문맥 비용에서 「하네스 몫」으로 셀 스킬 — skills/ 의 폴더 이름과 같아야 한다(시험이 대조한다).
 #: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
 HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update",
-                  "harness-feedback"}
+                  "harness-feedback", "commit-up"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
 #: 같은 스킬을 같은 내용으로 다시 부르면 본문 대신 붙는 한 줄(2.1.312·2.1.319 실제 기록) — 인자를 주거나 직접 입력하면 본문이 다시 실린다
 LOADED_NOTE = re.compile(r"^Skill /(?:[\w-]+:)?([\w-]+) is already loaded above")
@@ -835,6 +835,8 @@ METRICS = [
      "새 항목이 든 하네스 세션 수 — 판단 기준은 이 결정의 예측 칸, 값은 「문맥 비용」「문맥 출처」「스킬 다시 싣기」 표"),
     ("대시보드 맨 윗줄에 하네스 버전을 보인다", None, None,
      "사용자 확인 — 갱신한 PC 의 대시보드 맨 윗줄과 세션 원장 새 행의 `engine_version.source`"),
+    ("회차 끝의 정리·audit 판정·커밋을", _skill("commit-up"), 10,
+     "`/commit-up` 실행 수 — doc-cleanup 호출 수 대 본문 적재 수는 「문맥 비용」 표의 스킬 적재 칸, 다시 시킨 회차는 사용자 확인"),
 ]
 
 

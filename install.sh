@@ -587,7 +587,7 @@ else
   echo ""
   echo "  사용 가능한 슬래시 커맨드:"
   echo "    /gate-a  /gate-b  /gate-c  /gate-d  /gate-e"
-  echo "    /audit   /doc-cleanup"
+  echo "    /audit   /doc-cleanup   /commit-up"
   echo ""
   echo "  Claude Code를 재시작하면 스킬이 활성화됩니다."
 fi
