@@ -42,6 +42,7 @@ One request closes the work: documents → audit check → commits → report.
 
 - Note the work commit's short hash in one place: a `**커밋**: <해시>` line on this work's WORKLOG entry (`<worklog_path>/YYYY-Www.md`). Do not copy it into the session documents as well. No entry yet (work outside a Gate cycle) → add one: date, one-line summary, hash. No `worklog_path` → skip the note.
 - Bring `next_action` in `${SESSION_INDEX_FILE}` (and 「다음 행동」 in `${CURRENT_SESSION_FILE}`, if present) to the state **after** the commit. Replace the whole value with what comes next — drop finished items, including the commit just made; a 「커밋 필요」 left behind costs another edit and another commit.
+- The next work starts in a new conversation that will not see this one. A decision the user gave here that the next work depends on and that no document holds yet → add it to `next_action` in one line.
 - Make these edits with the editing tool, not a one-off script.
 - Commit the record group. Another repository in play (a notes vault, a second code repository) → commit there too, in that repository's convention.
 
@@ -61,5 +62,8 @@ Output the block below at the **very end** of the response — one 「커밋」 
   커밋      : <해시> <제목> (파일 N개)
   남긴 파일 : 없음 / <경로> — <이유>
   push      : 하지 않음 (<원격보다 N 앞섬 / 원격 없음>)
+  다음 작업 : 새 대화(`/clear`)에서 `/gate-a` — 이어 갈 일은 next_action 에 있다
 ────────────────────────────────────────────
 ```
+
+> **Why a new conversation** (2026-11-12 — usage summary): the two harness conversations ran three days with 11 and 17 cycles; each cycle started with 365k–465k tokens already loaded against a 50k–58k fresh start, about 420k–470k per response, with six automatic compactions each. Everything the next cycle needs is in the session documents.

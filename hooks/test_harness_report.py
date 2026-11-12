@@ -710,7 +710,15 @@ class TestContextAccounting(ReportCase):
                       typed("gate-c"), body("gate-c", 1000), call("m6", 34000),          # 앞 사본이 아직 문맥에 있다
                       boundary("manual", 34000), typed("gate-c"), body("gate-c", 1000), call("m7", 20000)])
         r = self.rows()["s1"]["context"]["reloads"]
+        by_skill = r.pop("by_skill")
         self.assertEqual(r, {"typed": 3, "tool": 1, "args": 1, "other": 0, "dup": 1, "dup_tokens": 900, "notes": 1})
+        # 어느 스킬이 어떻게 다시 실렸나 — 받은 자료(2026-11-12)에서 다시 실린 본문 대부분이 「인자와 함께 부른 Skill」이었는데
+        # 어느 스킬인지 몰라 원인을 찾을 수 없었다
+        self.assertEqual(by_skill, {"gate-b": {"typed": 1}, "gate-c": {"tool": 1, "typed": 2, "dup": 1}, "gate-a": {"args": 1}})
+        out = os.path.join(self.root, "out")
+        hr.main(["--projects-dir", self.root, "--out", out])
+        with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
+            self.assertIn("gate-a 1", f.read())
 
     def test_sources_are_weighted_by_residency_and_images_are_counted_apart(self):
         self.session([user("시작해"), call("m1", 30000),
@@ -780,12 +788,22 @@ class TestEditTiming(ReportCase):
                       *edit("e7", "/w/proj-a/src/c.py"),                                   # 다음 Gate 호출이 승인 표지
                       assistant(tools=[("b1", "Bash", {"command": "sed -i s/a/b/ src/d.py"})]), tool_result("b1")])
         self.assertEqual(self.rows()["s1"]["edits"],
-                         {"code": 6, "pre_approval": 1, "pre_approval_cycles": 1, "outside_cycle": 2})
+                         {"code": 6, "pre_approval": 1, "pre_approval_cycles": 1, "pre_approval_outside": 0,
+                          "outside_cycle": 2})
 
     def test_session_without_gates_counts_no_outside_edits(self):
         self.session([user("고쳐줘"), *edit("e1", "/w/proj-a/src/app.py")])
         self.assertEqual(self.rows()["s1"]["edits"], {"code": 1, "pre_approval": 0, "pre_approval_cycles": 0,
-                                                      "outside_cycle": 0})
+                                                      "pre_approval_outside": 0, "outside_cycle": 0})
+
+    def test_files_outside_the_project_are_counted_apart(self):
+        """임시 스크립트·메시지 파일은 프로젝트 코드가 아니다 — 받은 자료(2026-11-12)에서 승인 전 편집이 17회차 중 14회차였는데
+        경로가 없어 무엇을 고친 것인지 가를 수 없었다."""
+        self.session([user("시작"), typed("gate-a"), body("gate-a", 500),
+                      *edit("e1", "/tmp/fix_index.py"), *edit("e2", "C:\\Users\\u\\AppData\\Local\\Temp\\msg.py"),
+                      *edit("e3", "src/app.py"), *edit("e4", "/w/proj-a/src/b.py"), *edit("e5", "/w/proj-ab/x.py")])
+        e = self.rows()["s1"]["edits"]
+        self.assertEqual((e["pre_approval"], e["pre_approval_cycles"], e["pre_approval_outside"]), (2, 1, 3))
 
     def test_report_has_the_edit_timing_section(self):
         self.session([user("시작"), call("m1", 30000), typed("gate-a"), body("gate-a", 500),
@@ -795,7 +813,7 @@ class TestEditTiming(ReportCase):
         with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
             md = f.read()
         self.assertIn("## 코드 편집 시점", md)
-        self.assertIn("| proj-a | `s1` | 1 | 1 | 1 (1) | 0 |", md)
+        self.assertIn("| proj-a | `s1` | 1 | 1 | 1 (1) | 0 | 0 |", md)
 
 
 class TestFreshReviewHeads(ReportCase):
@@ -816,6 +834,20 @@ class TestFreshReviewHeads(ReportCase):
         self.assertIn("| 알 수 없음 |", md)
         self.assertIn("Python was not found", md)
 
+    def test_verdict_line_is_found_after_other_commands_output(self):
+        """한 명령에 다른 스크립트를 이어 붙이면 첫 줄은 그 스크립트의 출력이다 — 받은 자료(2026-11-12)의 「알 수 없음」 12건이
+        「미발동 — 변경 파일 7개」(Gate B 판정기)·「ok」 같은 다른 명령의 첫 줄이었다. gate_b_trigger 도 「발동 —」로 시작한다."""
+        chained = 'python3 hooks/gate_b_trigger.py CURRENT_SESSION.md; ' + self.RUN
+        self.session([
+            assistant(tools=[("f1", "Bash", {"command": chained})]),
+            tool_result("f1", "미발동 — 변경 파일 7개, 해당 없음\n미실행 — 이해도 게이트 미발동 · R=0"),
+            assistant(tools=[("f2", "Bash", {"command": chained})]),
+            tool_result("f2", "발동 — 운영 DB\n발동 — R=6\nAgent 도구를 subagent_type \"Plan\" 으로 한 번 부른다."),
+            assistant(tools=[("f3", "Bash", {"command": self.RUN + " > /tmp/fr.txt && echo ok"})]), tool_result("f3", "ok")])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f.get("not_run"), f.get("fired"), f.get("unknown")), (1, 1, 1))
+        self.assertEqual(f["unknown_heads"], ["ok"])
+
     def test_review_that_ran_without_a_record_is_flagged_even_if_no_run_was_recognised(self):
         self.session([assistant(tools=[("r1", "Agent", {"subagent_type": "Plan", "prompt": self.PROMPT})]),
                       tool_result("r1", "다시 쓴 계획")])
@@ -823,6 +855,54 @@ class TestFreshReviewHeads(ReportCase):
         hr.main(["--projects-dir", self.root, "--out", out])
         with open(os.path.join(out, "report.md"), encoding="utf-8") as f:
             self.assertIn("없음(건너뜀?)", f.read())
+
+
+class TestVersionSegments(ReportCase):
+    """갱신 전에 연 대화를 갱신 뒤에도 이어 쓰면, 갱신 뒤 부분만 따로 센 행을 만든다 (2026-11-12 — 받은 자료의 하네스 대화 둘이
+    11-09 에 열려 11-12 까지 이어져, 세션 시작 버전으로 거르는 예측표가 갱신 뒤 사건을 모두 0 으로 셌다)."""
+
+    def test_segment_counts_only_what_happened_after_the_version_was_installed(self):
+        self.session([user("시작", ts="2026-11-09T01:00:00Z"), {**gate("a"), "timestamp": "2026-11-09T01:00:01Z"},
+                      {**gate("b"), "timestamp": "2026-11-09T01:00:02Z"},
+                      user("뒤", ts="2026-11-11T07:00:00Z"),
+                      {**gate("a"), "timestamp": "2026-11-11T07:00:01Z"}, {**gate("e"), "timestamp": "2026-11-11T07:00:02Z"}])
+        full = self.rows()["s1"]
+        path = os.path.join(self.root, "-w-proj-a", "s1.jsonl")
+        segs = hr.version_segments(path, full, {"1.18.0": "2026-11-01T00:00:00Z", "1.21.0": "2026-11-11T06:06:08Z",
+                                                "1.22.0": "2026-11-20T00:00:00Z"})
+        self.assertEqual([s["segment"] for s in segs], ["1.21.0"])           # 시작 전·마지막 활동 뒤 버전은 만들지 않는다
+        self.assertEqual((full["gates"], segs[0]["gates"]), ("a b a e", "a e"))
+        self.assertEqual((segs[0]["session"], segs[0]["first"][:16]), ("s1", "2026-11-11T07:00"))
+
+    def test_predictions_use_the_segment_and_tables_do_not_double_count(self):
+        log = os.path.join(self.root, "DECISION_LOG.md")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("### [2026-11-10] 훅이 막은 Skill 호출은 Gate 순서에 넣지 않는다\n- **결과**:\n")
+        changelog = os.path.join(self.root, "CHANGELOG.md")
+        with open(changelog, "w", encoding="utf-8") as f:
+            f.write("# Changelog\n\n## [1.21.0] - 2026-11-11\n\n## [1.20.0] - 2026-11-10\n\n## [1.19.0] - 2026-11-10\n")
+        rows = [{"session": "long", "last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 5, "engine_at_start": None},
+                {"session": "long", "segment": "1.21.0", "last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 2,
+                 "engine_at_start": "1.21.0"},
+                {"session": "long", "segment": "1.20.0", "last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 3,
+                 "engine_at_start": "1.20.0"},
+                {"session": "new", "last": "2026-11-12T00:00:00Z", "blocked_gate_calls": 1, "engine_at_start": "1.21.0"}]
+        p = hr.prediction_progress(log, rows, changelog=changelog)[0]
+        self.assertEqual(p["count"], 4)              # 이 결정은 1.19.0 에 실렸다 → long 의 1.20.0 구간(3) + new(1)
+
+    def test_received_segments_survive_deduplication_and_stay_out_of_the_tables(self):
+        self.session([user("시작"), gate("a")])
+        row = self.rows()["s1"]
+        path = os.path.join(self.root, "in.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({**row, "engine_at_start": None}) + "\n")
+            f.write(json.dumps({**row, "segment": "1.21.0", "engine_at_start": "1.21.0"}) + "\n")
+        data = hr.load_sessions([path])
+        self.assertEqual(sorted(str(r.get("segment")) for r in data["sessions"]), ["1.21.0", "None"])
+        md = hr.render(data, None, "x", "")
+        self.assertIn("세션 1개", md)
+        alone = hr.render({**data, "sessions": [r for r in data["sessions"] if not r.get("segment")]}, None, "x", "")
+        self.assertEqual(md.count("`s1`"), alone.count("`s1`"))       # 부분 행은 어느 표에도 다시 나오지 않는다
 
 
 class TestPredictionsAfterTheUpdate(ReportCase):

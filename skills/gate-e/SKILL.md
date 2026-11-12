@@ -198,5 +198,5 @@ If not applicable, omit this block.
 
 ```
 ---
-**세션 완료**: 결과를 확인한 뒤 「커밋하고 정리해라」(`/commit-up`) 한 마디로 문서 정리·audit 판정·커밋을 마칩니다. 다음 작업은 `${SESSION_INDEX_FILE}`의 `next_action` 을 보고 `/gate-a` 로 시작합니다.
+**세션 완료**: 결과를 확인한 뒤 「커밋하고 정리해라」(`/commit-up`) 한 마디로 문서 정리·audit 판정·커밋을 마칩니다. 다음 작업은 새 대화(`/clear`)에서 `${SESSION_INDEX_FILE}`의 `next_action` 을 보고 `/gate-a` 로 시작합니다.
 ```

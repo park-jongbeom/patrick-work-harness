@@ -31,8 +31,10 @@ import glob
 import json
 import os
 import re
+import shutil
 import statistics
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -85,6 +87,7 @@ CONTEXT_ATTACHMENTS = {"invoked_skills": "reattach:skills", "file": "reattach:fi
 #: 새 문맥 검토(fresh_review.py, 2026-11-10)의 흔적 — 검토자 지시문 첫머리 표지, Gate A 블록에 쓴 기록 줄(자리표시 `지적 N` 은
 #: 빼고 숫자나 「실패」만), 하위 에이전트가 뒤에서 돌았을 때의 완료 알림(`queue-operation` 줄 — 사용량은 여기에만 남는다).
 FRESH_MARKER = "[새 문맥 검토]"
+TIMESTAMP = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
 #: 스크립트를 실제로 부른 명령만 — 파일 이름을 grep·cat 으로 말한 명령은 아니다(이 엔진의 개발 대화에서 22건이 섞였다).
 FRESH_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*fresh_review\.py")
 FRESH_RECORD = re.compile(r"^[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)[^\n]*)$", re.M)
@@ -295,6 +298,20 @@ def gate_b_rounds(path):
     return dict(counts)
 
 
+def _fresh_verdict(output):
+    """fresh_review.py 출력에서 판정 줄 → (첫 줄, 「발동」·「미실행」·「실패」 또는 None). 한 명령에 다른 스크립트를 이어 붙이면
+    첫 줄은 그 스크립트의 것이다(2026-11-12 — Gate B 판정기도 「발동 —」로 시작한다). 그래서 「미실행 —」「실패 —」 줄, 또는 바로
+    다음에 Agent 호출 지시가 오는 「발동 —」 줄을 찾는다."""
+    lines = [ln.strip() for ln in (output or "").strip().splitlines()]
+    for i, line in enumerate(lines):
+        if line.startswith(("미실행 —", "실패 —")):
+            return lines[0], line.split()[0]
+        if line.startswith("발동 —") and any(ln.startswith("Agent 도구를") for ln in lines[i + 1:i + 3]):
+            return lines[0], "발동"
+    first = lines[0] if lines else ""
+    return first, ("발동" if first.startswith("발동 —") else None)
+
+
 def read_session(path):
     """대화 기록 한 개 → 세션 행. 반환: (행, 해석하지 못한 줄 수)."""
     from gate_transcript import AUTONOMOUS_APPROVAL, GATE_SKILL, WRITE_TOOLS, _TAGGED, _written_texts, gate_sequence
@@ -318,7 +335,9 @@ def read_session(path):
     seq, names, boundaries, items, images = 0, {}, [], [], []
     reattached, gate_a_starts, dups, skill_calls, typed_at = [], [], set(), {}, {}
     present, reload, versions, fresh_heads = set(), collections.Counter(), set(), []
-    gate_events, approvals, code_edits = [], [], []  # 승인 전 편집(2026-11-10): (seq, Gate 글자) · 승인 입력 seq · 코드 편집 seq
+    reload_by = collections.defaultdict(collections.Counter)   # 스킬별 다시 싣기 방식(2026-11-12)
+    gate_events, approvals, code_edits = [], [], []  # 승인 전 편집(2026-11-10): (seq, Gate 글자) · 승인 입력 seq · (코드 편집 seq, 프로젝트 안?)
+    cwd = ""
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -339,8 +358,10 @@ def read_session(path):
             if ts:
                 row["first"] = min(row["first"] or ts, ts)
                 row["last"] = max(row["last"], ts)
-            if not row["project"] and event.get("cwd"):
-                row["project"] = os.path.basename(event["cwd"].rstrip("/"))
+            if event.get("cwd"):
+                cwd = str(event["cwd"])
+                if not row["project"]:
+                    row["project"] = os.path.basename(cwd.rstrip("/"))
             kind = event.get("type")
             if kind == "assistant" and not event.get("isSidechain"):
                 message = event.get("message") or {}
@@ -366,8 +387,9 @@ def read_session(path):
                     inp = block.get("input") if isinstance(block.get("input"), dict) else {}
                     names[tid] = name
                     items.append((len(calls), seq, "model:tool_input", len(json.dumps(inp, ensure_ascii=False))))
-                    if name in CODE_EDIT_TOOLS and _is_code(inp.get("file_path") or inp.get("notebook_path") or ".md"):
-                        code_edits.append(seq)
+                    target = inp.get("file_path") or inp.get("notebook_path") or ".md"
+                    if name in CODE_EDIT_TOOLS and _is_code(target):
+                        code_edits.append((seq, _in_project(target, cwd)))
                     if name == "Skill":
                         skill = str(inp.get("skill", ""))
                         row["skills"][skill.split(":")[-1]] += 1
@@ -409,12 +431,15 @@ def read_session(path):
                         items.append((len(calls), seq, "skill:harness" if name in HARNESS_SKILLS else "skill:other", len(text)))
                         if name in HARNESS_SKILLS:
                             call = skill_calls.get(name)
-                            reload["typed" if seq - typed_at.get(name, -99) <= 8 else
-                                   ("args" if call[1] else "tool") if call and seq - call[0] <= 8 else "other"] += 1
+                            mode = ("typed" if seq - typed_at.get(name, -99) <= 8 else
+                                    ("args" if call[1] else "tool") if call and seq - call[0] <= 8 else "other")
+                            reload[mode] += 1
+                            reload_by[name][mode] += 1
                             if re.fullmatch(r"gate-[a-e]", name):
                                 gate_events.append((seq, name[-1]))
                             if name in present:             # 앞 사본이 아직 문맥에 있다(그사이 압축 없음)
                                 dups.add(seq)
+                                reload_by[name]["dup"] += 1
                             present.add(name)
                             if name == "gate-a":
                                 gate_a_starts.append(len(calls))
@@ -446,10 +471,10 @@ def read_session(path):
                         if tid in gate_calls and block.get("is_error"):
                             blocked += 1
                         if tid in fresh_calls:
-                            first = (plain.strip().splitlines() or [""])[0]
-                            key = (("forced" if fresh_calls.pop(tid) else "fired") if first.startswith("발동")
-                                   else "not_run" if first.startswith("미실행")
-                                   else "failed" if first.startswith("실패") else "unknown")
+                            first, verdict = _fresh_verdict(plain)
+                            key = (("forced" if fresh_calls.pop(tid) else "fired") if verdict == "발동"
+                                   else "not_run" if verdict == "미실행"
+                                   else "failed" if verdict == "실패" else "unknown")
                             fresh[key] += 1
                             if key == "unknown":                # 하네스 스크립트가 낸 첫 줄이라 제품 내용이 아니다
                                 fresh_heads.append(("목록 " if parts else "") + first[:80])
@@ -598,24 +623,39 @@ def read_session(path):
                       "input_total": sum(calls), "max_tokens_stops": stops.count("max_tokens"),
                       **_context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts,
                                             dups, reload)}
+    row["context"]["reloads"]["by_skill"] = {k: dict(v) for k, v in reload_by.items()}
     return row, bad
+
+
+def _in_project(path, cwd):
+    """편집한 파일이 프로젝트(대화의 작업 폴더) 안인가. 상대 경로는 안이다. 윈도·리눅스 표기를 함께 본다."""
+    p = str(path).replace("\\", "/")
+    if not (p.startswith("/") or re.match(r"[A-Za-z]:/", p)):
+        return True
+    root = str(cwd or "").replace("\\", "/").rstrip("/")
+    return bool(root) and p.lower().startswith(root.lower() + "/")
 
 
 def _edit_timing(gate_events, approvals, code_edits):
     """코드 편집이 Gate 회차의 어디에서 났나. 바로 앞 Gate 가 A 이고 그 뒤 승인 입력이 없으면 「승인 전」, 바로 앞 Gate 가
-    E 이거나 그 세션에서 Gate 를 아직 부르지 않았으면 「회차 밖」. Gate 를 한 번도 부르지 않은 세션은 회차 밖으로 세지 않는다."""
+    E 이거나 그 세션에서 Gate 를 아직 부르지 않았으면 「회차 밖」. Gate 를 한 번도 부르지 않은 세션은 회차 밖으로 세지 않는다.
+    승인 전 편집은 프로젝트 안의 파일만 센다 — 임시 스크립트·메시지 파일은 따로 센다(2026-11-12, 받은 자료에서 가를 수 없었다)."""
     events = sorted(gate_events)
-    pre, outside, cycles = 0, 0, set()
-    for at in code_edits:
+    pre, pre_out, outside, cycles = 0, 0, 0, set()
+    for at, inside in code_edits:
         last = next((g for g in reversed(events) if g[0] < at), None)
         if last is None:
             outside += bool(events)
         elif last[1] == "a" and not any(last[0] < a < at for a in approvals):
-            pre += 1
-            cycles.add(last[0])
+            if inside:
+                pre += 1
+                cycles.add(last[0])
+            else:
+                pre_out += 1
         elif last[1] == "e":
             outside += 1
-    return {"code": len(code_edits), "pre_approval": pre, "pre_approval_cycles": len(cycles), "outside_cycle": outside}
+    return {"code": len(code_edits), "pre_approval": pre, "pre_approval_cycles": len(cycles),
+            "pre_approval_outside": pre_out, "outside_cycle": outside}
 
 
 def _context_accounting(calls, loads, boundaries, items, images, reattached, gate_a_starts, dups, reload):
@@ -699,6 +739,36 @@ def collect(projects_dir, since=None, include_tmp=False):
     return {"sessions": sessions, "bad_lines": bad, "failed_sessions": failed}
 
 
+def version_segments(path, row, seen):
+    """갱신 전에 열어 갱신 뒤에도 이어 쓴 대화 → 버전마다 「그 버전을 처음 본 뒤」 부분만 다시 센 행들 (2026-11-12).
+
+    받은 자료의 하네스 대화 둘이 11-09 에 열려 11-12 까지 이어져(응답 1,600개 안팎), 세션 시작 버전으로 거르는 예측표가
+    갱신 뒤 사건까지 모두 버렸다. 그 시각 이후 줄만 담은 임시 사본을 같은 방식으로 읽는다 — 문맥 표에는 쓰지 않고 예측에만 쓴다."""
+    out = []
+    first, last = (row.get("first") or "")[:19], (row.get("last") or "")[:19]
+    for version, at in sorted((seen or {}).items(), key=lambda kv: kv[1]):
+        at = (at or "")[:19]
+        if not (first < at < last):
+            continue
+        tmp = tempfile.mkdtemp(prefix="harness-segment-")
+        try:
+            part = os.path.join(tmp, os.path.basename(path))
+            keep = False
+            with open(path, encoding="utf-8", errors="replace") as src, open(part, "w", encoding="utf-8") as dst:
+                for line in src:
+                    ts = TIMESTAMP.search(line[:4000])
+                    if ts:
+                        keep = ts.group(1)[:19] >= at
+                    if keep:
+                        dst.write(line)
+            seg, _ = read_session(part)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        seg.update(session=row.get("session"), segment=version, folder=row.get("folder", ""))
+        out.append(seg)
+    return out
+
+
 def load_sessions(paths, since=None):
     """다른 컴퓨터의 `--out` 이 남긴 sessions.jsonl 을 읽는다. 실제 작업이 노트북에서 돌고 대화 기록은 거기에만 있어서,
     집계는 노트북에서 하고 예측 대조는 DECISION_LOG 가 있는 이 저장소에서 한다(2026-11-05)."""
@@ -715,7 +785,7 @@ def load_sessions(paths, since=None):
     # 받는 폴더에는 같은 세션이 보낼 때마다 다시 온다(최근 30일 전체를 보낸다) — 마지막 활동이 가장 늦은 행만 남긴다.
     latest = {}
     for row in sessions:
-        key = row.get("session") or id(row)
+        key = (row.get("session") or id(row), row.get("segment") or "")
         if key not in latest or (row.get("last") or "") >= (latest[key].get("last") or ""):
             latest[key] = row
     return {"sessions": list(latest.values()), "bad_lines": 0, "failed_sessions": []}
@@ -835,6 +905,8 @@ METRICS = [
      "새 항목이 든 하네스 세션 수 — 판단 기준은 이 결정의 예측 칸, 값은 「문맥 비용」「문맥 출처」「스킬 다시 싣기」 표"),
     ("대시보드 맨 윗줄에 하네스 버전을 보인다", None, None,
      "사용자 확인 — 갱신한 PC 의 대시보드 맨 윗줄과 세션 원장 새 행의 `engine_version.source`"),
+    ("받은 자료로 측정 결함 셋을 고치고", lambda rows: sum(1 for r in rows if r.get("gates")), 10,
+     "갱신 뒤 하네스 세션 수 — 세션당 Gate A 회차·이월은 「문맥 비용」 표, 승인 전 편집은 「코드 편집 시점」 표, 다시 싣기는 스킬별 칸"),
     ("대시보드는 다시 그려지면 맨 위부터", None, None, "사용자 확인 — 갱신한 PC 의 대시보드 첫 화면, Gate E 뒤 next_action 길이"),
     ("회차 끝의 정리·audit 판정·커밋을", _skill("commit-up"), 10,
      "`/commit-up` 실행 수 — doc-cleanup 호출 수 대 본문 적재 수는 「문맥 비용」 표의 스킬 적재 칸, 다시 시킨 회차는 사용자 확인"),
@@ -879,21 +951,83 @@ def release_dates(changelog):
     return sorted(((d, v) for v, d in found), key=lambda x: (x[0], _version_key(x[1]) or ()))
 
 
+def _shipped_in(releases, date):
+    """결정이 실린 릴리스를 git 으로 알 수 없을 때 — 결정일 이후 첫 릴리스."""
+    return _version_key(next((v for d, v in releases if d >= date), None))
+
+
+def shipped_versions(decision_log):
+    """결정 제목 줄 → 그 줄이 처음 들어간 릴리스 태그의 버전. git 이 없거나 저장소가 아니면 None(결정일로 짐작한다).
+
+    결정일로 짐작하면 같은 날 릴리스가 여럿일 때 가장 이른 것으로 묶였다 — 11-10 결정 넷은 1.19.0~1.20.0 에 실렸는데 1.18.0
+    으로 잡혔다(2026-11-12). 커밋했지만 아직 릴리스하지 않은 결정은 빈 값이다(실린 판이 없다)."""
+    import subprocess
+
+    folder, name = os.path.split(os.path.abspath(decision_log))
+
+    def git(*args):
+        p = subprocess.run(["git", "-C", folder, *args], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", stdin=subprocess.DEVNULL, timeout=60)
+        return p.stdout if p.returncode == 0 else None
+
+    try:
+        blame = git("blame", "--line-porcelain", "--", name)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not blame:
+        return None
+    heads, commit = {}, None
+    for line in blame.splitlines():
+        if re.match(r"^[0-9a-f]{40} ", line):
+            commit = line.split()[0]
+        elif line.startswith("\t### [") and commit:
+            heads[line[1:].strip()] = commit
+    out, tags = {}, {}
+    for head, commit in heads.items():
+        if commit not in tags:
+            found = None if set(commit) == {"0"} else git("describe", "--contains", "--match", "v[0-9]*", commit)
+            m = re.match(r"v(\d+(?:\.\d+)*)", (found or "").strip())
+            tags[commit] = m.group(1) if m else ""
+        out[head] = tags[commit]
+    return out
+
+
+def _rows_after(sessions, shipped, date, releases):
+    """결정이 실린 뒤의 행만. 세션마다 하나: 그 버전 이상에서 시작한 세션은 전체 행, 아니면 그 버전 이상을 처음 본 뒤의
+    부분 행(segment) 중 가장 이른 것. 갱신 시각이 없는 행(이 서버의 기록)은 결정일로 거른다."""
+    groups = collections.defaultdict(list)
+    for r in sessions:
+        groups[r.get("session") or id(r)].append(r)
+    out = []
+    for rows in groups.values():
+        full = next((r for r in rows if not r.get("segment")), None)
+        if full is not None and not ("engine_at_start" in full and releases):
+            if (full.get("last") or "")[:10] >= date:
+                out.append(full)
+            continue
+        have = _version_key(full.get("engine_at_start")) if full is not None and full.get("engine_at_start") else None
+        if full is not None and have and shipped and have >= shipped:
+            out.append(full)
+            continue
+        later = sorted((_version_key(r["segment"]), r) for r in rows if r.get("segment") and shipped
+                       and (_version_key(r["segment"]) or ()) >= shipped)
+        if later:
+            out.append(later[0][1])
+    return out
+
+
 def prediction_progress(decision_log, sessions, changelog=None):
-    """대기 예측마다 지금까지의 수. 갱신 시각이 기록된 PC 의 행(`engine_at_start` 칸이 있다)은 그 결정이 든 릴리스
-    (결정일 이후 첫 릴리스) 뒤에 시작한 세션만 센다 — 결정일로 세면 갱신 전 세션이 섞였다(2026-11-10 노트북 자료)."""
+    """대기 예측마다 지금까지의 수. 갱신 시각이 기록된 PC 의 행(`engine_at_start` 칸이 있다)은 그 결정이 든 릴리스 뒤의
+    부분만 센다 — 결정일로 세면 갱신 전 세션이 섞였고(2026-11-10), 세션 시작으로 세면 갱신 전에 열어 이어 쓴 대화가 통째로
+    빠졌다(2026-11-12). 그래서 버전별 부분 행(`segment`)을 쓴다."""
     progress = []
     releases = release_dates(changelog) if changelog else []
+    by_git = shipped_versions(decision_log) if releases else None
     for date, title in pending_entries(decision_log):
-        shipped = _version_key(next((v for d, v in releases if d >= date), None))
-
-        def counted(r):
-            if "engine_at_start" in r and releases:
-                have = _version_key(r["engine_at_start"]) if r["engine_at_start"] else None
-                return bool(have and shipped and have >= shipped)
-            return (r.get("last") or "")[:10] >= date
-
-        rows = [r for r in sessions if counted(r)]
+        head = f"### [{date}] {title}"
+        shipped = (_version_key(by_git[head]) if by_git[head] else None) if by_git and head in by_git \
+            else _shipped_in(releases, date)
+        rows = _rows_after(sessions, shipped, date, releases)
         metric = next((m for m in METRICS if title.startswith(m[0])), None)
         if metric is None:
             progress.append({"date": date, "title": title, "countable": False, "count": None, "target": None,
@@ -914,7 +1048,7 @@ def _top_sources(sources, n=5):
 
 
 def render(data, progress, projects_dir, since):
-    sessions = data["sessions"]
+    sessions = [r for r in data["sessions"] if not r.get("segment")]   # 버전별 부분 행은 예측에만 쓴다
     hook_events = sum(len(r["guards"]) for r in sessions)   # 실행 기록이든 발동이든 훅 흔적이 있는 가드 수
     lines = [f"# 하네스 사용 보고서 — {datetime.date.today().isoformat()}", "",
              f"- 읽은 곳: `{projects_dir}`" + (f" (마지막 활동 {since} 이후)" if since else ""),
@@ -1008,25 +1142,34 @@ def render(data, progress, projects_dir, since):
         lines += ["", "## 스킬 다시 싣기 (하네스 스킬)", "",
                   "- 본문 전체가 다시 실린 방식. 같은 내용으로 Skill 도구를 다시 부르면 본문 대신 「already loaded」 한 줄이 붙는다.",
                   "- 겹친 적재 = 같은 스킬의 앞 사본이 아직 문맥에 있는데(그사이 압축 없음) 본문이 또 실린 것.", "",
+                  "- 인자와 함께 실린 스킬 = Skill(인자 있음)으로 본문이 다시 실린 스킬과 횟수(상위 3). 인자를 주면 같은 스킬이라도 본문이 "
+                  "통째로 다시 실린다.", "",
                   "| 프로젝트 | 세션 | 직접 입력 | Skill(인자 있음) | Skill(인자 없음) | 기타 | 겹친 적재(회 / 토큰) | already loaded | "
-                  "Claude Code |", "|---|---|---|---|---|---|---|---|---|"]
+                  "Claude Code | 인자와 함께 실린 스킬 |", "|---|---|---|---|---|---|---|---|---|---|"]
         for r in accounted:
             rl = r["context"]["reloads"]
             versions = r.get("cc_versions") or []
             cc = versions[0] if len(versions) == 1 else (f"{versions[0]}~{versions[-1]}" if versions else "—")
+            by = rl.get("by_skill")
+            top = ("—" if by is None else ", ".join(f"{k} {v['args']}" for k, v in sorted(
+                by.items(), key=lambda kv: -kv[1].get("args", 0))[:3] if v.get("args")) or "0")
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {rl['typed']} | {rl['args']} | {rl['tool']} | "
-                         f"{rl['other']} | {rl['dup']} / {rl['dup_tokens']} | {rl['notes']} | {cc} |")
+                         f"{rl['other']} | {rl['dup']} / {rl['dup_tokens']} | {rl['notes']} | {cc} | {top} |")
     timed = [r for r in sorted(sessions, key=lambda r: r["last"], reverse=True) if r.get("gates") and "edits" in r]
     if timed:
         lines += ["", "## 코드 편집 시점 (Gate A 승인 전 · 회차 밖)", "",
                   "- 코드 편집 = Write·Edit·MultiEdit·NotebookEdit 로 .md·.txt·.claude/ 밖의 파일을 바꾼 호출. Bash 로 쓴 편집은 세지 못한다(하한).",
                   "- 승인 = 「Gate A 승인」「계획대로 구현」「자율 레인 승인」「C~E 일괄」 입력 또는 다음 Gate 호출. 회차 밖 = 그 세션의 첫 Gate 전, "
                   "또는 Gate E 뒤(작은 수정을 Gate 없이 한 것일 수 있다 — 위반인지는 사람이 본다).", "",
-                  "| 프로젝트 | 세션 | Gate A 회차 | 코드 편집 | 승인 전 편집(회차 수) | 회차 밖 편집 |", "|---|---|---|---|---|---|"]
+                  "- 승인 전 편집은 프로젝트 안의 파일만 센다. 임시 스크립트처럼 프로젝트 밖 파일은 「그중 밖」 칸에 따로 센다(— 는 이 칸을 "
+                  "모르는 옛 엔진의 행).", "",
+                  "| 프로젝트 | 세션 | Gate A 회차 | 코드 편집 | 승인 전 편집(회차 수) | 회차 밖 편집 | 승인 전 프로젝트 밖 편집 |",
+                  "|---|---|---|---|---|---|---|"]
         for r in timed:
             e = r["edits"]
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['gates'].split().count('a')} | {e['code']} | "
-                         f"{e['pre_approval']} ({e['pre_approval_cycles']}) | {e['outside_cycle']} |")
+                         f"{e['pre_approval']} ({e['pre_approval_cycles']}) | {e['outside_cycle']} | "
+                         f"{e.get('pre_approval_outside', '—')} |")
     lines += ["", "## Gate 순서 (세션별)", "", "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E |", "|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:

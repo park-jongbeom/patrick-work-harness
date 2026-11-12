@@ -206,6 +206,20 @@ class TestHookDecides(FeedbackCase):
         self.assertEqual(lines[0]["_meta"]["versions_seen"], seen)
         self.assertEqual(lines[1]["engine_at_start"], "0.9.0")    # 세션이 시작할 때 이미 깔려 있던 버전
 
+    def test_a_session_spanning_an_update_also_sends_the_part_after_it(self):
+        """갱신 전에 열어 갱신 뒤에도 이어 쓴 대화는 갱신 뒤 부분을 따로 센 행도 보낸다(2026-11-12)."""
+        early = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mid = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.session("long", [{"type": "user", "timestamp": early, "cwd": "/w/proj", "message": {"content": "일"}},
+                              {"type": "user", "timestamp": now_ts(), "cwd": "/w/proj", "message": {"content": "뒤"}}])
+        self.configured(versions_seen={"0.9.0": "2000-01-01T00:00:00Z", "0.9.5": mid})
+        self.assertEqual(self.run_script("send")[0], 0)
+        with open(os.path.join(self.remote, "harness-inbox", self.received()[0]), encoding="utf-8") as f:
+            lines = [json.loads(x) for x in f if x.strip()][1:]
+        segs = [r for r in lines if r.get("segment")]
+        self.assertEqual([(r["session"], r["segment"], r["engine_at_start"], r["user_prompts"], r["folder"]) for r in segs],
+                         [("long", "0.9.5", "0.9.5", 1, "")])
+
     def test_fewer_sessions_wait_until_fourteen_days(self):
         self.plain("s1")
         self.configured()

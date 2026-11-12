@@ -221,6 +221,23 @@ def shareable(row):
     return out
 
 
+def segment_rows(rows, seen):
+    """갱신 전에 열어 갱신 뒤에도 이어 쓴 대화의 「갱신 뒤 부분」 행 — 받는 쪽 예측표가 이것으로 센다(2026-11-12). 실패해도
+    전송은 계속한다(부분 행만 빠진다)."""
+    import harness_report as hr
+
+    out = []
+    for r in rows:
+        if not (r.get("folder") and r.get("session")):
+            continue
+        try:
+            for seg in hr.version_segments(os.path.join(PROJECTS_DIR, r["folder"], r["session"] + ".jsonl"), r, seen):
+                out.append({**shareable(seg), "engine_at_start": seg["segment"]})
+        except Exception as e:  # 낯선 기록 하나가 전송 전체를 멈추면 안 된다
+            _log(f"부분 행 실패 {r.get('session')}: {type(e).__name__}")
+    return out
+
+
 def send(rows, reason, address, dry_run=False, now=None):
     """세션 행을 한 파일로 보낸다 → (성공, 한 줄 설명). 성공하면 상태의 마지막 전송과 보낸 세션을 바꾼다."""
     now = now or _now()
@@ -233,7 +250,7 @@ def send(rows, reason, address, dry_run=False, now=None):
     probe = _load("state.json")
     note_version(probe, now)                        # 훅이 아직 한 번도 안 돈 수동 전송에서도 지금 버전이 들어간다
     seen = probe["versions_seen"]
-    rows = [{**shareable(r), "engine_at_start": engine_at(r.get("first"), seen)} for r in rows]
+    rows = [{**shareable(r), "engine_at_start": engine_at(r.get("first"), seen)} for r in rows] + segment_rows(rows, seen)
     meta = {"_meta": {"pc": pc, "sent_at": _iso(now), "reason": reason, "engine_version": _engine_version(),
                       "versions_seen": seen, "sessions": len(rows), "keep_days": KEEP_DAYS}}
     summary = f"{reason} · 세션 {len(rows)}개 → {host}:{folder}/{name}"
