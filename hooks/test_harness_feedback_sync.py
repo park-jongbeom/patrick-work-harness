@@ -330,6 +330,37 @@ class TestCommands(FeedbackCase):
         self.assertEqual(rows["s2"]["max_repeat_notice"]["text"], "[TAMPER] <경로> · CURRENT_SESSION.md 확인")
         self.assertEqual(rows["s2"]["project"], "proj")                      # 프로젝트 이름(폴더 끝 이름)은 남긴다
 
+    def test_excluded_projects_are_neither_counted_nor_sent(self):
+        """다른 일의 고객 프로젝트 세션이 하네스를 쓰는 프로젝트의 훅을 타고 같이 나갔다(2026-11-13) — 설정에서 뺀 프로젝트는
+        판정에서도 전송에서도 빠진다."""
+        for i in range(10):
+            self.session(f"c{i}", [{"type": "user", "timestamp": now_ts(5), "cwd": "D:/work/client",
+                                    "message": {"content": "일"}}], project="d--Users-someone-work-Client-Secret")
+        self.plain("s1")
+        self.configured()
+        rc, out = self.run_script("exclude", "*client-secret*")              # 대소문자는 무시한다
+        self.assertEqual(rc, 0, out)
+        self.assertIn("세션 10개 뺌, 1개 보냄 대상", out)
+        rc, out = self.run_script("status")
+        self.assertIn("보내지 않는 프로젝트: *client-secret* (세션 10개 뺌)", out)
+        self.assertIn("바뀐 세션 1개 · 지금 보낼 조건: 아님", out)          # 뺀 10개는 「바뀐 세션 10개」로 세지 않는다
+        self.assertEqual(self.run_script(), (0, ""))
+        self.assertEqual(self.received(), [])
+        rc, out = self.run_script("send")
+        self.assertIn("세션 1개", out)
+        with open(os.path.join(self.remote, "harness-inbox", self.received()[0]), encoding="utf-8") as f:
+            text = f.read()
+        self.assertNotIn("client", text.lower())
+
+    def test_exclude_matches_the_project_name_and_survives_setup(self):
+        self.plain("s1")                                                      # 프로젝트 이름 proj, 폴더 -w-proj
+        self.assertEqual(self.run_script("exclude", "PROJ")[0], 0)            # 주소가 없어도 저장한다
+        self.assertIn("세션 1개 뺌, 0개", self.run_script("exclude")[1])
+        self.run_script("setup", "me@server:harness-inbox")
+        self.assertEqual(self.read("config.json")["exclude"], ["PROJ"])
+        self.assertIn("세션 0개 뺌, 1개", self.run_script("exclude", "--remove", "PROJ")[1])
+        self.assertEqual(self.read("config.json")["exclude"], [])
+
     def test_receive_strips_meta_and_counts_a_resent_session_once(self):
         sys.path.insert(0, HERE)
         import harness_report as hr

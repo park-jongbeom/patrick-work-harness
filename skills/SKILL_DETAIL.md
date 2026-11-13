@@ -232,6 +232,28 @@ section, a blank field, a lane value other than 자율, any trigger, a non-hash 
 backticked acceptance command, or a file entry without a `` `path` ``. Every other parser in the
 dashboard fails open; this one decides whether the autonomous lane opens, so it must not.
 
+## §Deliverable Document Checks (Gate D — a document someone else will read)
+
+For a session that changes a document with a reader outside this conversation — a plan for sign-off, a report, shared
+slides (md/html). Session documents (`CURRENT_SESSION.md`, plans, WORKLOG) are not deliverables.
+
+- If a document-verification skill with check scripts is installed (`~/.claude/skills/doc-verification/scripts/`, standard
+  library only), put them in the Gate D test plan as the execution command instead of writing `grep` checks again in each
+  session. Exit code 0 = nothing found, 1 = something found, 2 = input error.
+  - `egress_scan.py <files…> --forbid <list file>` — what must not leave with the document: credentials, local paths, and
+    the names this project forbids (people, vendors, internal wording). The script does not know the project's names —
+    without `--forbid` names are not checked; say so in the result. Keep the list file in the project repository.
+  - `md_html_sync.py <md> [html] --html-strip '<regex>'` — md↔html: tables matched by header, text in order, text only
+    in the HTML, heading·link·figure·list counts. Strip what the project's converter adds (table of contents, footer)
+    with `--html-strip`, or every run reports it.
+  - `quote_check.py <document> --source <copy of the original>` — quoted passages against the source text (UTF-8 files).
+- Options and known misses are in that skill's `SKILL.md`. A pass means "not found in the shapes these scripts check",
+  not "clean" — the reading review of the document stays.
+- Not installed → `grep`/`ls` as before.
+
+> Why (2026-11-13 — a user project's sessions): document sessions closed through Gate D rebuilt the same three checks by
+> hand each time — export `grep`, md↔html counts, a one-off quote-matching script.
+
 ## §Layer 2 Documents (if `--docs=full` was used at `/init`)
 
 Moved out of the Gate skills on 2026-11-05: a project without these files never needs this text. Each file is filled by the Gate named below.

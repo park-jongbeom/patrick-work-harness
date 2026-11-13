@@ -22,7 +22,7 @@ effort: high
    - Execution command (the `CLAUDE.md §Build·Test` command verbatim — see §Execution Commands)
 
 2. **Run the tests·build with that command**
-   - Markdown-only repositories (planning or docs-only repositories) need no Docker — verify with Bash commands such as `grep`/`ls`
+   - Markdown-only repositories (planning or docs-only repositories) need no Docker — verify with Bash commands such as `grep`/`ls`. A document a reader outside this session will get → `SKILL_DETAIL.md §Deliverable Document Checks`
 
    > **💡 Giant test-log delegation (HARNESS-DELEGATE-1)**: When the output log is giant, as with `gradlew`/`pytest`/`npm test`, delegate the execution to an `Explore`/`Agent` subagent (Bash) and **retrieve only the PASS/FAIL + failure-summary conclusion** to save main-context tokens (only when "intermediate output ≫ conclusion" — inline is better for small ones). The main performs self-debug (2-B)·FIX-B/DEP classification based on the delegated conclusion. Detail → `CLAUDE_DETAIL.md §Subagent Delegation Guidelines` (a project file — skip if your project has none).
 

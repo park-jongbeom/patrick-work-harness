@@ -11,6 +11,8 @@
 어디로: 설정 파일의 주소 하나(`[사용자@]호스트[:폴더]`, 폴더 기본 `harness-inbox`). 그 PC 의 SSH 설정과 키를 그대로 쓴다
         (`ssh`·`scp`, 암호를 묻지 않는 방식). 포트·키가 따로 필요하면 `~/.ssh/config` 의 Host 별칭을 주소로 쓴다.
         주소는 PC 의 사용자 폴더(`~/.claude/harness-feedback/`)에만 있고 저장소에는 없다.
+빼는 것: 설정 파일의 `exclude` 패턴(`~/.claude/projects` 의 폴더 이름이나 프로젝트 이름, glob·대소문자 무시)에 맞는 세션은
+        모으지 않는다 — 판정·전송·status 모두에서 빠진다. 훅은 걸린 프로젝트와 상관없이 그 PC 의 대화 기록 전체를 읽는다.
 언제: 응답이 끝날 때마다 훅으로 불리지만, 마지막 판정 뒤 6시간이 지났을 때만 판정한다(나머지는 시각 파일 하나만 보고 끝).
       마지막으로 보낸 뒤 ① 새로 난 하네스 내부 오류(엔진 훅의 실행 오류·새 문맥 검토 스크립트 실패) 1건 이상 ② 바뀐 세션 10개 이상
       ③ 14일이 지났고 바뀐 세션 1개 이상 — 이면 보낸다. 판정과 전송은 떼어 낸 프로세스가 해서 응답을 기다리게 하지 않는다.
@@ -20,11 +22,13 @@
   python3 harness-feedback-sync.py setup <주소>       주소를 저장하고 접속·폴더 쓰기를 시험한다
   python3 harness-feedback-sync.py status             설정·마지막 판정과 전송·지금의 조건
   python3 harness-feedback-sync.py send [--dry-run]   조건과 상관없이 지금 보낸다
+  python3 harness-feedback-sync.py exclude [패턴...] [--remove 패턴...]   보내지 않을 프로젝트 — 인자 없으면 목록
   python3 harness-feedback-sync.py receive [--inbox 폴더] [--out 폴더]   받는 서버에서 — 받은 파일로 보고서를 만든다
   (인자 없이)                                          응답 종료 훅
 """
 
 import datetime
+import fnmatch
 import glob
 import json
 import os
@@ -110,11 +114,23 @@ def split_address(address):
 
 # ── 판정 ──────────────────────────────────────────────────────────────
 
-def collect_rows(now=None):
+def excluded(row, patterns):
+    """설정의 제외 패턴에 맞는 세션인가 — `~/.claude/projects` 의 폴더 이름이나 프로젝트 이름(작업 폴더 끝 이름)을 본다.
+    윈도 폴더 이름은 대소문자가 섞여 오므로 무시한다."""
+    names = [(row.get(k) or "").lower() for k in ("folder", "project")]
+    return any(n and fnmatch.fnmatchcase(n, p.lower()) for p in patterns for n in names)
+
+
+def collect_rows(now=None, with_excluded=False):
+    """최근 30일 세션 행. 제외 패턴에 맞는 행은 여기서 뺀다 — 판정도 전송도 그 세션을 모른다(2026-11-13: 다른 일의 고객
+    프로젝트 세션이 하네스를 쓰는 프로젝트의 훅을 타고 같이 나갔다). `with_excluded` → (남은 행, 뺀 행 수)."""
     import harness_report as hr
 
     since = ((now or _now()) - datetime.timedelta(days=KEEP_DAYS)).date().isoformat()
-    return hr.collect(PROJECTS_DIR, since=since)["sessions"]
+    rows = hr.collect(PROJECTS_DIR, since=since)["sessions"]
+    patterns = _load("config.json").get("exclude") or []
+    kept = [r for r in rows if not excluded(r, patterns)]
+    return (kept, len(rows) - len(kept)) if with_excluded else kept
 
 
 def harness_errors(row):
@@ -375,7 +391,10 @@ def cmd_status():
     config, state, now = _load("config.json"), _load("state.json"), _now()
     print(f"주소: {config.get('address') or '없음 — setup 이 필요하다'}")
     print(f"마지막 판정: {state.get('last_check') or '없음'} · 마지막 전송: {state.get('last_sent') or '없음'}")
-    reason, changed = due(collect_rows(now), state, now)
+    rows, dropped = collect_rows(now, with_excluded=True)
+    patterns = config.get("exclude") or []
+    print(f"보내지 않는 프로젝트: {', '.join(patterns) if patterns else '없음'}" + (f" (세션 {dropped}개 뺌)" if patterns else ""))
+    reason, changed = due(rows, state, now)
     print(f"바뀐 세션 {changed}개 · 지금 보낼 조건: {reason or '아님'}")
     try:
         with open(_path("send.log"), encoding="utf-8") as f:
@@ -396,6 +415,28 @@ def cmd_send(dry_run=False):
         _log(line)
     print(line)
     return 0 if ok else 1
+
+
+def cmd_exclude(args):
+    """보내지 않을 프로젝트 패턴을 더하거나(`exclude 패턴…`) 빼고(`--remove 패턴…`) 목록을 보인다. 주소가 없어도 저장한다 —
+    전송을 켜기 전에 먼저 빼 둘 수 있어야 한다."""
+    config = _load("config.json")
+    patterns = list(config.get("exclude") or [])
+    remove = "--remove" in args
+    for p in (a.strip() for a in args if a != "--remove"):
+        if not p:
+            continue
+        if remove and p in patterns:
+            patterns.remove(p)
+        elif not remove and p not in patterns:
+            patterns.append(p)
+    if args:
+        config["exclude"] = patterns
+        _save("config.json", config)
+    rows, dropped = collect_rows(with_excluded=True)
+    print(f"보내지 않는 프로젝트: {', '.join(patterns) if patterns else '없음'} · 최근 {KEEP_DAYS}일 세션 {dropped}개 뺌, "
+          f"{len(rows)}개 보냄 대상")
+    return 0
 
 
 def cmd_receive(inbox=INBOX_DIR, out=""):
@@ -445,6 +486,8 @@ def main(argv=None):
         return cmd_status()
     if cmd == "send":
         return cmd_send(dry_run="--dry-run" in rest)
+    if cmd == "exclude":
+        return cmd_exclude(rest)
     if cmd == "receive":
         opts = dict(zip(rest[::2], rest[1::2]))
         return cmd_receive(opts.get("--inbox", INBOX_DIR), opts.get("--out", ""))

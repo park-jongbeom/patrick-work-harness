@@ -18,6 +18,10 @@ effort: low
   the harness is dropped (hook name and count stay), paths and file names in harness notices become `<경로>`·`<파일>`, and
   the folder name (the PC's full path) is emptied. One file per send, first line = PC name,
   time, reason, engine version, and when each engine version was first seen on this PC.
+- **Every project on this PC, not only the one with the hook**: the hook reads all of `~/.claude/projects`. A project whose
+  sessions must not leave this PC (another line of work, customer data) goes on the exclude list —
+  `python3 "$S" exclude '<pattern>'`, a glob matched case-insensitively against the `~/.claude/projects` folder name or
+  the project name. Excluded sessions are neither counted for the send conditions nor sent; `status` shows the list.
 - **Where**: one SSH address, `[user@]host[:folder]` (folder defaults to `harness-inbox`). It uses this PC's own SSH
   config and keys with `BatchMode=yes` — it never asks for a password. For a port or key, put a `Host` alias in
   `~/.ssh/config` and use the alias. The address is stored only in `~/.claude/harness-feedback/config.json`.
@@ -29,7 +33,8 @@ effort: low
 
 `S="${CLAUDE_PLUGIN_ROOT}/hooks/harness-feedback-sync.py"`
 
-1. Run `python3 "$S" status` and show the user its lines.
+1. Run `python3 "$S" status` and show the user its lines. Before the first send, ask whether any project must be left out
+   and add it with `exclude` — it can be set before the address.
 2. **No address yet** → ask the user for the address (`[user@]host[:folder]`), then run `python3 "$S" setup <address>`.
    On 「실패」, explain the cause from its message — the usual ones:
    - host key not yet trusted → the user runs `ssh <host>` once in a terminal and accepts the key
@@ -40,7 +45,8 @@ effort: low
    `python3 "$S" send`. Use `send --dry-run` first if the user wants to see what would go.
 4. Report the result line (「보냄 — …」 or 「실패 — …」) as it is.
 
-To stop automatic sending, delete `~/.claude/harness-feedback/config.json`. The log is `~/.claude/harness-feedback/send.log`.
+To stop automatic sending, delete `~/.claude/harness-feedback/config.json` (the exclude list goes with it). To leave out
+one project instead, use `exclude`; `exclude --remove '<pattern>'` takes it back. The log is `~/.claude/harness-feedback/send.log`.
 
 ## On the receiving server
 

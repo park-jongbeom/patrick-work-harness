@@ -281,6 +281,8 @@ When the work runs on another computer, run `/harness-feedback` there once to se
 sends the session rows when due, and `python3 hooks/harness-feedback-sync.py receive` here builds the report from every
 received file and checks the predictions against this repository's `DECISION_LOG.md` without the transcripts. Copying
 a report folder by hand and running `python3 hooks/harness_report.py --sessions <copied>/sessions.jsonl` still works.
+The hook reads every project on that computer, not only the one it is wired in — a project whose sessions must stay
+there goes on its exclude list (`harness-feedback-sync.py exclude '<pattern>'`).
 
 #### Direction check — /audit
 
@@ -594,7 +596,8 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 작업이 다른 컴퓨터에서 돌면 그쪽에서 `/harness-feedback` 로 SSH 주소를 한 번 넣는다. 그 뒤 응답 종료 훅이 조건이 찰 때
 세션 행을 보내고, 이쪽의 `python3 hooks/harness-feedback-sync.py receive` 가 받은 파일 전부로 보고서를 만들어 대화 기록
 없이 이 저장소의 `DECISION_LOG.md` 예측과 맞댄다. 보고서 폴더를 손으로 복사해 `python3 hooks/harness_report.py
---sessions <복사한 폴더>/sessions.jsonl` 로 돌리는 방법도 그대로 된다.
+--sessions <복사한 폴더>/sessions.jsonl` 로 돌리는 방법도 그대로 된다. 훅은 걸린 프로젝트만이 아니라 그 컴퓨터의 모든
+프로젝트 기록을 읽는다 — 밖으로 나가면 안 되는 프로젝트는 제외 목록에 넣는다(`harness-feedback-sync.py exclude '<패턴>'`).
 
 #### 방향성 점검 — /audit
 
