@@ -185,6 +185,11 @@ class TestNeverStopsGateA(unittest.TestCase):
         self.assertIsNone(fr.r_score("| C | Sonnet 5.5 | R=6 / V=3 |"))     # Gate별 권장 모델 표의 칸
         self.assertIsNone(fr.r_score(""))
 
+    def test_r_score_reads_an_emphasized_cell(self):
+        """#7 — 칸 값을 굵게·코드로 써도 R 을 읽는다. 못 읽으면 R 기준이 조용히 빠진다."""
+        for value in ("**R=6** / V=1 / D=1", "**R=6 / V=1 / D=1**", "`R=6` / V=1"):
+            self.assertEqual(fr.r_score(f"| R/V/D 분해 | {value} |"), 6, value)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

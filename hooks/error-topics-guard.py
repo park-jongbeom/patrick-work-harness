@@ -177,8 +177,10 @@ def current_session_id_and_done(cur_text):
     m_id = re.search(r"\*\*세션 ID\*\*:\s*([A-Za-z][A-Za-z0-9\-]*)", cur_text)
     sid = m_id.group(1) if m_id else None
     # ✅E 여부: "현재 상태" 라인 또는 대시보드 "현재 Gate" 셀에 ✅E 등장
-    done = bool(re.search(r"현재 상태\*\*:\s*✅\s*E", cur_text)) or bool(
-        re.search(r"현재 Gate\s*\|\s*\*\*✅\s*E", cur_text)
+    # 값의 굵게·코드 표시는 있어도 없어도 읽는다 — 헤더를 `**✅E 완료**` 로 쓰면 「진행 중」으로 보고 검사를 조용히
+    # 건너뛰었다(#5 와 같은 부류, 2026-11-17).
+    done = bool(re.search(r"현재 상태\*\*:\s*(?:\*\*|`)?\s*✅\s*E", cur_text)) or bool(
+        re.search(r"현재 Gate\s*\|\s*(?:\*\*|`)?\s*✅\s*E", cur_text)
     )
     return sid, done
 

@@ -344,6 +344,19 @@ def test_unlogged_selfdebug_blocks():
     print("  PASS: self-debug 1회 미적재 → 차단(exit 2)")
 
 
+def test_emphasized_done_status_still_checked():
+    """완료 표시를 굵게 써도(헤더 `**✅E 완료**`·대시보드 칸 굵게 없음) 완료 세션으로 읽는다 — #5 와 같은 부류.
+    못 읽으면 「진행 중」으로 보고 검사를 조용히 건너뛴다."""
+    clear_counter("t-bold")
+    doc = (current_md("DETEKT-CI-FIX-9", trace="self-debug 1회")
+           .replace("> **현재 상태**: ✅E", "> **현재 상태**: **✅E").replace("(2026-05-22)", "(2026-05-22)**")
+           .replace("| **✅E 완료** |", "| ✅E 완료 |"))
+    code, err = run_hook(doc, session_id="t-bold", topics={"my-api": {"testing.md": "무관 내용\n"}})
+    assert code == 2, f"expected 2, got {code}"
+    clear_counter("t-bold")
+    print("  PASS: 굵게 쓴 완료 표시 → 완료로 읽고 차단(exit 2)")
+
+
 def test_loop_guard_stays_released_after_max():
     clear_counter("t-cycle")
     cur = current_md("FIX-B-LOOP-1")
@@ -462,6 +475,7 @@ if __name__ == "__main__":
         test_complete_entry_among_incomplete_allows,
         test_unlogged_fixb_prefix_blocks,
         test_unlogged_selfdebug_blocks,
+        test_emphasized_done_status_still_checked,
         test_loop_guard_releases_after_max,
         test_loop_guard_stays_released_after_max,
         test_stop_hook_active_allows,

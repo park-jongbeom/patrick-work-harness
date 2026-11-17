@@ -106,6 +106,31 @@ class TestVerdict(unittest.TestCase):
         doc = plan().replace("### 변경 파일\n", "### 변경 파일\n| 파일 | 내용 |\n|---|---|\n| `db/migrations/1.sql` | 추가 |\n")
         self.assertEqual(t.verdict(doc)["state"], "발동")
 
+    def test_code_words_in_the_description_are_not_files(self):
+        """#6 — 항목 설명 속 코드 글자(`unittest`·`status:`)를 파일로 세지 않는다."""
+        doc = plan().replace("### 변경 파일\n", "### 변경 파일 (2개)\n1. `src/a.py` (수정) — `unittest` 시험 추가\n"
+                                                  "2. `README.md` (수정) — `status:` 줄\n")
+        self.assertEqual((t.verdict(doc)["state"], t.verdict(doc)["files"]), ("미발동", 2))
+
+    def test_risky_word_in_the_description_does_not_fire(self):
+        doc = plan().replace("### 변경 파일\n", "### 변경 파일\n1. `src/a.py` (수정) — `.env` 는 읽기만 한다\n"
+                                                  "- `src/b.py` — `deploy/` 설명 고침\n")
+        self.assertEqual(t.verdict(doc)["state"], "미발동")
+
+    def test_several_paths_at_the_start_of_one_item_all_count(self):
+        """한 항목 머리에 여러 경로를 적은 계획은 둘째 경로도 본다 — 첫 글자만 세면 마이그레이션을 놓친다."""
+        for line in ("1. `src/a.py`, `db/migrations/1.sql` (생성) — `unittest`\n",
+                     "1. **`src/a.py` · `db/migrations/1.sql`** (생성)\n"):
+            doc = plan().replace("### 변경 파일\n", "### 변경 파일\n" + line)
+            v = t.verdict(doc)
+            self.assertEqual((v["state"], v["files"]), ("발동", 2), line)
+
+    def test_table_row_reads_paths_not_the_description_column(self):
+        doc = plan().replace("### 변경 파일\n", "### 변경 파일\n| 파일 | 내용 |\n|---|---|\n"
+                                                  "| `src/a.py` | `schema` 라는 낱말 설명 |\n")
+        v = t.verdict(doc)
+        self.assertEqual((v["state"], v["files"]), ("미발동", 1))
+
     def test_nothing_to_read_cannot_be_judged(self):
         for doc in ("", "# 메모\n", "## Gate A — 계획\n\n### 이해 브리핑\n- **왜 바꾸나**: 왜\n"):
             self.assertEqual(t.verdict(doc)["state"], "판정 불가", doc)

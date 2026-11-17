@@ -75,6 +75,16 @@ class TestTestWriteGuard(unittest.TestCase):
             self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "ask", path)
             self.assertIn("명세와 시험이 실제로 충돌", out["hookSpecificOutput"]["permissionDecisionReason"])
 
+    def test_emphasized_status_value_still_reads_as_gate_d(self):
+        """#5 — 값을 굵게·코드로 써도 Gate D 다. 못 읽으면 가드가 아무 신호 없이 꺼진다."""
+        for status in ("**D (확인 대기)**", "**D** (진행 중)", "`D (확인 대기)`"):
+            _, out = run_hook("Edit", "tests/test_x.py", status)
+            self.assertEqual((out or {}).get("hookSpecificOutput", {}).get("permissionDecision"), "ask", status)
+
+    def test_emphasized_other_gate_still_passes(self):
+        for status in ("**C (확인 대기)**", "**✅E 완료**"):
+            self.assertEqual(run_hook("Edit", "tests/test_x.py", status), (0, None), status)
+
     def test_write_and_multiedit_also_covered(self):
         for tool in ("Write", "MultiEdit"):
             _, out = run_hook(tool, "tests/test_x.py", "D (진행 중)")

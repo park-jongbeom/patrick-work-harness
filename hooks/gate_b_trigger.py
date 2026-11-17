@@ -62,13 +62,44 @@ def classify(paths, rollback):
     return {"reasons": reasons}
 
 
+CODE = re.compile(r"`([^`\n]+)`")
+LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+(.*)$")
+#: 항목 머리에 이어 적은 경로들 — `` `a.py`, `b.sql` (생성) — 설명 `` 에서 설명 앞까지.
+LEADING_PATHS = re.compile(r"^(?:`[^`\n]+`(?:\s*(?:[,·、/+]|및|와|과)\s*|\s+)?)+")
+
+
+def listed_paths(body):
+    """변경 파일 절 → 경로 목록. 목록 항목은 머리의 코드 글자들(없으면 첫 코드 글자), 표 행은 코드 글자가 든 첫 칸만 센다.
+
+    절 본문의 코드 글자를 모두 세면 설명 속 `unittest`·`status:` 도 파일이 되어 개수가 부풀고, 설명에 쓴 `.env`·`deploy/`
+    로 발동할 수 있었다(#6, 2026-11-17). 첫 코드 글자 하나만 세면 한 항목에 적은 둘째 경로(마이그레이션)를 놓치므로 머리의
+    글자들은 모두 센다. 목록·표 모양이 아니어서 아무것도 못 읽으면 예전처럼 모든 코드 글자를 센다 — 못 읽은 것을
+    「걸릴 파일 없음」으로 내지 않기 위해서다."""
+    from session_dashboard_parsers import split_table_cells
+
+    paths = []
+    for line in (body or "").splitlines():
+        s = line.strip().replace("**", "")
+        if s.startswith("|"):
+            cell = next((c for c in split_table_cells(s) if CODE.search(c)), "")
+            paths += CODE.findall(cell)
+            continue
+        m = LIST_ITEM.match(s)
+        if not m:
+            continue
+        head = LEADING_PATHS.match(m.group(1))
+        found = CODE.findall(head.group(0)) if head else CODE.findall(m.group(1))[:1]
+        paths += found
+    return paths or CODE.findall(body or "")
+
+
 def verdict(content):
     """세션 문서 → {"state": 발동|미발동|판정 불가, "reasons": […], "files": 읽은 파일 수}."""
     unreadable = {"state": "판정 불가", "reasons": [], "files": 0}
     try:
         from session_dashboard_parsers import _find_section, _plan_block, _sections, parse_comprehension
         _, body = _find_section(_sections(_plan_block(content or "")), "files")
-        files = re.findall(r"`([^`\n]+)`", body)
+        files = listed_paths(body)
         rollback = dict(parse_comprehension(content or "")["briefing"]).get("되돌리는 법", "")
     except Exception:
         return unreadable

@@ -39,6 +39,12 @@ class TestParseCurrentSession(unittest.TestCase):
         self.assertEqual(d["session_id"], "HARNESS-CROSSCHECK-FIX-1-a-3")
         self.assertIn("진행 중", d["status"])
 
+    def test_emphasized_status_value_is_read_plain(self):
+        """#5 — 상태 값의 굵게·코드 표시를 걷어 낸다. 훅이 「D 로 시작」을 보고, 대시보드 배지에 `**` 가 찍히지 않는다."""
+        for raw in ("**D (확인 대기)**", "**D** (확인 대기)", "`D (확인 대기)`"):
+            d = sdp.parse_current_session(f"> **현재 상태**: {raw}\n")
+            self.assertEqual(d["status"], "D (확인 대기)", raw)
+
     def test_lowercase_suffix_not_truncated(self):
         """회귀 가드 — 세션 ID 의 소문자 꼬리(`-a-3`)를 잘라내지 않는다.
 

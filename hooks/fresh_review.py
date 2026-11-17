@@ -78,9 +78,11 @@ HANDLING = """돌아온 답을 처리한다:
 
 def r_score(content):
     """대시보드의 `R/V/D 분해` 줄에서 R 점수. 없으면 None."""
+    from session_dashboard_parsers import _strip_md
     from session_ledger import cell
 
-    m = R_SCORE.match(cell(content or "", "R/V/D 분해"))
+    # 칸 값의 굵게·코드 표시를 걷고 맞춘다 — `**R=0**` 를 그대로 맞추면 「못 읽음」으로 R 기준이 빠졌다(#7, 2026-11-17).
+    m = R_SCORE.match(_strip_md(cell(content or "", "R/V/D 분해")))
     return int(m.group(1)) if m else None
 
 

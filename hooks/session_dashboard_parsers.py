@@ -106,10 +106,11 @@ def parse_current_session(content):
     if match:
         data["intent_note"] = match.group(1).strip()
 
-    # 현재 상태
+    # 현재 상태 — 값의 굵게·코드 표시는 걷어 낸다. `**D (확인 대기)**` 를 그대로 두면 「D 로 시작」을 보는
+    # test-write-guard 가 Gate D 를 못 알아보고 조용히 통과했다(#5, 2026-11-17).
     match = re.search(r"\*\*현재 상태\*\*:\s*(.*?)(?:\n|$)", content)
     if match:
-        data["status"] = match.group(1).strip()
+        data["status"] = _strip_md(match.group(1))
 
     # 표 칸은 다음 `|` 까지만 읽는다 — 닫는 `|` 를 값에 붙이면 대시보드에 「E☐ |」로 보인다(2026-10-22).
     # 뒤 파이프가 없는 `라벨 | 값` 한 줄은 예전처럼 줄 끝까지 읽는다.
