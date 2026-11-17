@@ -91,6 +91,7 @@ TIMESTAMP = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
 #: 스크립트를 실제로 부른 명령만 — 파일 이름을 grep·cat 으로 말한 명령은 아니다(이 엔진의 개발 대화에서 22건이 섞였다).
 FRESH_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*fresh_review\.py")
 FRESH_RECORD = re.compile(r"^[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)[^\n]*)$", re.M)
+SCRIPT_TAIL = re.compile(r"""['"]{1,3}\)?\s*$""")      # 스크립트 문자열을 닫는 따옴표(와 괄호) — 셸로 쓴 기록 줄 끝
 TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>(\d+)</subagent_tokens>"
                         r".*?<duration_ms>(\d+)</duration_ms>")
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
@@ -333,7 +334,10 @@ def read_session(path):
     call_index, calls, stops, loads = {}, [], [], []
     bad = 0
     gate_calls, blocked = set(), 0                  # 훅이 막은 Gate 호출(2026-11-10)
-    fresh, fresh_calls, review_calls, review_usage, notified, records = collections.Counter(), {}, set(), {}, {}, set()
+    fresh, fresh_calls, review_calls, review_usage, notified = collections.Counter(), {}, set(), {}, {}
+    # 검토 회차마다 기록 하나 — 집합으로 모으면 같은 글의 기록이 회차 여럿에서 하나로 줄었다(2026-11-17: 발동 24회에 기록 8개).
+    fresh_rounds = []                               # [판정, 기록 또는 None] — 실행 결과가 온 순서
+    current_round = None
     # 문맥 회계(2026-11-10): 무엇이 언제(응답 위치 = 그때까지의 응답 수, 사건 순번 seq) 들어와 다음 압축까지 몇 응답에
     # 실렸는지 센다. 압축 경계 뒤에는 앞의 내용이 빠진다.
     seq, names, boundaries, items, images = 0, {}, [], [], []
@@ -404,9 +408,13 @@ def read_session(path):
                         fresh_calls[tid] = "--force" in str(inp.get("command", ""))
                     elif name in ("Agent", "Task") and str(inp.get("prompt", "")).lstrip().startswith(FRESH_MARKER):
                         review_calls.add(tid)
-                    elif name in WRITE_TOOLS:
+                    if name in WRITE_TOOLS or name == "Bash":      # 셸로 쓴 기록도 센다 — 읽기만 한 명령은 빈 목록이다
                         for written in _written_texts(name, inp)[1]:
-                            records.update(m.group(1).strip() for m in FRESH_RECORD.finditer(written))
+                            for m in FRESH_RECORD.finditer(written):
+                                # 가장 최근 검토 회차에 첫 기록만 붙인다. 문서를 다시 써 같은 줄이 또 나와도 앞 회차를 채우지 않는다
+                                if current_round is not None and current_round[1] is None:
+                                    # 스크립트 안에 쓴 줄은 닫는 따옴표와 괄호까지 잡힌다 — 「실패 — 오류(x)」의 괄호는 남긴다
+                                    current_round[1] = SCRIPT_TAIL.sub("", m.group(1).strip())
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
                 for text in _texts(content):
@@ -480,6 +488,9 @@ def read_session(path):
                                    else "not_run" if verdict == "미실행"
                                    else "failed" if verdict == "실패" else "unknown")
                             fresh[key] += 1
+                            if key in ("fired", "forced", "unknown"):    # 검토가 돌 수 있는 회차 — 미실행·실패는 회차를 열지 않는다
+                                current_round = [key, None]
+                                fresh_rounds.append(current_round)
                             if key == "unknown":                # 하네스 스크립트가 낸 첫 줄이라 제품 내용이 아니다
                                 fresh_heads.append(("목록 " if parts else "") + first[:80])
                         if tid in review_calls:
@@ -598,10 +609,12 @@ def read_session(path):
     row["gate_b"] = gate_b_rounds(path) if "b" in seq else {}
     row["engine_source"] = sorted(sources)
     row["blocked_gate_calls"] = blocked
+    records = [rec for _, rec in fresh_rounds if rec]
     if fresh or review_calls or records:
         usage = [u for u in (review_usage.get(t) or notified.get(t) for t in review_calls) if u]
         row["fresh_review"] = {**dict(fresh), "reviews": len(review_calls), "tokens": [u[0] for u in usage],
-                               "ms": [u[1] for u in usage], "records": sorted(records)}
+                               "ms": [u[1] for u in usage], "records": records,
+                               "recorded": sum(1 for key, rec in fresh_rounds if key == "fired" and rec)}
         if fresh_heads:
             row["fresh_review"]["unknown_heads"] = fresh_heads[:5]
     row["cc_versions"] = sorted(versions, key=lambda v: (_version_key(v) or (), v))
@@ -901,6 +914,9 @@ METRICS = [
      "결정일 뒤 활동한 받은 세션 수 — 받은 세션 전체와 PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
     ("Gate B 를 시험에서 확인으로 바꾼다", lambda rows: _gate_b_asked(rows), 10,
      "멈춘 Gate B 회차 수 — 확인(진행)·답함·계획 변경은 「Gate B 질문 결과」 표, 판단 기준은 이 결정의 예측 칸"),
+    ("새 문맥 검토 기록을 회차마다 센다", lambda rows: sum((r.get("fresh_review") or {}).get("fired", 0) for r in rows
+                                                  if "recorded" in (r.get("fresh_review") or {})), 10,
+     "회차별로 센 행의 발동 수 — 기록 회차/발동은 「새 문맥 검토」 표, 판단은 2026-11-10 항목의 유지 문턱(30%)"),
     ("Gate B 를 확인에서 알림으로 바꾼다", lambda rows: sum((r.get("gate_b") or {}).get("notified", 0) for r in rows), 10,
      "알림 Gate B 회차 수 — 「Gate B 질문 결과」 표의 알림 칸. 멈췄어야 했다는 지적은 사용자 확인"),
     ("외부 평가의 남은 항목 — 보존 권장을 90일로", lambda rows: sum((r.get("edits") or {}).get("pre_approval_cycles", 0) for r in rows),
@@ -1213,6 +1229,9 @@ def render(data, progress, projects_dir, since):
             secs = int(statistics.median(f["ms"]) / 1000) if f.get("ms") else "—"
             # 검토가 돌았는데 기록이 없어도 건너뛴 회차다 — 발동 줄을 알아보지 못한 회차가 있었다(2026-11-10 노트북)
             rec = "; ".join(f.get("records") or []) or ("없음(건너뜀?)" if f.get("fired") or f.get("reviews") else "—")
+            if "recorded" in f and f.get("fired"):         # 회차별로 센 행(2026-11-17~) — 옛 행은 이 칸이 없다
+                missing = f["fired"] - f["recorded"]
+                rec = f"기록 {f['recorded']}/{f['fired']} 회차" + (f" · 기록 없는 발동 {missing}" if missing else "") + f" — {rec}"
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {f.get('fired', 0)} | {f.get('forced', 0)} | "
                          f"{f.get('not_run', 0)} | {f.get('failed', 0)} | {f.get('unknown', 0)} | {f.get('reviews', 0)} | "
                          f"{tokens} | {secs} | {rec} |")

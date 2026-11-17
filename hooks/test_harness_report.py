@@ -626,6 +626,42 @@ class TestFreshReviewTraces(ReportCase):
         self.assertEqual((sorted(f["tokens"]), sorted(f["ms"])), ([40000, 100000], [180000, 360000]))
         self.assertEqual(f["records"], ["지적 3 · 고침 2(내용 1) · 올림 1 · 반박 0"])   # 자리표시 줄은 기록이 아니다
 
+    REC = "- **새 문맥 검토**: 지적 8 · 고침 8(내용 4) · 올림 0 · 반박 0"
+
+    def write_record(self, tid, tool="Edit"):
+        if tool == "Bash":
+            return assistant(tools=[(tid, "Bash", {"command": f"cat >> /w/proj-a/CURRENT_SESSION.md <<'EOF'\n{self.REC}\nEOF"})])
+        return assistant(tools=[(tid, "Edit", {"file_path": "/w/proj-a/CURRENT_SESSION.md", "old_string": "a",
+                                                "new_string": f"미발동 — 해당 없음\n{self.REC}\n"})])
+
+    def test_records_are_counted_per_round_not_as_a_set(self):
+        """같은 글의 기록이 두 회차에 있으면 둘이다 — 집합으로 모아 받은 자료에서 발동 24회에 기록 8개로 보였다(2026-11-17)."""
+        self.session(self.run_script("f1", "발동 — R=6") + [self.write_record("w1")]
+                     + self.run_script("f2", "발동 — R=6") + [self.write_record("w2")])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f["fired"], f["recorded"], len(f["records"])), (2, 2, 2))
+
+    def test_record_written_with_a_shell_command_counts(self):
+        script = "python3 - <<'EOF'\nopen('CURRENT_SESSION.md', 'a').write('''\n" + self.REC + "''')\nEOF"   # 실제 기록의 꼴
+        self.session(self.run_script("f1", "발동 — R=6") + [self.write_record("w1", tool="Bash")]
+                     + self.run_script("f2", "발동 — R=6") + [assistant(tools=[("w2", "Bash", {"command": script})])])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual(f["recorded"], 2)
+        self.assertEqual(f["records"][1], "지적 8 · 고침 8(내용 4) · 올림 0 · 반박 0")    # 닫는 따옴표는 기록이 아니다
+
+    def test_rewriting_a_record_does_not_fill_an_earlier_round(self):
+        """문서를 통째로 다시 써 같은 기록이 또 나와도, 기록 없이 지나간 앞 회차를 채우지 않는다."""
+        self.session(self.run_script("f1", "발동 — R=6") + self.run_script("f2", "발동 — R=6")
+                     + [self.write_record("w1"), self.write_record("w2")]
+                     + self.run_script("f3", "미실행 — 이미 검토함 — 계획을 크게 바꿨으면 --force 로 다시 돌린다"))
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f["fired"], f["recorded"], len(f["records"])), (2, 1, 1))
+
+    def test_report_shows_recorded_rounds_out_of_fired(self):
+        self.session(self.run_script("f1", "발동 — R=6") + self.run_script("f2", "발동 — R=6") + [self.write_record("w1")])
+        md = hr.render(hr.collect(self.root), None, self.root, None)
+        self.assertIn("기록 1/2 회차 · 기록 없는 발동 1", md)
+
     def test_blocked_gate_call_is_counted_and_left_out_of_the_order(self):
         self.session([gate("d"), tool_result("gd"),
                       assistant(tools=[("ge", "Skill", {"skill": "patrick-work-harness:gate-e"})]),
