@@ -92,6 +92,8 @@ TIMESTAMP = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
 FRESH_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*fresh_review\.py")
 FRESH_RECORD = re.compile(r"^[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)[^\n]*)$", re.M)
 SCRIPT_TAIL = re.compile(r"""['"]{1,3}\)?\s*$""")      # 스크립트 문자열을 닫는 따옴표(와 괄호) — 셸로 쓴 기록 줄 끝
+# 셸로 쓴 글만 — 스크립트 문자열 안의 기록은 따옴표나 글자 그대로의 \n 뒤에 붙는다(`rep("…", "- **새 문맥 검토**: …\n…")`, 2026-11-17)
+FRESH_RECORD_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)(?:(?!\\n)[^\n"'])*)""", re.M)
 TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>(\d+)</subagent_tokens>"
                         r".*?<duration_ms>(\d+)</duration_ms>")
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
@@ -410,7 +412,7 @@ def read_session(path):
                         review_calls.add(tid)
                     if name in WRITE_TOOLS or name == "Bash":      # 셸로 쓴 기록도 센다 — 읽기만 한 명령은 빈 목록이다
                         for written in _written_texts(name, inp)[1]:
-                            for m in FRESH_RECORD.finditer(written):
+                            for m in (FRESH_RECORD_SCRIPT if name == "Bash" else FRESH_RECORD).finditer(written):
                                 # 가장 최근 검토 회차에 첫 기록만 붙인다. 문서를 다시 써 같은 줄이 또 나와도 앞 회차를 채우지 않는다
                                 if current_round is not None and current_round[1] is None:
                                     # 스크립트 안에 쓴 줄은 닫는 따옴표와 괄호까지 잡힌다 — 「실패 — 오류(x)」의 괄호는 남긴다

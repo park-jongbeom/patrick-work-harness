@@ -649,6 +649,20 @@ class TestFreshReviewTraces(ReportCase):
         self.assertEqual(f["recorded"], 2)
         self.assertEqual(f["records"][1], "지적 8 · 고침 8(내용 4) · 올림 0 · 반박 0")    # 닫는 따옴표는 기록이 아니다
 
+    def test_record_inside_a_script_string_counts(self):
+        """스크립트가 문자열 바꾸기로 끼운 기록은 따옴표나 글자 그대로의 \\n 뒤에 붙는다 — 실제 대화에서 발동 4회의 기록이 1로 보였다(2026-11-17)."""
+        after_quote = ("python3 - <<'EOF'\np='CURRENT_SESSION.md'; t=open(p).read()\n"
+                       't=t.replace("- **수동 추가**:", "' + self.REC + '\\n- **수동 추가**:")\nopen(p,"w").write(t)\nEOF')
+        after_newline = ("python3 - <<'EOF'\np='CURRENT_SESSION.md'; t=open(p).read()\n"
+                         't=t.replace("판정", "판정\\n' + self.REC + '")\nopen(p,"w").write(t)\nEOF')
+        self.session(self.run_script("f1", "발동 — R=6") + [assistant(tools=[("w1", "Bash", {"command": after_quote})])]
+                     + self.run_script("f2", "발동 — R=6")
+                     + [assistant(tools=[("g1", "Bash", {"command": 'grep -n "- **새 문맥 검토**: 지적 3" CURRENT_SESSION.md'})]),
+                        assistant(tools=[("w2", "Bash", {"command": after_newline})])])
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual(f["recorded"], 2)
+        self.assertEqual(f["records"], ["지적 8 · 고침 8(내용 4) · 올림 0 · 반박 0"] * 2)   # 따옴표·\n 은 기록이 아니다
+
     def test_rewriting_a_record_does_not_fill_an_earlier_round(self):
         """문서를 통째로 다시 써 같은 기록이 또 나와도, 기록 없이 지나간 앞 회차를 채우지 않는다."""
         self.session(self.run_script("f1", "발동 — R=6") + self.run_script("f2", "발동 — R=6")
