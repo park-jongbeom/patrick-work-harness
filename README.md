@@ -23,7 +23,7 @@ Solves the most common problems that arise when using AI coding tools (Claude Co
 | Tests disabled to fake a pass | `test-tampering-guard` Stop hook detects reward-hacking in real time |
 | Completion records scattered and untraceable | Gate E — auto-generates WORKLOG + archive |
 | Documents go stale every session | 5 guard hooks including `master-plan-stale-guard` |
-| A hard-to-undo change passing unread | Gate B (notice) — when a script flags a change as hard to undo, the Gate A approval names it, and Gate B records what cannot be undone, where it breaks first and how to undo it, then goes on; a stop (「게이트 걸어줘」) or a question only on request |
+| A hard-to-undo change passing unread | Gate B (notice) — when a script flags a change as hard to undo, the Gate A approval names it and where it breaks first, and Gate B records what cannot be undone, where it breaks first and how to undo it, then goes on; a stop (「게이트 걸어줘」) or a question only on request |
 
 #### Process flow
 
@@ -344,7 +344,7 @@ AI 코딩 도구(Claude Code)를 사용할 때 발생하는 공통 문제를 구
 | 테스트를 무력화해 통과 위장 | `test-tampering-guard` Stop hook 실시간 감지 |
 | 완료 기록이 흩어져 추적 불가 | Gate E — WORKLOG + archive 자동 생성 |
 | 문서가 세션마다 스테일 | `master-plan-stale-guard` 등 5종 가드 훅 |
-| 되돌리기 어려운 변경이 읽히지 않고 통과 | Gate B(알림) — 스크립트가 되돌리기 어렵다고 본 변경은 Gate A 승인 자리에 그 사유가 뜨고, Gate B 는 되돌릴 수 없는 것·가장 깨지기 쉬운 곳·되돌리는 법을 남긴 뒤 멈추지 않고 넘어간다. 멈춤(「게이트 걸어줘」)과 질문은 요청할 때만 |
+| 되돌리기 어려운 변경이 읽히지 않고 통과 | Gate B(알림) — 스크립트가 되돌리기 어렵다고 본 변경은 Gate A 승인 자리에 그 사유와 가장 깨지기 쉬운 곳이 뜨고, Gate B 는 되돌릴 수 없는 것·가장 깨지기 쉬운 곳·되돌리는 법을 남긴 뒤 멈추지 않고 넘어간다. 멈춤(「게이트 걸어줘」)과 질문은 요청할 때만 |
 
 #### 프로세스 흐름
 
