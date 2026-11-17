@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-11-17
+
 ### Fixed
 
 - **세션 문서 값을 굵게·코드로 써도 훅이 읽는다** (`hooks/session_dashboard_parsers.py`, `hooks/fresh_review.py`, `hooks/error-topics-guard.py`) — `> **현재 상태**: **D (확인 대기)**` 처럼 값을 굵게 쓰면 Gate D 중 시험 쓰기 확인(test-write-guard)이 아무 신호 없이 꺼졌다(#5). 대시보드 `| R/V/D 분해 | **R=6** / … |` 는 「R=못 읽음」이 되어 새 문맥 검토의 R 기준이 빠졌다(#7). Gate E 의 오류 교훈 검사(error-topics-guard)도 헤더의 `**✅E 완료**` 를 완료로 읽지 못해 건너뛰었다. 이제 값 앞뒤의 `**`·`` ` `` 를 걷고 읽는다. 대시보드 상태 배지에도 `**` 가 찍히지 않는다.
