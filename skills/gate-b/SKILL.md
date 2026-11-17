@@ -1,12 +1,12 @@
 ---
 name: gate-b
-description: "Confirmation stop before a hard-to-undo change, after Gate A approval. Use on 'Gate B 시작', 'Gate B 진행', 'Gate A 승인', '계획대로 구현', '구현해라', etc."
+description: "Notice before a hard-to-undo change, after Gate A approval — stops only on request. Use on 'Gate B 시작', 'Gate B 진행', 'Gate A 승인', '계획대로 구현', '구현해라', etc."
 effort: low
 ---
 
-# Gate B Procedure — Confirmation before a hard-to-undo change (follow order strictly)
+# Gate B Procedure — Notice before a hard-to-undo change (follow order strictly)
 
-> **Purpose**: Between Gate A approval and Gate C, stop once before a change that is hard to undo so the user can review the direction — what cannot be taken back, where it breaks first, how to undo it. This is a **confirmation, not a quiz**: 「진행」 is a full answer. The 4-item briefing is already at the top of the dashboard for every plan; this gate only adds a stop where undoing is hard. A question comes only when the user asks for one. Why: all 13 questions after the 2026-11-05 narrowing were skipped, the user named time and habit, and said the gate exists for reviewing the work's direction (2026-11-10).
+> **Purpose**: Between Gate A approval and Gate C, record what cannot be taken back, where it breaks first and how to undo it — then keep going. The user reviews the direction at the Gate A approval, where gate-a's final block already names the hard-to-undo reason; this gate does not stop again unless the user asks (「게이트 걸어줘」 or 「질문해 줘」). Why: all 13 questions after the 2026-11-05 narrowing were skipped; the 2026-11-10 confirmation stop then ran 25 times — 23 「진행」, 0 questions, 0 plan changes (2026-11-17).
 > **Location**: gate-a (produces trigger verdict) → **this gate** → gate-c (code implementation).
 
 ## Step 0. Does this plan stop here?
@@ -15,17 +15,17 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_
 
 | Script output | Path |
 |---------------|------|
-| `발동 — …` | **Confirmation** (Step 2). You may not downgrade this verdict, and the ledger does not waive it. |
-| `미발동 — …` | **Pass-through** — 1~2 line confirmation, proceed to gate-c. Add a confirmation only for something hard to undo that the script cannot see, and say what it is in one line. |
-| `판정 불가 — …` | Apply the same rule yourself: stored data or schema, auth·permissions·payment, deploys, or anything already public → confirmation; otherwise pass-through. |
+| `발동 — …` | **Notice** (Step 2) — does not stop. You may not downgrade this verdict, and the ledger does not waive it. |
+| `미발동 — …` | **Pass-through** — 1~2 lines, proceed to gate-c. Add a notice only for something hard to undo that the script cannot see, and say what it is in one line. |
+| `판정 불가 — …` | Apply the same rule yourself: stored data or schema, auth·permissions·payment, deploys, or anything already public → notice; otherwise pass-through. |
 
 > Why a script: on 2026-10-20 a production migration was judged 「일반」 although migration was listed as the top risk class. A change git can revert gets no stop however wide it is — Gate D's real execution covers that.
 
-> User override: 「스킵」 → pass-through; 「게이트 걸어줘」 → force the confirmation. **While the confirmation is pending, do not start gate-c until the user replies** — the `comprehension-pending-guard` hook blocks gate-c·d·e until the 평가 is written.
+> User override (at the Gate A approval or any time before gate-c): 「게이트 걸어줘」 → **confirmation stop** (Step 2-B); 「질문해 줘」 → one question (Step 3); 「스킵」 → pass-through. **While a confirmation or question is pending, do not start gate-c until the user replies** — the `comprehension-pending-guard` hook blocks gate-c·d·e until the 평가 is written.
 
 ## Step 1. Ledger expiry·re-verification prerequisite lookup
 
-**A 발동 verdict skips this Step and always stops** — the confirmation is about this plan, and a row from another plan does not cover it. Use this lookup only for a confirmation you add yourself on a 미발동 plan.
+**A 발동 verdict skips this Step** — the notice is about this plan, and a row from another plan does not cover it. Use this lookup only for a notice you add yourself on a 미발동 plan.
 
 **Before** requiring an explanation, look up entries in the comprehension ledger (`comprehension_ledger.md` — see `.claude/harness-answers.yml` → `learning_path` (SSOT); absent field means `plans/learning`) by `tech_tags` match first, then fall back to `scope` text match:
 
@@ -36,22 +36,22 @@ Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/gate_b_trigger.py" "${CURRENT_SESSION_
   - **Expired** (exp elapsed OR material change to scope files) → proceed with re-verification
   - **No record** → proceed with new verification
 
-## Step 2. Confirmation (three lines, one stop)
+## Step 2. Notice (three lines, no stop)
 
-Show three lines in the response and append the same block to the Gate B block of `${CURRENT_SESSION_FILE}` in that response (the dashboard shows it next to the briefing):
+Show three lines in the response and append the same block to the Gate B block of `${CURRENT_SESSION_FILE}`, then continue to gate-c (Step 5). The heading is `### 알림` with no 평가 line — a `### 질문 N` with a placeholder would make the pending guard block gate-c.
 
 ```
-### 질문 1
-되돌리기 전에 확인 — <the trigger line's reason, e.g. 운영 DB 스키마 변경>
+### 알림
+되돌리기 전에 알림 — <the trigger line's reason, e.g. 운영 DB 스키마 변경>
 - **가장 깨지기 쉬운 곳**: <from 이해 브리핑>
 - **되돌리는 법**: <from 이해 브리핑>
-- **읽을 곳**: 이해 브리핑 「가장 깨지기 쉬운 곳」·「되돌리는 법」
-- **평가**: (filled after the answer)
 ```
+
+**2-B. On 「게이트 걸어줘」** — stop instead: the same block under `### 질문 1`, first line `되돌리기 전에 확인 — <reason>`, plus `- **읽을 곳**: 이해 브리핑 「가장 깨지기 쉬운 곳」·「되돌리는 법」` and `- **평가**: (filled after the answer)`. Wait for the reply.
 
 If the plan has no briefing, write it into the Gate A block first (4 items, `gate-a/SKILL.md §Step 1`). 「읽을 곳」 names only what the dashboard shows — never line numbers.
 
-## Step 3. The reply
+## Step 3. The reply (only after a stop the user asked for)
 
 - **「진행」「확인」「구현」 or similar** → 평가 `확인 — 진행`, pass the gate. This is the normal path; do not ask anything more.
 - **A change or a concern** → handle it: fix the plan (back to gate-a if files or rollback change), or list the decision for the user. 평가 `확인 — 계획 변경` or `확인 — 질문에 답함`.
@@ -82,9 +82,9 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 - Plan document(s) — tier-aware, see `SKILL_DETAIL.md §Plan-Doc Update Pattern`
 - `${SESSION_INDEX_FILE}` YAML
 - `${CURRENT_SESSION_FILE}` dashboard + Gate B block
-  - The Gate B block keeps the confirmation (and any question) with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
+  - The Gate B block keeps the notice, or the requested confirmation·question with its 「읽을 곳」 and 「평가」 (Step 2 format) — not just a pass/fail line.
 
-6. STOP — await user document review·confirmation. **A 미발동 pass-through does not stop**: invoke `/gate-c` in this same response — the user has already approved the plan and there is nothing to read or answer (9 of 12 past rounds would have cost one more 「구현」 for nothing). Stop only if the session's 「Gate별 권장 모델」 table recommends a different model for Gate C than the one running now; switching model is the one thing this stop is for.
+6. **A 미발동 pass-through or a 발동 notice does not stop**: invoke `/gate-c` in this same response — the user has already approved the plan and there is nothing to read or answer (9 of 12 past rounds would have cost one more 「구현」 for nothing). STOP only for a confirmation or question the user asked for, or if the session's 「Gate별 권장 모델」 table recommends a different model for Gate C than the one running now.
 
 ---
 
@@ -93,7 +93,7 @@ Add 1 row to the comprehension ledger (`comprehension_ledger.md` under `learning
 After completing the entire Gate B procedure (comprehension gate + plan document(s) update), output **one** of the blocks below at the **very end** of the response.
 Omitting it or replacing it with other content is a **PROC violation**.
 
-**While the confirmation is pending** — do not start gate-c:
+**While a requested confirmation is pending** — do not start gate-c:
 
 ```
 ---
@@ -107,7 +107,7 @@ Omitting it or replacing it with other content is a **PROC violation**.
 **다음 단계**: 위 질문에 답해 주세요. 답하지 않고 넘어가려면 「스킵」이라고 적어 주세요.
 ```
 
-**미발동 pass-through continuing to gate-c**: no block — gate-c's final output ends the response.
+**Pass-through or notice continuing to gate-c**: no block — gate-c's final output ends the response.
 
 **Gate passed, explicitly skipped, or pass-through stopping for a model change** (after 「진행」 on a confirmation, go on to gate-c in the same response unless a model change is due):
 

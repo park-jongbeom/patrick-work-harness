@@ -98,6 +98,7 @@ TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>
 GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]|「진행」이라고 답하면")
 #: 확인형 Gate B(2026-11-10) — 질문 대신 되돌리기 어려운 부분·가장 깨지기 쉬운 곳·되돌리는 법 세 줄을 보이고 「진행」 한 마디로 넘어간다.
 GATE_B_CONFIRM = re.compile(r"「진행」이라고 답하면")
+GATE_B_NOTICE = re.compile(r"되돌리기 전에 알림")     # 알림형 Gate B(2026-11-17) — 멈추지 않는다
 GATE_B_ACK = re.compile(r"(?:확인|진행|계속|ok|오케이|좋아|구현)(?:했다|함|해|해라|합니다|하자)?[.!]?", re.I)
 GATE_B_PLACEHOLDER = re.compile(r"\*\*평가\*\*\s*[:：]\s*\(\s*(?:답변\s*후\s*기록|평가\s*전|filled after the answer)\s*\)")
 GATE_B_SKIP = re.compile(r"스킵|스킴|skip", re.I)       # 「스킴」은 실제 기록의 오타
@@ -214,7 +215,7 @@ def gate_b_rounds(path):
     「이상 패턴 없음」으로 냈다. 회차는 Gate 호출로 열리고, 스킵·다음 Gate 호출·기록 끝, 또는 모델이 다시 묻지 않고
     넘어간 뒤의 사람 입력에서 닫힌다 — Gate C 호출 없이 구현으로 넘어가는 대화가 있어 호출만 기다리면 회차가 끝나지 않는다.
 
-    칸: none 질문 없음 · confirmed 확인형 회차를 「진행」으로 넘김 · answered 답함(확인형에서 묻거나 바꾼 것 포함) ·
+    칸: none 질문 없음 · notified 알림형 회차(멈추지 않고 세 줄만 남김) · confirmed 확인형 회차를 「진행」으로 넘김 · answered 답함(확인형에서 묻거나 바꾼 것 포함) ·
     partial 일부 답 뒤 스킵 · skipped 답 없이 스킵 · unanswered 답도 스킵도 없이 끝남,
     plan_changed·plan_same 평가 아래 적은 「계획 변경」(있음이 하나라도 있으면 있음).
 
@@ -230,7 +231,7 @@ def gate_b_rounds(path):
         if current is None:
             return
         if not current["asked"]:
-            counts["none"] += 1
+            counts["notified" if current["notified"] else "none"] += 1
         elif current["skipped"]:
             counts["partial" if current["answers"] else "skipped"] += 1
         else:
@@ -244,7 +245,7 @@ def gate_b_rounds(path):
         close()
         if letter == "b":
             current = {"asked": False, "waiting": False, "answers": 0, "skipped": False, "plan": set(),
-                       "confirm": False, "confirmed": False}
+                       "confirm": False, "confirmed": False, "notified": False}
 
     def waiting():
         current["asked"] = current["waiting"] = True
@@ -262,6 +263,8 @@ def gate_b_rounds(path):
                 for block in content:
                     if not isinstance(block, dict):
                         continue
+                    if block.get("type") == "text" and current and GATE_B_NOTICE.search(as_text(block.get("text"))):
+                        current["notified"] = True
                     if block.get("type") == "text" and current and GATE_B_WAITING.search(as_text(block.get("text"))):
                         waiting()
                         current["confirm"] = current["confirm"] or bool(GATE_B_CONFIRM.search(as_text(block.get("text"))))
@@ -276,6 +279,7 @@ def gate_b_rounds(path):
                                 if block.get("name") in WRITE_TOOLS and GATE_B_PLACEHOLDER.search(text):
                                     waiting()
                                 current["plan"].update(GATE_B_PLAN.findall(text))
+                                current["notified"] = current["notified"] or bool(GATE_B_NOTICE.search(text))
             elif _is_typed_prompt(event):
                 text = " ".join(_texts(content)).strip()
                 letters = GATE_COMMAND.findall(text)
@@ -897,6 +901,8 @@ METRICS = [
      "결정일 뒤 활동한 받은 세션 수 — 받은 세션 전체와 PC 별 마지막 전송·이유·엔진 버전은 `harness-feedback-sync.py receive` 출력"),
     ("Gate B 를 시험에서 확인으로 바꾼다", lambda rows: _gate_b_asked(rows), 10,
      "멈춘 Gate B 회차 수 — 확인(진행)·답함·계획 변경은 「Gate B 질문 결과」 표, 판단 기준은 이 결정의 예측 칸"),
+    ("Gate B 를 확인에서 알림으로 바꾼다", lambda rows: sum((r.get("gate_b") or {}).get("notified", 0) for r in rows), 10,
+     "알림 Gate B 회차 수 — 「Gate B 질문 결과」 표의 알림 칸. 멈췄어야 했다는 지적은 사용자 확인"),
     ("외부 평가의 남은 항목 — 보존 권장을 90일로", lambda rows: sum((r.get("edits") or {}).get("pre_approval_cycles", 0) for r in rows),
      None, "승인 전 코드 편집이 있던 Gate A 회차 수 — 「코드 편집 시점」 표, 판단은 갱신 뒤 하네스 세션 10개(이 결정의 예측 칸)"),
     ("외부 평가가 짚은 문서 과장과 꺼진 체크섬을", None, 3,
@@ -1178,10 +1184,11 @@ def render(data, progress, projects_dir, since):
               "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
               "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",
               "- 스킵 수 하나로 판단하지 않는다 — 낮아도 의례일 수 있고 높아도 정당할 수 있다. 계획 변경 칸은 gate-b Step 3 이 적기 시작한 뒤 회차부터 쌓인다.", "",
-              "- 확인(진행) = 확인형 Gate B(2026-11-10~)에서 세 줄을 보고 「진행」으로 넘긴 회차. 그 자리에서 묻거나 계획을 바꾸면 「답함」이다.", "",
-              "| 프로젝트 | 세션 | 마지막 활동 | 질문 없음 | 확인(진행) | 답함 | 일부 답 뒤 스킵 | 스킵 | 답 없음 | 계획 변경 있음/없음 |",
-              "|---|---|---|---|---|---|---|---|---|---|"]
-    gate_b_cols = ("none", "confirmed", "answered", "partial", "skipped", "unanswered")
+              "- 확인(진행) = 확인형 Gate B(2026-11-10~)에서 세 줄을 보고 「진행」으로 넘긴 회차. 그 자리에서 묻거나 계획을 바꾸면 「답함」이다.",
+              "- 알림 = 알림형 Gate B(2026-11-17~)에서 멈추지 않고 세 줄만 남긴 회차. 「게이트 걸어줘」로 멈추면 확인 쪽으로 센다.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | 질문 없음 | 알림 | 확인(진행) | 답함 | 일부 답 뒤 스킵 | 스킵 | 답 없음 | 계획 변경 있음/없음 |",
+              "|---|---|---|---|---|---|---|---|---|---|---|"]
+    gate_b_cols = ("none", "notified", "confirmed", "answered", "partial", "skipped", "unanswered")
     gate_b_total = collections.Counter()
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         g = r.get("gate_b") or {}

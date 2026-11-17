@@ -312,4 +312,6 @@ Omitting it or replacing it with other content is a **PROC violation**.
 **다음 단계**: Gate A 검토 후 「Gate A 승인」또는 「계획대로 구현」으로 승인하면 `/gate-b` (Gate B 이해도 게이트)가 시작됩니다.
 ```
 
+When the comprehension-gate verdict is 「발동」, add this line inside the block, after 다음 단계 — the approval is where the user sees it, since Gate B no longer stops: `**되돌리기 어려운 변경**: <발동 사유> — 승인하면 Gate B 에서 멈추지 않고 구현까지 갑니다. 멈춰 확인하려면 「게이트 걸어줘」.`
+
 When the plan's lane is 자율, add this line inside the block, after 다음 단계: `**자율 레인**: 「자율 레인 승인」으로 승인하면 사람 정지 없이 구현·검증한 뒤 검토 카드로 확인을 받습니다. 「Gate A 승인」은 검토 레인으로 진행합니다.`

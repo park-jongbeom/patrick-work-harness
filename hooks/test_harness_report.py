@@ -546,6 +546,32 @@ class TestGateBRounds(ReportCase):
         self.assertEqual(self.rounds([gate("b"), said(self.CONFIRM), user("운영 DB 반영은 빼고 개발 DB 에만 하자"), write, gate("c")]),
                          {"answered": 1, "plan_changed": 1})
 
+    NOTICE = "되돌리기 전에 알림 — 데이터: db/migrations/1.sql\n- **가장 깨지기 쉬운 곳**: 운영 칸\n- **되돌리는 법**: 내림 스크립트"
+
+    def test_notice_round_is_counted_apart_from_no_question(self):
+        """알림형 Gate B(2026-11-17) — 발동이면 멈추지 않고 알림만 남긴다. 「질문 없음」에 섞이면 알림 회차를 셀 수 없다."""
+        self.assertEqual(self.rounds([gate("b"), said(self.NOTICE), gate("c")]), {"notified": 1})
+        write = assistant(tools=[("w1", "Edit", {"file_path": "/w/proj-a/CURRENT_SESSION.md", "old_string": "a",
+                                                  "new_string": "### 알림\n" + self.NOTICE})])
+        self.assertEqual(self.rounds([gate("b"), write, gate("c")]), {"notified": 1})
+        self.assertEqual(self.rounds([gate("b"), said(self.PASSED), gate("c")]), {"none": 1})
+        grep = assistant(tools=[("b1", "Bash", {"command": "grep -n '되돌리기 전에 알림' CURRENT_SESSION.md"})])
+        self.assertEqual(self.rounds([gate("b"), grep, gate("c")]), {"none": 1})      # 읽기만 한 셸 명령은 알림이 아니다
+        heredoc = assistant(tools=[("b2", "Bash", {"command": "cat >> CURRENT_SESSION.md <<'EOF'\n### 알림\n" + self.NOTICE + "\nEOF"})])
+        self.assertEqual(self.rounds([gate("b"), heredoc, gate("c")]), {"notified": 1})   # 셸로 쓴 알림도 센다
+
+    def test_requested_confirmation_after_a_notice_is_a_stop(self):
+        """「게이트 걸어줘」로 멈춘 회차는 알림이 아니라 확인이다."""
+        self.assertEqual(self.rounds([gate("b"), said(self.NOTICE), said(self.CONFIRM), user("진행"), gate("c")]),
+                         {"confirmed": 1})
+
+    def test_notice_rounds_are_not_stops_and_have_a_column(self):
+        self.assertEqual(hr._gate_b_asked([{"gate_b": {"notified": 3, "confirmed": 1}}]), 1)
+        self.session([gate("b"), said(self.NOTICE), gate("c")])
+        md = hr.render(hr.collect(self.root), None, self.root, None)
+        self.assertIn("| 질문 없음 | 알림 | 확인(진행) |", md)
+        self.assertRegex(md, r"\| 합계 \| \| \| 0 \| 1 \| 0 \|")
+
     def test_question_rounds_feed_the_pending_prediction(self):
         self.assertEqual(hr._gate_b_asked([{"gate_b": {"none": 3, "answered": 1, "partial": 1, "skipped": 2, "unanswered": 1}},
                                            {"gate_b": {}}, {}]), 5)
