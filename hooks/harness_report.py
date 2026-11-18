@@ -96,6 +96,20 @@ SCRIPT_TAIL = re.compile(r"""['"]{1,3}\)?\s*$""")      # 스크립트 문자열�
 FRESH_RECORD_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)(?:(?!\\n)[^\n"'])*)""", re.M)
 TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>(\d+)</subagent_tokens>"
                         r".*?<duration_ms>(\d+)</duration_ms>")
+#: 교훈 조회·재발(2026-11-18) — Gate D 에서도 교훈을 꺼낼지 정할 기준선. 조회 출력은 lessons_lookup.py 의 머리와 교훈 줄,
+#: 교훈은 error_topics 파일의 `## [날짜] 제목`(lessons_lookup.HEADING 과 같은 꼴), 재발은 그 아래 `- **재발**: [날짜] …` 줄.
+#: 셸로 쓴 글은 새 문맥 검토 기록처럼 따옴표·글자 그대로의 \n 뒤도 본다. 행에는 수만 남긴다 — 제목·세션 ID 에 이름이 든다.
+LOOKUP_HEAD = "### 과거 교훈 조회 결과 (lessons_lookup.py"
+LOOKUP_ENTRY = re.compile(r"^- \[(\d{4}-\d{2}-\d{2})\] (.+?)  \(", re.M)
+#: 손으로 부른 `--query` 조회는 대개 `| grep "^- \["`·`| sed -n 3,20p` 로 머리를 떼고 본다(이 서버 77회 중 54회) — 명령으로 알아본다
+LOOKUP_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*lessons_lookup\.py")
+LESSON_HEADING = re.compile(r"^#{2,4}[ \t]+\[(\d{4}-\d{2}-\d{2})\][ \t]*(.*)$", re.M)
+LESSON_HEADING_SCRIPT = re.compile(r"""(?:^|\\n|["'])#{2,4}[ \t]+\[(\d{4}-\d{2}-\d{2})\][ \t]*([^\n"'\\]*)""", re.M)
+RECUR_LINE = re.compile(r"^[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n\"'\\]{0,30})", re.M)
+RECUR_LINE_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n"'\\]{0,30})""", re.M)
+TOPICS_PATH = re.compile(r"""[^\s"'`=(),;<>|]*error_topics[\\/][^\s"'`(),;<>|\\/]+\.md""")
+CD_DIR = re.compile(r"""^\s*cd\s+["']?([^\s"';&]+)""")
+PS_WRITE = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b", re.I)     # PowerShell 의 파일 쓰기(셸 쓰기 표지와 함께 본다)
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
 #: v1.7.0 전 회차에는 둘 다 없어 응답의 「질문 N」도 본다(실제 기록 12회에서 질문 회차와 정확히 일치했다).
 GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]|「진행」이라고 답하면")
@@ -319,9 +333,44 @@ def _fresh_verdict(output):
     return first, ("발동" if first.startswith("발동 —") else None)
 
 
+def _lesson_key(date, title):
+    """교훈을 가리는 열쇠 — 조회 출력은 제목을 줄이므로 앞 30자만 맞춘다."""
+    return date, re.sub(r"\s+", " ", title).strip()[:30]
+
+
+def _lesson_of(snippet, paths, bases):
+    """재발 줄이 든 교훈 — 그 PC 의 교훈 파일에서 줄을 찾아 바로 위 제목을 읽는다. 못 찾으면 None."""
+    for rel in paths:
+        rel = os.path.expanduser(rel)
+        for full in ([rel] if os.path.isabs(rel) else [os.path.join(b, rel) for b in bases if b]):
+            try:
+                with open(full, encoding="utf-8", errors="replace") as f:
+                    lines = f.read().splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(lines):
+                if "**재발**" in line and snippet in line:
+                    for prev in reversed(lines[:i]):
+                        m = LESSON_HEADING.match(prev)
+                        if m:
+                            return _lesson_key(m.group(1), m.group(2))
+                    return None
+    return None
+
+
+def _date_window(first, last):
+    """대화 기간(첫날 ~ 마지막 날 다음 날 — 기록 시각은 UTC, 교훈 날짜는 그 PC 의 날짜다)에 드는 날짜인가."""
+    try:
+        hi = (datetime.date.fromisoformat(last[:10]) + datetime.timedelta(days=1)).isoformat()
+        lo = first[:10]
+    except ValueError:
+        return lambda d: True
+    return lambda d: lo <= d <= hi
+
+
 def read_session(path):
     """대화 기록 한 개 → 세션 행. 반환: (행, 해석하지 못한 줄 수)."""
-    from gate_transcript import AUTONOMOUS_APPROVAL, GATE_SKILL, WRITE_TOOLS, _TAGGED, _written_texts, gate_sequence
+    from gate_transcript import AUTONOMOUS_APPROVAL, GATE_SKILL, SHELL_WRITE, WRITE_TOOLS, _TAGGED, _written_texts, gate_sequence
 
     row = {"session": os.path.splitext(os.path.basename(path))[0], "project": "", "first": "", "last": "",
            "models": collections.Counter(), "user_prompts": 0, "cross_check_requests": 0,
@@ -348,6 +397,26 @@ def read_session(path):
     reload_by = collections.defaultdict(collections.Counter)   # 스킬별 다시 싣기 방식(2026-11-12)
     gate_events, approvals, code_edits = [], [], []  # 승인 전 편집(2026-11-10): (seq, Gate 글자) · 승인 입력 seq · (코드 편집 seq, 프로젝트 안?)
     cwd = ""
+    # 교훈 조회·재발(2026-11-18): 그때의 Gate 글자, Gate 별 조회 수, 조회로 보인 교훈 → [(순번, Gate)], 새 교훈 열쇠,
+    # 새로 쓴 재발 줄(날짜와 앞 30자) → (순번, 교훈 파일 경로들, 기준 폴더들)
+    lesson_gate, lookups, shown, new_lessons, recur_writes = "-", collections.Counter(), {}, set(), {}
+    lookup_calls = set()                            # lessons_lookup.py 를 부른 Bash·PowerShell 호출
+    # Gate D 뒤 세션 원장 기록(session_ledger.py append) 없이 새 회차(Gate A, 또는 계획을 바로 써 Gate B 부터 연 회차)로 넘어간 수 —
+    # 원장·오류 기록은 Gate E 에서 쓰인다. Gate 스킬 순서로 세지 않는다: Gate E 를 스킬 없이 이어 해 원장을 쓴 회차가 이 서버 5건 중
+    # 2건이었다. 새 회차를 Gate 스킬 없이 연 경우는 보이지 않는다(하한, 2026-11-18).
+    open_d, d_no_ledger, ledger_seen = False, 0, False     # 원장을 한 번도 쓰지 않은 대화(옛 설정의 프로젝트)는 세지 않는다
+
+    def enter_gate(letter):
+        nonlocal lesson_gate, open_d, d_no_ledger
+        d_no_ledger += letter in "ab" and open_d
+        open_d = letter == "d" or (open_d and letter not in "ab")
+        lesson_gate = letter
+
+    def seen_lookup(text, letter):
+        lookups[letter] += 1
+        for m in LOOKUP_ENTRY.finditer(text.split(LOOKUP_HEAD, 1)[-1]):
+            shown.setdefault(_lesson_key(*m.groups()), []).append((seq, letter))
+
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
@@ -400,10 +469,16 @@ def read_session(path):
                     target = inp.get("file_path") or inp.get("notebook_path") or ".md"
                     if name in CODE_EDIT_TOOLS and _is_code(target):
                         code_edits.append((seq, _in_project(target, cwd)))
+                    if name in ("Bash", "PowerShell") and LOOKUP_RUN.search(str(inp.get("command", ""))):
+                        lookup_calls.add(tid)
+                    if name in ("Bash", "PowerShell") and re.search(r"session_ledger\.py\S*\s+append", str(inp.get("command", ""))):
+                        open_d, ledger_seen = False, True
                     if name == "Skill":
                         skill = str(inp.get("skill", ""))
                         row["skills"][skill.split(":")[-1]] += 1
                         skill_calls[skill.split(":")[-1]] = (seq, bool(str(inp.get("args") or "").strip()))
+                        if re.fullmatch(r"gate-[a-e]", skill.split(":")[-1]):
+                            enter_gate(skill[-1])
                         if tid and GATE_SKILL.search(skill):
                             gate_calls.add(tid)
                     elif name in ("Bash", "PowerShell") and FRESH_RUN.search(str(inp.get("command", ""))):
@@ -417,17 +492,38 @@ def read_session(path):
                                 if current_round is not None and current_round[1] is None:
                                     # 스크립트 안에 쓴 줄은 닫는 따옴표와 괄호까지 잡힌다 — 「실패 — 오류(x)」의 괄호는 남긴다
                                     current_round[1] = SCRIPT_TAIL.sub("", m.group(1).strip())
+                    shell = name in ("Bash", "PowerShell")
+                    where = str(inp.get("command", "")) if shell else str(inp.get("file_path") or "")
+                    topic_paths = TOPICS_PATH.findall(where) if name in WRITE_TOOLS or shell else []
+                    if topic_paths:     # 교훈 파일에 쓴 글 — 이미 있던 줄(Edit 의 old_string)은 새로 쓴 것이 아니다
+                        # 읽기만 한 명령(grep 등)은 쓰기가 아니다 — 셸 쓰기 표지가 있을 때만 명령 글을 읽는다
+                        texts = (([where] if SHELL_WRITE.search(where) or PS_WRITE.search(where) else []) if shell
+                                 else _written_texts(name, inp)[1])
+                        old = "\n".join(str(e.get("old_string") or "") for e in [inp, *(inp.get("edits") if isinstance(inp.get("edits"), list) else [])]
+                                        if isinstance(e, dict))
+                        bases = [cwd] + [os.path.join(cwd, d) for d in CD_DIR.findall(where)]
+                        for written in texts:
+                            for m in (RECUR_LINE_SCRIPT if shell else RECUR_LINE).finditer(written):
+                                if m.group(1).strip() not in old:
+                                    recur_writes.setdefault(m.group(1).strip(), (seq, topic_paths, bases))
+                            for m in (LESSON_HEADING_SCRIPT if shell else LESSON_HEADING).finditer(written):
+                                # 새 항목은 적용 조건 칸과 함께 쓴다 — 스크립트가 자리를 찾으려 인용한 옛 제목은 아니다
+                                if "**적용 조건**" in written[m.end():] and (m.group(2).strip()[:20] or "?") not in old:
+                                    new_lessons.add(_lesson_key(m.group(1), m.group(2)))
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
                 for text in _texts(content):
                     for typed_name in COMMAND_NAME.findall(text[:400]):
                         typed_at[typed_name] = seq
+                        if re.fullmatch(r"gate-[a-e]", typed_name):
+                            enter_gate(typed_name[-1])
                     # 「already loaded」 줄은 본문과 달리 내용이 문자열로 남는다(실제 기록 7건 모두)
                     note = LOADED_NOTE.match(text)
                     if note and note.group(1) in HARNESS_SKILLS and not side:
                         reload["notes"] += 1
                         if re.fullmatch(r"gate-[a-e]", note.group(1)):
                             gate_events.append((seq, note.group(1)[-1]))
+                            enter_gate(note.group(1)[-1])
                         if note.group(1) == "gate-a":
                             gate_a_starts.append(len(calls))
                 if event.get("isCompactSummary") and not side:
@@ -451,6 +547,9 @@ def read_session(path):
                             reload_by[name][mode] += 1
                             if re.fullmatch(r"gate-[a-e]", name):
                                 gate_events.append((seq, name[-1]))
+                                enter_gate(name[-1])
+                            if name == "gate-a" and LOOKUP_HEAD in text:     # 조회는 gate-a 스킬이 렌더링될 때 돈다
+                                seen_lookup(text, "a")
                             if name in present:             # 앞 사본이 아직 문맥에 있다(그사이 압축 없음)
                                 dups.add(seq)
                                 reload_by[name]["dup"] += 1
@@ -479,6 +578,8 @@ def read_session(path):
                         plain = text if isinstance(raw, str) else "\n".join(
                             as_text(p.get("text")) for p in parts if isinstance(p, dict) and p.get("type") == "text")
                         tid = block.get("tool_use_id")
+                        if tid in lookup_calls and (LOOKUP_HEAD in plain or LOOKUP_ENTRY.search(plain)):
+                            seen_lookup(plain, lesson_gate)     # 교훈 줄까지 걸러 낸 「일치 없음」 조회는 보이지 않는다(하한)
                         if not side:
                             items.append((len(calls), seq, "tool:" + str(names.get(tid, "?")), len(plain)))
                             images.extend((len(calls), seq) for p in parts if isinstance(p, dict) and p.get("type") == "image")
@@ -621,6 +722,21 @@ def read_session(path):
             row["fresh_review"]["unknown_heads"] = fresh_heads[:5]
     row["cc_versions"] = sorted(versions, key=lambda v: (_version_key(v) or (), v))
     row["edits"] = _edit_timing(gate_events, approvals, code_edits)
+    in_window = _date_window(row["first"], row["last"])
+    recur_shown, unresolved, recur = collections.Counter(), 0, 0
+    for snippet, (at, paths, bases) in recur_writes.items():
+        if not in_window(snippet[1:11]):
+            continue
+        recur += 1
+        key = _lesson_of(snippet, paths, bases)
+        before = [g for s, g in shown.get(key, []) if s < at] if key else []
+        unresolved += key is None
+        if before:
+            recur_shown[before[-1]] += 1
+    # 수만 — 교훈 제목·세션 ID 는 남기지 않는다. 비어도 둔다(칸이 있으면 이 판 이후의 행이다)
+    row["d_without_ledger"] = d_no_ledger if ledger_seen else None
+    row["lessons"] = {"lookups": dict(lookups), "shown": len(shown), "new": sum(1 for k in new_lessons if in_window(k[0])),
+                      "recur": recur, "recur_shown": dict(recur_shown), "recur_unresolved": unresolved}
     out_guards = {}
     for name, counter in guards.items():
         entry = {k: v for k, v in counter.items() if v}
@@ -934,6 +1050,8 @@ METRICS = [
     ("대시보드는 다시 그려지면 맨 위부터", None, None, "사용자 확인 — 갱신한 PC 의 대시보드 첫 화면, Gate E 뒤 next_action 길이"),
     ("회차 끝의 정리·audit 판정·커밋을", _skill("commit-up"), 10,
      "`/commit-up` 실행 수 — doc-cleanup 호출 수 대 본문 적재 수는 「문맥 비용」 표의 스킬 적재 칸, 다시 시킨 회차는 사용자 확인"),
+    ("Gate D 교훈 조회를 넣기 전에", lambda rows: sum(r["gates"].split().count("d") for r in rows if "lessons" in r), 20,
+     "교훈 칸이 있는 행의 Gate D 수 — 재발·조회로 본 뒤·못 찾음은 「교훈 조회·재발」 표, 원장 없이 넘어간 회차는 「Gate 순서」 표"),
 ]
 
 
@@ -1194,10 +1312,15 @@ def render(data, progress, projects_dir, since):
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['gates'].split().count('a')} | {e['code']} | "
                          f"{e['pre_approval']} ({e['pre_approval_cycles']}) | {e['outside_cycle']} | "
                          f"{e.get('pre_approval_outside', '—')} |")
-    lines += ["", "## Gate 순서 (세션별)", "", "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E |", "|---|---|---|---|---|"]
+    lines += ["", "## Gate 순서 (세션별)", "",
+              "- D 뒤 원장 없이 새 회차 = Gate D 다음 세션 원장 기록(`session_ledger.py append`) 없이 새 Gate A·B 로 넘어간 회차 — 원장과 "
+              "오류 기록은 Gate E 에서 쓰여 함께 빠진다. 진행 중인 마지막 회차와 Gate 스킬 없이 연 회차는 보이지 않는다(하한). — 는 이 칸을 "
+              "모르는 옛 엔진의 행이거나 원장을 한 번도 쓰지 않은 대화.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E | D 뒤 원장 없이 새 회차 |", "|---|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"]:
-            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates']} | {r['c_to_e']} |")
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates']} | {r['c_to_e']} | "
+                         f"{'—' if r.get('d_without_ledger') is None else r['d_without_ledger']} |")
     lines += ["", "## Gate B 질문 결과 (회차별 사람의 응답)", "",
               "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
               "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",
@@ -1239,6 +1362,30 @@ def render(data, progress, projects_dir, since):
                          f"{tokens} | {secs} | {rec} |")
             heads += [f"- `{r['session'][:8]}` 알 수 없음 첫 줄: {h}" for h in f.get("unknown_heads") or []]
         lines += ([""] + heads) if heads else []
+    traced = [r for r in sessions if any((r.get("lessons") or {}).get(k) for k in ("lookups", "shown", "new", "recur"))]
+    if traced:
+        lines += ["", "## 교훈 조회·재발 (error_topics)", "",
+                  "- 조회 = `lessons_lookup.py` 출력이 대화에 나온 수(Gate 글자별 — gate-a 본문의 자동 조회 포함). 보인 교훈 = 조회로 나온 서로 다른 교훈 수.",
+                  "- 새 교훈 = 적용 조건 칸과 함께 쓴 새 제목. 재발 = 대화 기간 날짜로 새로 쓴 `- **재발**:` 줄. 그중 조회로 본 뒤 = 그 교훈이 "
+                  "같은 대화에서 그 쓰기보다 앞서 조회로 나왔다(마지막으로 나온 Gate). 못 찾음 = 그 PC 의 교훈 파일에서 줄을 찾지 못함 — "
+                  "재발의 절반을 넘으면 판단에 쓰지 않는다.", "",
+                  "| 프로젝트 | 세션 | 마지막 활동 | 조회(Gate별) | 보인 교훈 | 새 교훈 | 재발 | 그중 조회로 본 뒤 | 못 찾음 |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        total = collections.Counter()
+
+        def per_gate(counts):
+            return " · ".join(f"{g} {n}" for g, n in sorted(counts.items())) or "—"
+
+        for r in sorted(traced, key=lambda r: r["last"], reverse=True):
+            l = r["lessons"]
+            total.update({"shown": l["shown"], "new": l["new"], "recur": l["recur"], "unresolved": l["recur_unresolved"],
+                          **{"look_" + g: n for g, n in l["lookups"].items()}, **{"seen_" + g: n for g, n in l["recur_shown"].items()}})
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {per_gate(l['lookups'])} | {l['shown']} | "
+                         f"{l['new']} | {l['recur']} | {per_gate(l['recur_shown'])} | {l['recur_unresolved']} |")
+        sums = {pre: {k[5:]: n for k, n in total.items() if k.startswith(pre)} for pre in ("look_", "seen_")}
+        lines.append(f"| 합계 | | | {per_gate(sums['look_'])} | {total['shown']} | {total['new']} | {total['recur']} | "
+                     f"{per_gate(sums['seen_'])} | "
+                     f"{total['unresolved']} |")
     if progress is not None:
         lines += ["", "## DECISION_LOG 대기 예측의 진행", ""]
         if any("engine_at_start" in r for r in sessions):

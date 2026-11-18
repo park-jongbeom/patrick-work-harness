@@ -1016,3 +1016,129 @@ class TestRepeatedSends(ReportCase):
         rows = {r["session"]: r for r in hr.load_sessions(list(reversed(paths)))["sessions"]}
         self.assertEqual(sorted(rows), ["only0", "only1", "s1"])
         self.assertEqual(rows["s1"]["user_prompts"], 5)
+
+
+class TestLessonTraces(ReportCase):
+    """교훈 조회·재발(2026-11-18) — Gate D 에서도 교훈을 꺼낼지 정할 기준선. 재발이 어느 교훈인지는 그 PC 의 교훈 파일로 찾고,
+    행에는 수만 남긴다."""
+
+    TOPICS = "docs/rules/error_topics/runtime_env.md"
+    FILE = ("# 실행 환경\n\n## [2026-10-20] S-1 — pkill -f 가 내 셸까지 죽였다\n- **적용 조건**: 서버를 끄고 다시 켤 때\n"
+            "- **근거**: S-1 Gate C exit 144\n- **재발**: [2026-10-23] S-9 Gate D — pkill 다시 exit 144\n\n"
+            "## [2026-10-21] S-2 — 화면 시험 도우미가 두 번 누른다\n- **적용 조건**: b\n"
+            "- **재발**: [2026-10-23] S-9 Gate D — 두 번째 교훈의 재발\n")
+
+    def setUp(self):
+        super().setUp()
+        self.proj = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.proj, True)
+        os.makedirs(os.path.join(self.proj, "docs", "rules", "error_topics"))
+        with open(os.path.join(self.proj, self.TOPICS), "w", encoding="utf-8") as f:
+            f.write(self.FILE)
+
+    def start(self):
+        return user("시작", cwd=self.proj)
+
+    @staticmethod
+    def lookup_text(*entries):
+        lines = ["### 과거 교훈 조회 결과 (lessons_lookup.py 가 생성 — 사실 기록)", "- 조회 범위: 저장소 1곳 · 항목 2건"]
+        for date, title in entries:
+            lines += [f"- [{date}] {title}  (runtime_env.md, 일치 점수 10.0, 재발 기록 1회)", "  - 적용 조건: x"]
+        return "\n".join(lines)
+
+    def gate_a_body(self, *entries):
+        """gate-a 스킬 본문 — 조회는 스킬이 렌더링될 때 돌아 본문 안에 들어 있다."""
+        text = "Base directory for this skill: /x/skills/gate-a\n\n# Gate A Procedure\n" + self.lookup_text(*entries)
+        return [gate("a"), {"type": "user", "timestamp": "2026-10-23T10:00:00Z", "cwd": self.proj,
+                            "message": {"content": [{"type": "text", "text": text}]}}]
+
+    def query(self, tid, *entries):
+        return [assistant(tools=[(tid, "Bash", {"command": 'python3 /x/skills/gate-a/lessons_lookup.py . --query "서버 끄기"'})]),
+                tool_result(tid, self.lookup_text(*entries))]
+
+    def shell(self, tid, command):
+        return assistant(tools=[(tid, "Bash", {"command": command})])
+
+    S1 = ("2026-10-20", "S-1 — pkill -f 가 내 셸까지 죽였다")
+    S2 = ("2026-10-21", "S-2 — 화면 시험 도우미가 두 번 누른다")
+
+    def test_lookups_are_counted_per_gate(self):
+        """손으로 부른 조회는 대개 머리를 떼고 본다 — 이 서버 77회 중 54회가 `| grep "^- \\["` 꼴이었다(2026-11-18)."""
+        piped = [assistant(tools=[("q2", "Bash", {"command": 'L=$(python3 .claude/skills/gate-a/lessons_lookup.py "$PWD" '
+                                                            '--query "화면 시험" 2>&1 | grep -E "^- \\[" | head -2); echo "$L"'})]),
+                 tool_result("q2", self.lookup_text(self.S2).split("\n", 2)[2])]
+        other = [assistant(tools=[("o1", "Bash", {"command": "sed -n 1,5p CURRENT_SESSION.md"})]),
+                 tool_result("o1", "- [2026-10-22] S-3 — 조회가 아닌 글  (인용)")]
+        self.session([self.start(), *self.gate_a_body(self.S1), gate("d"), *self.query("q1", self.S1, self.S2),
+                      *piped, *other])
+        lessons = self.rows()["s1"]["lessons"]
+        self.assertEqual(lessons["lookups"], {"a": 1, "d": 2})
+        self.assertEqual(lessons["shown"], 2)                       # S-1 은 두 번, S-2 도 두 번 — 조회 아닌 명령의 줄은 아니다
+
+    def test_recurrence_is_linked_to_its_lesson_through_the_file(self):
+        """실제 재발 쓰기 6건은 모두 셸 스크립트가 자리 문자열 뒤에 끼운 것이었다(2026-11-18 서버 대화)."""
+        recur_s1 = (f"cd {self.proj} && python3 - <<'EOF'\np='{self.TOPICS}'; s=open(p).read()\n"
+                    "a='- **근거**: S-1 Gate C exit 144'\n"
+                    "s=s.replace(a, a + \"\\n- **재발**: [2026-10-23] S-9 Gate D — pkill 다시 exit 144\")\nopen(p,'w').write(s)\nEOF")
+        recur_s2 = assistant(tools=[("w2", "Edit", {"file_path": os.path.join(self.proj, self.TOPICS), "old_string": "- **적용 조건**: b",
+                                                     "new_string": "- **적용 조건**: b\n- **재발**: [2026-10-23] S-9 Gate D — 두 번째 교훈의 재발"})])
+        missing = ("python3 - <<'EOF'\nopen('docs/rules/error_topics/gone.md','a').write(\"\\n- **재발**: [2026-10-23] S-9 — 없는 파일\")\nEOF")
+        self.session([self.start(), *self.gate_a_body(self.S1), gate("d"),
+                      self.shell("w1", recur_s1), recur_s2, self.shell("w3", missing)])
+        lessons = self.rows()["s1"]["lessons"]
+        self.assertEqual(lessons["recur"], 3)
+        self.assertEqual(lessons["recur_shown"], {"a": 1})          # S-1 만 앞서 Gate A 조회로 보였다
+        self.assertEqual(lessons["recur_unresolved"], 1)
+
+    def test_existing_lines_are_not_new_recurrences(self):
+        line = "- **재발**: [2026-10-23] S-9 Gate D — pkill 다시 exit 144"
+        rewrite = assistant(tools=[("w1", "Edit", {"file_path": os.path.join(self.proj, self.TOPICS),
+                                                    "old_string": line, "new_string": line + " (보충)"})])
+        old_date = assistant(tools=[("w2", "Write", {"file_path": os.path.join(self.proj, "docs/rules/error_topics/old.md"),
+                                                      "content": "## [2026-09-01] S-0 — 옛 교훈\n- **재발**: [2026-09-02] S-0b — 옛 재발\n"})])
+        twice = (f"python3 - <<'EOF'\nopen('{self.TOPICS}','a').write(\"\\n- **재발**: [2026-10-23] S-9 Gate D — 두 번째 교훈의 재발\")\nEOF")
+        grep = self.shell("g1", f'grep -n "- **재발**: [2026-10-23] S-7 — 읽기만" {self.TOPICS}')
+        self.session([self.start(), rewrite, old_date, self.shell("w3", twice), self.shell("w4", twice), grep])
+        lessons = self.rows()["s1"]["lessons"]
+        self.assertEqual(lessons["recur"], 1)
+        self.assertEqual(lessons["recur_unresolved"], 0)
+
+    def test_new_lessons_need_a_condition_field(self):
+        """스크립트가 자리를 찾으려 인용한 옛 제목은 새 교훈이 아니다(실제 대화의 꼴)."""
+        new = assistant(tools=[("w1", "Edit", {"file_path": os.path.join(self.proj, self.TOPICS), "old_string": "# 실행 환경\n",
+                                                "new_string": "# 실행 환경\n\n## [2026-10-23] S-9 — 새 교훈\n- **적용 조건**: c\n"})])
+        anchor = ("python3 - <<'EOF'\np='docs/rules/error_topics/runtime_env.md'; s=open(p).read()\n"
+                  "i=s.index(\"## [2026-10-23] S-8 — 자리만 찾은 옛 제목\")\nopen(p,'w').write(s)\nEOF")
+        self.session([self.start(), new, self.shell("w2", anchor)])
+        self.assertEqual(self.rows()["s1"]["lessons"]["new"], 1)
+
+    LEDGER = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session_ledger.py" append --base abc --model m'
+
+    def test_cycles_left_without_a_ledger_row(self):
+        """원장은 Gate E 에서 쓰인다 — Gate E 를 스킬 없이 이어 해 원장을 쓴 회차는 빠진 것이 아니다(이 서버 5건 중 2건, 2026-11-18)."""
+        ledger = lambda tid: self.shell(tid, self.LEDGER)
+        self.session([self.start(), gate("a"), gate("d"), gate("a"),       # 원장 없이 새 Gate A — 1
+                      gate("d"), ledger("l1"), gate("a"),                  # 스킬 없이 Gate E 를 하고 원장을 씀 — 0
+                      gate("d"), gate("b"),                                # 계획을 바로 써 Gate B 부터 연 새 회차 — 1
+                      gate("d"), gate("e"), ledger("l2"), gate("a"),       # 0
+                      gate("d")])                                          # 진행 중인 마지막 회차 — 세지 않는다
+        self.session([self.start(), gate("a"), gate("d"), gate("a"), gate("d")], sid="s2")   # 원장을 쓰지 않는 옛 설정
+        rows = self.rows()
+        self.assertEqual((rows["s1"]["d_without_ledger"], rows["s2"]["d_without_ledger"]), (2, None))
+        self.assertEqual(rows["s2"]["lessons"], {"lookups": {}, "shown": 0, "new": 0, "recur": 0, "recur_shown": {},
+                                                 "recur_unresolved": 0})
+        md = hr.render(hr.collect(self.root), None, self.root, None)
+        self.assertRegex(md, r"\| a d a d a d b d e a d \| 0 \| 2 \|")
+        self.assertRegex(md, r"\| a d a d \| 0 \| — \|")
+        self.assertNotIn("## 교훈 조회·재발", md)                     # 교훈 흔적이 없는 행은 표에 넣지 않는다
+
+    def test_field_holds_counts_only(self):
+        self.session([self.start(), *self.gate_a_body(self.S1)])
+        lessons = self.rows()["s1"]["lessons"]
+        flat = [v for v in lessons.values() if not isinstance(v, dict)] + [v for d in lessons.values() if isinstance(d, dict)
+                                                                           for v in d.values()]
+        self.assertTrue(all(isinstance(v, int) for v in flat))
+        self.assertTrue(all(len(k) == 1 for d in (lessons["lookups"], lessons["recur_shown"]) for k in d))
+        md = hr.render(hr.collect(self.root), None, self.root, None)
+        self.assertIn("## 교훈 조회·재발", md)
+        self.assertNotIn("pkill", md)                               # 교훈 제목은 보고서에도 나오지 않는다
