@@ -1128,8 +1128,8 @@ class TestLessonTraces(ReportCase):
         self.assertEqual(rows["s2"]["lessons"], {"lookups": {}, "shown": 0, "new": 0, "recur": 0, "recur_shown": {},
                                                  "recur_unresolved": 0})
         md = hr.render(hr.collect(self.root), None, self.root, None)
-        self.assertRegex(md, r"\| a d a d a d b d e a d \| 0 \| 2 \|")
-        self.assertRegex(md, r"\| a d a d \| 0 \| — \|")
+        self.assertRegex(md, r"\| a d a d a d b d e a d \| 없음 \| 0 \| 2 \|")      # 상태 줄을 쓰지 않은 대화 — 문서 Gate 없음
+        self.assertRegex(md, r"\| a d a d \| 없음 \| 0 \| — \|")
         self.assertNotIn("## 교훈 조회·재발", md)                     # 교훈 흔적이 없는 행은 표에 넣지 않는다
 
     def test_field_holds_counts_only(self):
@@ -1142,3 +1142,61 @@ class TestLessonTraces(ReportCase):
         md = hr.render(hr.collect(self.root), None, self.root, None)
         self.assertIn("## 교훈 조회·재발", md)
         self.assertNotIn("pkill", md)                               # 교훈 제목은 보고서에도 나오지 않는다
+
+
+class TestWrittenGates(ReportCase):
+    """Gate 스킬을 부르지 않고 이어 한 회차도 세션 문서의 「현재 상태」 줄은 남는다 — 갱신 뒤 대화에서 입력 19회 중 스킬은
+    1회였고, 실제 Gate D 7회를 스킬 순서는 2회로 셌다(2026-11-19)."""
+
+    DOC = "/w/proj-a/CURRENT_SESSION.md"
+
+    def edit(self, tid, state):
+        return assistant(tools=[(tid, "Edit", {"file_path": self.DOC, "old_string": "x", "new_string": f"> **현재 상태**: {state}"})])
+
+    def shell(self, tid, command):
+        return assistant(tools=[(tid, "Bash", {"command": command})])
+
+    def replace(self, tid, old, new):
+        """실제 기록의 꼴 — 옛 값과 새 값이 한 명령에 함께 든다."""
+        return self.shell(tid, f"python3 - <<'E'\np='CURRENT_SESSION.md'; s=open(p,encoding='utf-8').read()\n"
+                               f"s=s.replace('> **현재 상태**: {old}','> **현재 상태**: {new}',1)\nopen(p,'w').write(s)\nE")
+
+    def test_status_writes_make_a_gate_order(self):
+        self.session([user("시작"), self.edit("w1", "A (승인 대기)"), self.replace("w2", "A (승인 대기)", "C (확인 대기)"),
+                      self.replace("w3", "C (확인 대기)", "C (확인 대기)"),          # 같은 값은 한 번
+                      assistant(tools=[("w4", "Write", {"file_path": self.DOC, "content": "> **현재 상태**: **D (확인 대기)**\n"})]),
+                      self.edit("w5", "✅E 완료 (2026-11-19)")])
+        row = self.rows()["s1"]
+        self.assertEqual((row["gates"], row["gates_written"]), ("", "a c d e"))
+
+    def test_other_files_and_reads_are_not_states(self):
+        self.session([user("시작"),
+                      assistant(tools=[("w1", "Write", {"file_path": "/w/proj-a/docs/archive/ARCHIVE_x.md",
+                                                         "content": "> **현재 상태**: D (확인 대기)\n"})]),
+                      self.shell("g1", 'grep -n "**현재 상태**: D" CURRENT_SESSION.md'),          # 읽기만 한 명령
+                      self.shell("c1", "cp CURRENT_SESSION.md docs/archive/ARCHIVE_y.md")])
+        self.assertEqual(self.rows()["s1"]["gates_written"], "")
+
+    def test_ledger_gap_and_lookup_gate_follow_the_document(self):
+        ledger = self.shell("l1", 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session_ledger.py" append --base abc --model m')
+        lookup = [self.shell("q1", 'python3 .claude/skills/gate-a/lessons_lookup.py "$PWD" --query "x" | grep "^- \\["'),
+                  tool_result("q1", "- [2026-10-20] S-1 — 교훈  (testing.md, 일치 점수 9.0, 재발 기록 0회)")]
+        self.session([user("시작"), self.edit("w1", "A (승인 대기)"), self.edit("w2", "D (확인 대기)"), *lookup,
+                      self.edit("w3", "A (승인 대기)"),                              # 원장 없이 새 회차 — 1
+                      self.edit("w4", "D (확인 대기)"), ledger, self.edit("w5", "✅E 완료"), self.edit("w6", "A (승인 대기)")])
+        row = self.rows()["s1"]
+        self.assertEqual(row["d_without_ledger"], 1)
+        self.assertEqual(row["lessons"]["lookups"], {"d": 1})
+
+    def test_progress_uses_the_larger_order_and_table_shows_both(self):
+        count = next(m for m in hr.METRICS if m[0].startswith("Gate D 교훈 조회를"))[1]
+        rows = [{"gates": "a d", "gates_written": "a d a d a d", "lessons": {}},
+                {"gates": "a d a d", "gates_written": "a d", "lessons": {}},
+                {"gates": "d d d"}]                                               # 교훈 칸이 없는 옛 행은 세지 않는다
+        self.assertEqual(count(rows), 5)
+        self.session([user("시작"), gate("a"), self.edit("w1", "A (승인 대기)"), self.edit("w2", "D (확인 대기)")])
+        data = hr.collect(self.root)
+        self.assertRegex(hr.render(data, None, self.root, None), r"\| a \| a d \| 0 \| — \|")
+        del data["sessions"][0]["gates_written"]                                  # 옛 엔진이 보낸 행
+        self.assertRegex(hr.render(data, None, self.root, None), r"\| a \| — \| 0 \|")
+

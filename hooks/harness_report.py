@@ -110,6 +110,9 @@ RECUR_LINE_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*재발\*\*[
 TOPICS_PATH = re.compile(r"""[^\s"'`=(),;<>|]*error_topics[\\/][^\s"'`(),;<>|\\/]+\.md""")
 CD_DIR = re.compile(r"""^\s*cd\s+["']?([^\s"';&]+)""")
 PS_WRITE = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b", re.I)     # PowerShell 의 파일 쓰기(셸 쓰기 표지와 함께 본다)
+#: 세션 문서의 「현재 상태」 값(2026-11-19) — Gate 스킬을 부르지 않고 이어 한 회차도 문서에는 상태가 남는다. 바꾸기 명령에는 옛 값과
+#: 새 값이 함께 들어 글의 마지막 값을 새 값으로 읽는다.
+STATUS_LINE = re.compile(r"\*\*현재 상태\*\*[ \t]*[:：][ \t]*(?:\*\*)?[ \t]*(✅[ \t]*E|[A-E](?![A-Za-z]))")
 #: Gate B 질문이 답을 기다린다는 표지 — gate-b 의 「다음 단계」 문구, 그리고 질문을 세션 문서에 적을 때의 평가 자리표시.
 #: v1.7.0 전 회차에는 둘 다 없어 응답의 「질문 N」도 본다(실제 기록 12회에서 질문 회차와 정확히 일치했다).
 GATE_B_WAITING = re.compile(r"위 질문에 답해 주세요|질문\s*[1-9]|「진행」이라고 답하면")
@@ -405,6 +408,7 @@ def read_session(path):
     # 원장·오류 기록은 Gate E 에서 쓰인다. Gate 스킬 순서로 세지 않는다: Gate E 를 스킬 없이 이어 해 원장을 쓴 회차가 이 서버 5건 중
     # 2건이었다. 새 회차를 Gate 스킬 없이 연 경우는 보이지 않는다(하한, 2026-11-18).
     open_d, d_no_ledger, ledger_seen = False, 0, False     # 원장을 한 번도 쓰지 않은 대화(옛 설정의 프로젝트)는 세지 않는다
+    written_gates = []                              # 세션 문서에 써 넣은 「현재 상태」의 순서 — 같은 값이 이어지면 한 번
 
     def enter_gate(letter):
         nonlocal lesson_gate, open_d, d_no_ledger
@@ -510,6 +514,14 @@ def read_session(path):
                                 # 새 항목은 적용 조건 칸과 함께 쓴다 — 스크립트가 자리를 찾으려 인용한 옛 제목은 아니다
                                 if "**적용 조건**" in written[m.end():] and (m.group(2).strip()[:20] or "?") not in old:
                                     new_lessons.add(_lesson_key(m.group(1), m.group(2)))
+                    if name in WRITE_TOOLS or name == "Bash":      # Bash 는 쓰기 표지가 있을 때만 글이 나온다
+                        target, texts = _written_texts(name, inp)
+                        states = [v for t in texts for v in STATUS_LINE.findall(t)] if "CURRENT_SESSION" in target else []
+                        if states:
+                            letter = "e" if states[-1].startswith("✅") else states[-1].lower()
+                            if not written_gates or written_gates[-1] != letter:
+                                written_gates.append(letter)
+                                enter_gate(letter)
             elif kind == "user":
                 content = (event.get("message") or {}).get("content")
                 for text in _texts(content):
@@ -735,6 +747,7 @@ def read_session(path):
             recur_shown[before[-1]] += 1
     # 수만 — 교훈 제목·세션 ID 는 남기지 않는다. 비어도 둔다(칸이 있으면 이 판 이후의 행이다)
     row["d_without_ledger"] = d_no_ledger if ledger_seen else None
+    row["gates_written"] = " ".join(written_gates)
     row["lessons"] = {"lookups": dict(lookups), "shown": len(shown), "new": sum(1 for k in new_lessons if in_window(k[0])),
                       "recur": recur, "recur_shown": dict(recur_shown), "recur_unresolved": unresolved}
     out_guards = {}
@@ -1050,8 +1063,13 @@ METRICS = [
     ("대시보드는 다시 그려지면 맨 위부터", None, None, "사용자 확인 — 갱신한 PC 의 대시보드 첫 화면, Gate E 뒤 next_action 길이"),
     ("회차 끝의 정리·audit 판정·커밋을", _skill("commit-up"), 10,
      "`/commit-up` 실행 수 — doc-cleanup 호출 수 대 본문 적재 수는 「문맥 비용」 표의 스킬 적재 칸, 다시 시킨 회차는 사용자 확인"),
-    ("Gate D 교훈 조회를 넣기 전에", lambda rows: sum(r["gates"].split().count("d") for r in rows if "lessons" in r), 20,
-     "교훈 칸이 있는 행의 Gate D 수 — 재발·조회로 본 뒤·못 찾음은 「교훈 조회·재발」 표, 원장 없이 넘어간 회차는 「Gate 순서」 표"),
+    ("Gate D 교훈 조회를 넣기 전에", lambda rows: sum(max(r["gates"].split().count("d"), (r.get("gates_written") or "").split().count("d"))
+                                              for r in rows if "lessons" in r), 20,
+     "교훈 칸이 있는 행의 Gate D 수(스킬 순서와 문서 Gate 중 큰 쪽) — 재발·조회로 본 뒤·못 찾음은 「교훈 조회·재발」 표, "
+     "원장 없이 넘어간 회차는 「Gate 순서」 표"),
+    ("Gate 회차를 세션 문서의 상태 줄로도", lambda rows: sum(max(r["gates"].split().count("d"), (r.get("gates_written") or "").split().count("d"))
+                                                for r in rows if "gates_written" in r), 20,
+     "문서 Gate 칸이 있는 행의 Gate D 수 — 문서 Gate 가 빈 하네스 세션·스킬 순서와의 D 수 차이는 「Gate 순서」 표의 두 칸"),
 ]
 
 
@@ -1315,12 +1333,15 @@ def render(data, progress, projects_dir, since):
     lines += ["", "## Gate 순서 (세션별)", "",
               "- D 뒤 원장 없이 새 회차 = Gate D 다음 세션 원장 기록(`session_ledger.py append`) 없이 새 Gate A·B 로 넘어간 회차 — 원장과 "
               "오류 기록은 Gate E 에서 쓰여 함께 빠진다. 진행 중인 마지막 회차와 Gate 스킬 없이 연 회차는 보이지 않는다(하한). — 는 이 칸을 "
-              "모르는 옛 엔진의 행이거나 원장을 한 번도 쓰지 않은 대화.", "",
-              "| 프로젝트 | 세션 | 마지막 활동 | Gate | C 직후 E | D 뒤 원장 없이 새 회차 |", "|---|---|---|---|---|---|"]
+              "모르는 옛 엔진의 행이거나 원장을 한 번도 쓰지 않은 대화.",
+              "- Gate = Gate 스킬 호출 순서. 문서 Gate = 대화가 세션 문서에 써 넣은 「현재 상태」 값의 순서(같은 값이 이어지면 한 번) — "
+              "스킬을 부르지 않고 이어 한 회차도 보인다. 둘이 크게 다르면 스킬 없이 진행한 회차다. — 는 이 칸을 모르는 옛 엔진의 행.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | Gate | 문서 Gate | C 직후 E | D 뒤 원장 없이 새 회차 |", "|---|---|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
-        if r["gates"]:
-            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates']} | {r['c_to_e']} | "
-                         f"{'—' if r.get('d_without_ledger') is None else r['d_without_ledger']} |")
+        if r["gates"] or r.get("gates_written"):
+            written = (r["gates_written"] or "없음") if "gates_written" in r else "—"
+            lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates'] or '없음'} | {written} | "
+                         f"{r['c_to_e']} | {'—' if r.get('d_without_ledger') is None else r['d_without_ledger']} |")
     lines += ["", "## Gate B 질문 결과 (회차별 사람의 응답)", "",
               "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
               "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",
