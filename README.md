@@ -92,10 +92,11 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 
 ### Hooks
 
-Hooks run automatically around each Claude Code response and tool call (Stop, PreToolUse, PostToolUse, UserPromptExpansion).
+Hooks run automatically at session start and around each Claude Code response and tool call (SessionStart, Stop, PreToolUse, PostToolUse, UserPromptExpansion).
 
 | File | Type | Role |
 |------|------|------|
+| `vault-context.py` | SessionStart | Projects that turn on `vault_ref` in `.claude/harness-answers.yml` get an Obsidian vault excerpt at session start and after compaction — vault path and last commit time, chosen sections, the latest daily section or tagged lines, notes linking the hub — under 8,000 characters, never reading `90 Private`. Prints nothing when off (the default) |
 | `master-plan-stale-guard.py` | Stop | Detects mismatch between `00_MASTER_PLAN.md` L7 session ID and `CURRENT_SESSION.md` |
 | `gate-a-sync-guard.py` | Stop | Detects missing required fields (e.g. `작업 의도`) while Gate A approval is pending |
 | `gate-e-sync-guard.py` | Stop | Detects ✅E inconsistency between `SESSION_INDEX.md` and `CURRENT_SESSION.md` after Gate E, and sends the session back when this conversation wrote ✅E without a Gate D record |
@@ -412,10 +413,11 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 
 ### 훅 목록
 
-훅은 Claude Code 응답과 도구 호출 전후에 자동 실행됩니다(Stop·PreToolUse·PostToolUse·UserPromptExpansion).
+훅은 세션 시작과 Claude Code 응답·도구 호출 전후에 자동 실행됩니다(SessionStart·Stop·PreToolUse·PostToolUse·UserPromptExpansion).
 
 | 파일 | 종류 | 역할 |
 |------|------|------|
+| `vault-context.py` | SessionStart | `.claude/harness-answers.yml` 의 `vault_ref` 를 켠 프로젝트는 세션 시작·압축 때 옵시디언 볼트 발췌를 받는다 — 볼트 경로와 마지막 커밋 시각, 지정한 절, 최근 데일리의 소절이나 태그 줄, 허브를 링크하는 노트. 8,000글자 아래, `90 Private` 는 읽지 않음. 꺼져 있으면(기본) 아무것도 내지 않음 |
 | `master-plan-stale-guard.py` | Stop | `00_MASTER_PLAN.md` L7 세션 ID ↔ `CURRENT_SESSION.md` 불일치 감지 |
 | `gate-a-sync-guard.py` | Stop | Gate A 승인 대기 시 필수 필드(`작업 의도` 등) 누락 감지 |
 | `gate-e-sync-guard.py` | Stop | Gate E 후 `SESSION_INDEX.md` ↔ `CURRENT_SESSION.md` ✅E 불일치 감지, 이 대화가 Gate D 기록 없이 ✅E 를 쓰면 되돌려 보냄 |

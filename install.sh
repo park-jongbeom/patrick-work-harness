@@ -368,6 +368,13 @@ hooks = cfg.setdefault("hooks", {})
 
 # 등록할 훅 정의
 NEW_HOOKS = {
+    # 옵시디언 볼트 발췌 — harness-answers.yml 의 vault_ref 를 켠 프로젝트에서만 출력한다(꺼진 프로젝트는 0바이트, 2026-11-20).
+    # 시간 상한을 두는 첫 항목이다 — 볼트가 커도 세션 시작을 10초 넘게 잡지 않게.
+    "SessionStart": [
+        {
+            "hooks": [{"type": "command", "command": f"{hook_py} {hooks_dir}/vault-context.py", "timeout": 10}]
+        },
+    ],
     # claude-gate-guard 는 2026-09-23 에 기본 구성에서 뺐다(HARNESS-CROSSCHECK-FIX-1-a-4).
     # 자기 자신(.claude/·모든 .md)을 면제하고 PowerShell 호출을 판정 없이 통과시켜
     # 「걸리는 척」만 했다. 07-27 에 오탐 22·정탐 0 으로 가드를 뺀 선례와 같은 기준이다.
