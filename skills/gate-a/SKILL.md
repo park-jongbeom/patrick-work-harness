@@ -30,6 +30,8 @@ Before session start (before any code change):
    - Record the result as a `### 교훈 조회` section in the Gate A block: the query used, then one line per shown entry — `- [YYYY-MM-DD] 세션ID — 적용: <반영한 Step>` or `- [YYYY-MM-DD] 세션ID — 해당 없음: <이유>` — or `- 일치 없음 (질의: …)`.
    - A lesson is a hypothesis from one past run, not a rule. If it contradicts the current code or the user's request, say so and mark it 해당 없음 rather than following it. If the same lesson shows up again for a recurrence, propose turning it into a hook or test in this plan.
 
+0-D. **Vault reference** — only when this session's context has a `[볼트 발췌 — vault-context]` block: follow the `vault-ref` skill and write its `### 볼트 참조` section after `### 교훈 조회`. No block → omit it.
+
 1. Confirm `${SESSION_INDEX_FILE}` (root) exists
    - YES → load (YAML header only)
    - NO → create new (refer to template)

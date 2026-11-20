@@ -61,7 +61,7 @@ SPECIAL_NOTICES = {"tamper_session_commit": "이번 세션 커밋", "comprehensi
 #: 문맥 비용에서 「하네스 몫」으로 셀 스킬 — skills/ 의 폴더 이름과 같아야 한다(시험이 대조한다).
 #: 설치본에는 skills/ 가 옆에 없어서 목록을 박아 둔다.
 HARNESS_SKILLS = {"gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "audit", "doc-cleanup", "init", "harness-update",
-                  "harness-feedback", "commit-up"}
+                  "harness-feedback", "commit-up", "vault-ref"}
 SKILL_BODY = re.compile(r"^Base directory for this skill: (\S+)")
 #: 같은 스킬을 같은 내용으로 다시 부르면 본문 대신 붙는 한 줄(2.1.312·2.1.319 실제 기록) — 인자를 주거나 직접 입력하면 본문이 다시 실린다
 LOADED_NOTE = re.compile(r"^Skill /(?:[\w-]+:)?([\w-]+) is already loaded above")

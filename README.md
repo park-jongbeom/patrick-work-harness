@@ -86,6 +86,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
 | `/harness-update` | Full upgrade — compare version → show CHANGELOG → 7-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
 | `/harness-feedback` | Send this PC's harness usage summary to the engine server over SSH — set the address once; a Stop hook then sends when due |
+| `/vault-ref` | In projects that receive the vault excerpt, find and read this topic's vault notes, judge staleness by each block's 「YYYY-MM-DD 기준」 date, and record a `### 볼트 참조` section — Gate A calls it; the vault is only read |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks for a source copy |
 
 ---
@@ -407,6 +408,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
 | `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→7 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
 | `/harness-feedback` | 이 PC 의 하네스 사용 기록 요약을 SSH 로 엔진 서버에 보냄 — 주소를 한 번 넣으면 이후 응답 종료 훅이 조건이 찰 때 보냄 |
+| `/vault-ref` | 볼트 발췌를 받은 프로젝트에서 이 작업 주제의 볼트 노트를 찾아 읽고, 블록의 「YYYY-MM-DD 기준」 날짜로 낡음을 판정해 `### 볼트 참조` 로 남김 — Gate A 가 부른다, 볼트는 읽기만 |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·소스 사본의 hook 배선 |
 
 ---
