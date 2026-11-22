@@ -90,7 +90,7 @@ If `CHANGELOG.md` is absent or the section is empty, output "변경 내역 없�
 
 ## Step 3 — Checklist: what needs applying
 
-Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ (needs update):
+Inspect the current repo state across 8 axes (A–H). Mark each ✅ (ok) or ❌ (needs update):
 
 | # | Axis | Check | Needs update condition |
 |---|------|-------|------------------------|
@@ -101,6 +101,7 @@ Inspect the current repo state across 7 axes (A–G). Mark each ✅ (ok) or ❌ 
 | E | **Layer 2 docs status** | No `DOC_INDEX.md`, or every Layer 2 row in it shows `Skeleton` or better (not `Pending`) | `DOC_INDEX.md` exists and a Layer 2 row still shows `Pending` — no `DOC_INDEX.md` means the project chose `--docs=minimal/none`, which is ✅ |
 | F | **Lesson store** | `harness-answers.yml` sets `error_topics_path` or `code_repos`, and that folder has `README.md` (`/init` Step 4-b) | Neither field set, or the folder is absent — the Gate A lesson lookup and `error-topics-guard.py` then find nothing and stay silent |
 | G | **Autonomous-lane setting** | `harness-answers.yml` has an `autonomous_lane:` block | Block absent — every plan then takes the review lane, which is safe but leaves the setting invisible |
+| H | **Vault reference setting** | `harness-answers.yml` has a `vault_ref:` block, and neither `.claude/settings.json` nor `.claude/settings.local.json` has a `SessionStart` entry running a `vault-context.py` outside the harness hooks folder | Block absent, or such an entry exists — an earlier per-project copy of the excerpt hook; next to the harness hook it puts the excerpt in twice |
 
 Output the checklist table with ✅/❌ per row, then:
 - If all ✅: "모든 항목 최신 상태 — 갱신 불필요합니다."
@@ -222,6 +223,15 @@ Append the `/init` Step 3 `autonomous_lane:` block with `enabled: false`. Do not
 `enabled: true` and commit the file to opt in (`gate-a/SKILL.md §0-Lane`), and that the lane also needs `archive_path` for the card
 ledger. The lane guard itself arrives with the plugin update; a user who installed with `install.sh` must re-run it to wire the guard.
 
+### Axis H — Vault reference setting
+
+- Block absent and no earlier copy → append the `/init` Step 3 `vault_ref:` block with `enabled: false`, and say how to turn it on
+  (`/init` Step 2 `vault_ref` row).
+- An earlier per-project copy is wired → read that hook's constants (vault path, notes, section heads, daily sub-heading or tag) and
+  propose the equivalent `vault_ref:` block with `enabled: true`, plus removing that `SessionStart` entry. Put the copy's values and the
+  proposed block side by side in the Step 4 approval. Leave the copy's files in place — the user decides whether to delete them.
+- When the block ends up on, follow `/init` 6-c steps 1 and 3 (read access for the vault folder, check the header).
+
 ---
 
 ## Step 6 — Update `_engine_version`
@@ -240,6 +250,7 @@ All other fields remain unchanged.
 - [ ] C5: Already-up-to-date repo exits cleanly at Step 1 with "✅ 이미 최신 버전"
 - [ ] C6: `--check` mode produces no file writes (read-only confirmed by grep)
 - [ ] C7: `harness-answers.yml` sets `error_topics_path` or `code_repos`, and the lesson store `README.md` exists
+- [ ] C8: `harness-answers.yml` has a `vault_ref:` block, and no project settings file wires a `vault-context.py` outside the harness hooks folder
 
 ---
 

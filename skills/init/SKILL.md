@@ -93,6 +93,7 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `single_plan_file` | Single plan-doc filename (meaningful only when `plan_tier: "1"`) | `WORK_PLAN.md` |
 | `single_plan_threshold` | Slimming line-count threshold for `single_plan_file` (meaningful only when `plan_tier: "1"`) | ask user — suggest 500 lines as a starting point, re-tune after ~10 sessions of observed growth |
 | `autonomous_lane` | Allow the autonomous lane (`gate-a/SKILL.md §0-Lane`): small, test-verifiable plans run C→D→E without human stops and end in a review card. Needs a git repository and `archive_path` (the card ledger lives there). The lane guard comes from the plugin's `hooks.json` or `install.sh` — `/init` does not wire it. Limits and defaults → `SKILL_DETAIL.md §Lane Routing` | `false` |
+| `vault_ref` | Obsidian vault excerpt at session start (`hooks/vault-context.py`) and the `vault-ref` skill in Gate A. Ask whether this project's work is recorded in an Obsidian vault. Yes → the vault folder (several candidates when PCs differ; the `VAULT_REF_PATH` environment variable wins), a hub note, sections to quote (`"<note> :: <head>"`), the daily folder and a daily sub-heading or tag. Never point it at a note under `90 Private` | `false` |
 
 ### Step 3 — Write `.claude/harness-answers.yml` (D-2 provenance sidecar)
 
@@ -127,10 +128,22 @@ autonomous_lane:
   max_lines: 200
   hard_max_lines: 400
   protected_paths: []            # added to the default list; never replaces it
+# vault_ref: hooks/vault-context.py · skills/vault-ref (keep this comment off the key line)
+vault_ref:
+  enabled: <answers.vault_ref>      # false = no excerpt, nothing printed
+  vault_paths: []                   # vault folder candidates — the first that exists; VAULT_REF_PATH wins
+  # hub: "20 Notes/<hub>.md"        # vault-relative, with .md — lists the notes linking it
+  # sections:                       # "<note> :: <head>" — # heading, > quote block, else up to a blank line
+  #   - "20 Notes/<hub>.md :: ## <heading>"
+  # daily_dir: "10 Journal"         # <daily_dir>/<year>/YYYY-MM-DD.md
+  # daily_head: "### <sub-heading>" # or daily_tag: "#<tag>" — quote a value that starts with #
 ```
 
 > Write the `autonomous_lane:` block even when it is `false`, so the setting is visible. Turning it on takes effect only once this file
 > is **committed** — the lane reads it at the plan's base commit, so a session cannot switch its own lane on.
+
+> Write the `vault_ref:` block even when it is `false`, for the same reason. Unlike the lane it needs no commit: the hook reads the
+> working-tree file, so the next session start picks it up. When it is on, fill the commented keys from the answers (uncomment them).
 
 > `_engine_version` must match `plugin.json` → `version` at init time.
 > `archive_path` / `worklog_path` here are the SSOT — do NOT duplicate these values as prose in CLAUDE.md (SSOT-in-prose violation, [SSOT 서술에 값 금지] policy).
@@ -314,6 +327,16 @@ These live in the user's `~/.claude/settings.json`, outside the target repo, so 
   material), so do not keep them longer than the review needs — `/harness-feedback` already sends a summary within 30 days.
   Any value ≥ 1 works (0 is rejected).
 - `permissions.ask` — pushing and opening a PR always ask first, even inside an authorized C~E·D~E batch run. `ask` rules win over `allow` rules. Merge into an existing `permissions.ask` array; do not replace it.
+
+#### 6-c. Vault reference (only when `vault_ref.enabled` is true)
+
+1. Ask whether to add the vault folder to `permissions.additionalDirectories` in `.claude/settings.local.json` — local, not the
+   committed `settings.json`, because the path differs per PC. Merge into an existing array; without a yes, write nothing. It stops
+   the permission prompt each time the `vault-ref` skill reads a note (read access only).
+2. A source copy (the 「file is missing」 case above) also needs a `SessionStart` entry for `vault-context.py` with the absolute
+   path and `"timeout": 10`. The plugin's `hooks.json` and `install.sh` already wire it.
+3. Check: run `CLAUDE_PROJECT_DIR="$PWD" python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vault-context.py" </dev/null | head -3` (a source copy:
+   its own `hooks/` path) and show the header — vault path and last commit. 「볼트 폴더 없음」 → fix `vault_paths`.
 
 ### Step 7 — Generate the initial `session-dashboard.html`
 

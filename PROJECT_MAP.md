@@ -7,7 +7,7 @@ patrick-work-harness/
 ├── .claude-plugin/
 │   ├── marketplace.json      # Community marketplace registration
 │   └── plugin.json           # Plugin metadata (version, author, keywords)
-├── hooks/                    # Stop / PreToolUse event handlers (Python)
+├── hooks/                    # SessionStart / Stop / PreToolUse event handlers (Python)
 ├── skills/                   # Gate A–E + utility skill definitions
 │   ├── audit/
 │   ├── commit-up/
@@ -20,6 +20,7 @@ patrick-work-harness/
 │   ├── harness-feedback/
 │   ├── harness-update/
 │   ├── init/
+│   ├── vault-ref/
 │   └── SKILL_DETAIL.md       # Shared rubric / advisor escalation detail
 ├── CHANGELOG.md
 ├── README.md
@@ -39,7 +40,7 @@ patrick-work-harness/
 
 ## Module List
 
-### Skills (11종)
+### Skills (12종)
 
 | Skill | File |
 |-------|------|
@@ -54,6 +55,7 @@ patrick-work-harness/
 | harness-feedback | `skills/harness-feedback/SKILL.md` |
 | harness-update | `skills/harness-update/SKILL.md` |
 | init | `skills/init/SKILL.md` |
+| vault-ref | `skills/vault-ref/SKILL.md` |
 
 ### Hooks (`hooks/hooks.json` 에 배선)
 
@@ -71,6 +73,7 @@ patrick-work-harness/
 | `session-dashboard-sync.py` | session-dashboard.html 자동 갱신 |
 | `test-tampering-guard.py` | reward-hacking 탐지 |
 | `test-write-guard.py` | 시험 파일 쓰기 전 확인 |
+| `vault-context.py` | 세션 시작·압축 때 옵시디언 볼트 발췌(`vault_ref` 를 켠 프로젝트만) |
 
 ### Tools and modules (배선 없음)
 

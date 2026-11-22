@@ -84,7 +84,7 @@ The ladder is applied at every Gate A via the `0-Ladder` check step — each new
 | `/commit-up` | Close the work in one request — slim over-threshold session documents, run the audit only when it is due, commit work and records by explicit path, report. Never pushes |
 | `/audit` | Direction check — 10-item review: priority · Gate process · doc sync |
 | `/doc-cleanup` | Slim documents — migrate completed sessions to archive |
-| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 7-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
+| `/harness-update` | Full upgrade — compare version → show CHANGELOG → 8-axis checklist → approve → batch update (HARNESS zone reconcile is Axis A) |
 | `/harness-feedback` | Send this PC's harness usage summary to the engine server over SSH — set the address once; a Stop hook then sends when due |
 | `/vault-ref` | In projects that receive the vault excerpt, find and read this topic's vault notes, judge staleness by each block's 「YYYY-MM-DD 기준」 date, and record a `### 볼트 참조` section — Gate A calls it; the vault is only read |
 | `/init` | Initialize new project — create sentinel zones · stubs · wire hooks for a source copy |
@@ -406,7 +406,7 @@ Gate D 는 건너뛰지 않는다. 「C~E 일괄」(또는 「D~E 일괄」)이�
 | `/commit-up` | 한 마디로 마무리 — 임계값 넘은 세션 문서 정리, 차례가 됐을 때만 audit, 작업과 기록을 경로 지정해 커밋, 결과 보고. 푸시는 하지 않음 |
 | `/audit` | 방향성 점검 — 우선순위·Gate 프로세스·문서 동기화 10항목 |
 | `/doc-cleanup` | 문서 슬림화 — 완료 세션 archive 이관·임계값 초과 정리 |
-| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→7 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
+| `/harness-update` | 전체 업그레이드 — 버전 비교→CHANGELOG 표시→8 axis 체크리스트→승인→일괄 갱신 (HARNESS zone 갱신은 Axis A) |
 | `/harness-feedback` | 이 PC 의 하네스 사용 기록 요약을 SSH 로 엔진 서버에 보냄 — 주소를 한 번 넣으면 이후 응답 종료 훅이 조건이 찰 때 보냄 |
 | `/vault-ref` | 볼트 발췌를 받은 프로젝트에서 이 작업 주제의 볼트 노트를 찾아 읽고, 블록의 「YYYY-MM-DD 기준」 날짜로 낡음을 판정해 `### 볼트 참조` 로 남김 — Gate A 가 부른다, 볼트는 읽기만 |
 | `/init` | 신규 프로젝트 초기화 — sentinel 2구역·stub 생성·소스 사본의 hook 배선 |
@@ -619,7 +619,7 @@ Gate C 가 남긴 `## Verification Checklist` 표식을 채우는 곳입니다 �
 /harness-update
 ```
 
-현재 `_engine_version`과 최신 버전을 비교해 CHANGELOG를 보여주고, 사용자 승인 후 7 axis를 일괄 갱신합니다.
+현재 `_engine_version`과 최신 버전을 비교해 CHANGELOG를 보여주고, 사용자 승인 후 8 axis를 일괄 갱신합니다.
 
 ```
 /harness-update --check   ← 파일 변경 없이 체크리스트만 확인
