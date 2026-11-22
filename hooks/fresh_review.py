@@ -35,6 +35,9 @@ if hasattr(sys.stdout, "reconfigure"):
 MARKER = "[새 문맥 검토]"
 RECORD_LABEL = "**새 문맥 검토**"
 INPUT_NAME = "harness-fresh-review.md"
+#: 발동 때만 찍는 안내 두 줄 — 사용 보고서(`harness_report.FRESH_FIXED`)가 출력 일부만 보인 회차를 이 줄로 알아본다
+CALL_LINE = 'Agent 도구를 subagent_type "Plan" 으로 한 번 부른다. prompt 에는 아래 두 「-----」 줄 사이를 그대로 넣는다.'
+WAIT_LINE = "답을 받아 처리하기 전에는 승인을 요청하지 않는다(STOP 으로 가지 않는다) — 뒤에서 돌면 완료 알림을 기다린다."
 #: 검토자에게 주지 않는 `###` 절 — 쓴 사람의 요약(이해 브리핑)과, 계획 내용이 아니라 절차를 기록한 절.
 #: 부분일치라 짧은 낱말은 계획 내용 절까지 뺀다(「OSS」는 「CROSS-ORIGIN」에 걸린다). 이 서버 기록의 Gate A 문서 29개(대부분 시험 프로젝트) 절 제목으로 대 봤다.
 SKIPPED_TITLES = ("이해 브리핑", "교훈 조회", "이해도 게이트", "권장 모델", "모델 권장", "범위 점검", "래더", "주장-근거",
@@ -175,8 +178,8 @@ def main(argv=None):
     inline = "" if target else f"\n\n=====\n{text}=====\n"
     print(f"발동 — {why}")
     # 하위 에이전트는 뒤에서 돌 수 있다 — 그러면 Agent 호출이 곧바로 돌아와, 기다리라고 하지 않으면 검토 없이 승인을 청한다(대조 검증).
-    print('Agent 도구를 subagent_type "Plan" 으로 한 번 부른다. prompt 에는 아래 두 「-----」 줄 사이를 그대로 넣는다.')
-    print("답을 받아 처리하기 전에는 승인을 요청하지 않는다(STOP 으로 가지 않는다) — 뒤에서 돌면 완료 알림을 기다린다.")
+    print(CALL_LINE)
+    print(WAIT_LINE)
     print("-----")
     print(PROMPT.format(marker=MARKER, where=where, root=root.replace(chr(92), "/"), inline=inline))
     print("-----")

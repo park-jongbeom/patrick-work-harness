@@ -924,6 +924,27 @@ class TestFreshReviewHeads(ReportCase):
         self.assertEqual((f.get("not_run"), f.get("fired"), f.get("unknown")), (1, 1, 1))
         self.assertEqual(f["unknown_heads"], ["ok"])
 
+    def test_partial_output_of_a_fired_run_is_read_as_fired(self):
+        """묶은 명령이 출력 일부만 보인 발동 — 이 서버 기록의 제품 프로젝트 「알 수 없음」 10건 중 9건(2026-11-22). 판정 줄 뒤를
+        잘랐거나(Agent 줄 없음), 앞을 잘라 지시문만 남았다. Gate B 판정기 줄이나 다른 출력만 있으면 여전히 알 수 없다."""
+        import fresh_review as fr
+        shapes = {
+            "a1": "미발동 — 변경 파일 5개, 해당 없음\n발동 — R=6",
+            "a2": "ok\n발동 — 되돌리는 법: 운영 DB\n발동 — 이해도 게이트 발동(되돌리는 법: 운영 DB)",
+            "a3": f"{fr.WAIT_LINE}\n-----\n" + fr.PROMPT.splitlines()[0].format(marker=fr.MARKER),
+            "a4": "SESSION_INDEX.md:3\n## 지적\n" + next(ln for ln in fr.PROMPT.splitlines() if ln.startswith("- Major:")),
+            "u1": "ok\n발동 — 운영 DB",                   # Gate B 판정기 줄(첫 줄 아님)만 — 검토 발동이 아니다
+            "u2": "1: x",
+        }
+        events = []
+        for tid, out in shapes.items():
+            events += [assistant(tools=[(tid, "Bash", {"command": "python3 x.py && " + self.RUN + " | head -1"})]),
+                       tool_result(tid, out)]
+        self.session(events)
+        f = self.rows()["s1"]["fresh_review"]
+        self.assertEqual((f.get("fired"), f.get("unknown")), (4, 2))
+        self.assertEqual(f["unknown_heads"], ["ok", "1: x"])
+
     def test_review_that_ran_without_a_record_is_flagged_even_if_no_run_was_recognised(self):
         self.session([assistant(tools=[("r1", "Agent", {"subagent_type": "Plan", "prompt": self.PROMPT})]),
                       tool_result("r1", "다시 쓴 계획")])

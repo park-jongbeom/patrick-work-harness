@@ -94,6 +94,25 @@ FRESH_RECORD = re.compile(r"^[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:�
 SCRIPT_TAIL = re.compile(r"""['"]{1,3}\)?\s*$""")      # 스크립트 문자열을 닫는 따옴표(와 괄호) — 셸로 쓴 기록 줄 끝
 # 셸로 쓴 글만 — 스크립트 문자열 안의 기록은 따옴표나 글자 그대로의 \n 뒤에 붙는다(`rep("…", "- **새 문맥 검토**: …\n…")`, 2026-11-17)
 FRESH_RECORD_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*새 문맥 검토\*\*[ \t]*[:：][ \t]*((?:지적[ \t]*\d|실패)(?:(?!\\n)[^\n"'])*)""", re.M)
+#: 검토 스크립트만 쓰는 발동 사유 머리(`fresh_review.decide`) — Gate B 판정기의 「발동 — 운영 DB」 같은 줄과 가린다
+FRESH_OWN = re.compile(r"^발동 — (?:이해도 게이트 발동\(|R=\d|--force)")
+
+
+def _fresh_fixed_lines():
+    """검토 스크립트가 발동 때만 찍는 고정 줄 — 지시문·처리 규칙에서 자리표시가 없는 줄(12글자 이상)과 안내 두 줄. 문구를 바꾸면
+    여기도 따라온다. 스크립트를 불러올 수 없으면 빈 집합 — 이 갈래만 꺼진다."""
+    try:
+        import fresh_review as fr
+        hole = "\x00"
+        text = fr.PROMPT.format(marker=fr.MARKER, where=hole, root=hole, inline=hole) + "\n" \
+            + fr.HANDLING.format(label=fr.RECORD_LABEL)
+        return {ln.strip() for ln in text.splitlines() if hole not in ln and len(ln.strip()) >= 12} \
+            | {fr.CALL_LINE, fr.WAIT_LINE}
+    except Exception:
+        return set()
+
+
+FRESH_FIXED = _fresh_fixed_lines()
 TASK_USAGE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>.*?<subagent_tokens>(\d+)</subagent_tokens>"
                         r".*?<duration_ms>(\d+)</duration_ms>")
 #: 교훈 조회·재발(2026-11-18) — Gate D 에서도 교훈을 꺼낼지 정할 기준선. 조회 출력은 lessons_lookup.py 의 머리와 교훈 줄,
@@ -333,7 +352,13 @@ def _fresh_verdict(output):
         if line.startswith("발동 —") and any(ln.startswith("Agent 도구를") for ln in lines[i + 1:i + 3]):
             return lines[0], "발동"
     first = lines[0] if lines else ""
-    return first, ("발동" if first.startswith("발동 —") else None)
+    if first.startswith("발동 —"):
+        return first, "발동"
+    # 출력 일부만 보인 발동(2026-11-22 — 이 서버 기록의 제품 프로젝트 「알 수 없음」 10건 중 9건): 묶은 명령이 판정 줄 뒤를
+    # 잘랐거나(「발동 — R=6」만), 앞을 잘라 지시문만 보였다. 검토 스크립트만 쓰는 사유 머리나 고정 지시문 줄이면 발동이다.
+    if any(FRESH_OWN.match(ln) or ln in FRESH_FIXED for ln in lines):
+        return first, "발동"
+    return first, None
 
 
 def _lesson_key(date, title):
