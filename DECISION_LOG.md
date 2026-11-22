@@ -605,3 +605,10 @@
 - **예측**: -b 뒤 이 서버 계획 문서 사본 두 개로 그리면 한쪽은 「Phase 1/3 · 완료 기준 4/5(80%)」, 다른 쪽은 비율 없이 Phase 위치와 세션 수가 나온다. 노트북 프로젝트가 plan_tier 2 라면 칸이 숨겨지고, 사용자가 그쪽 계획 문서 머리를 주면 맞춘다. 지금 세션 ID 가 표에 없어 「추정」으로 짚은 Phase 가 틀렸다는 지적이 1회라도 나오면 추정 규칙을 바꾼다.
 - **확인 시점**: -b 의 Gate D(실제 사본 렌더링), 그 뒤 사용자의 첫 대시보드 확인
 - **결과**:
+
+### [2026-11-22] 대시보드 맨 위 배너 아래에 「전체 계획 중 지금」 칸을 그린다 — plan_tier 1 만, 계획 문서가 없으면 숨김 (DASH-PLAN-PROGRESS-1 2/2)
+- **결정**: 추가 → `hooks/session_dashboard_renderer.py`(`render_plan_progress` — Phase k/N·이름, 이 Phase 와 전체의 완료 기준 막대, Phase 칩 ✅/⏳/☐ 와 세션 행 「✅E N · 그 밖 M」, 나눈 회차, 추정이면 이유 한 줄. `generate_html(plan_progress=None)`), `hooks/dashboard.css`(`.progress-*`, 막대는 `.plan-bar-*` 재사용), `hooks/session-dashboard-sync.py`(`read_plan_progress` — `.claude/harness-answers.yml` 의 `plan_tier`·`single_plan_file` 을 `master-plan-stale-guard._answer` 로 읽음), `hooks/fixtures/dashboard_golden.html`(CSS 부분만), 시험 4건. 바꾸지 않음 → 계획 문서가 없는 화면(칸 없음 — golden 본문 같음), 세션 문서 읽기. 보류 → plan_tier 2.
+- **근거**: 사용자는 대시보드 맨 위만 보고 결정한다(메모리·2026-11-05). 앞 회차의 `parse_plan_progress` 값을 배너와 이해 패널 사이에 둔다 — 이해 패널은 첫 화면에 남아야 한다(2026-10-15 실측: 카드가 길면 1280×900 밖으로 밀림). 계획 문서가 없는 프로젝트와 이 엔진 저장소의 화면을 바꾸지 않으려고 선택 인자·빈 문자열로 넣었다.
+- **예측**: 이 서버 plan_tier 1 계획 사본 두 개로 그린 화면에 「Phase 1 / 3 · 4 / 5 · 80%」와 「Phase 4 / 4 · 추정 · 완료 기준 체크박스 없음」이 보이고, 이해 패널은 첫 화면 안에 남는다. 사용자가 대시보드를 보고 「추정」 Phase 가 틀렸다거나 칸이 결정에 쓸모없다고 하면(1회라도) 추정 규칙이나 자리를 바꾼다. 노트북 프로젝트가 plan_tier 2 라 칸이 없다는 말이 나오면 그쪽 계획 문서 머리를 받아 맞춘다.
+- **확인 시점**: 이 회차 Gate D(실제 사본 렌더링), 그 뒤 사용자의 첫 대시보드 확인(v1.26.0 적용 PC)
+- **결과**:

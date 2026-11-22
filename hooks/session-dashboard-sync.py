@@ -63,6 +63,38 @@ def read_engine_version():
         return {"value": None, "source": "모름"}
 
 
+def read_plan_progress(current_session):
+    """「전체 계획 중 지금」 칸의 값 — plan_tier 1 의 계획 문서(`single_plan_file`)를 읽는다(DASH-PLAN-PROGRESS-1-b).
+
+    설정 읽기는 `master-plan-stale-guard.py` 의 `_answer` 를 쓴다. plan_tier 2 는 아직 꼴을 모른다 — None(칸 없음).
+    가드 파일이 없는 일부 복사 설치·설정 없음·파일 없음·읽기 실패도 모두 None 이다. 화면의 나머지는 그대로 뜬다.
+    """
+    try:
+        import importlib.util
+
+        from session_dashboard_parsers import parse_plan_progress
+
+        guard_path = Path(os.path.dirname(os.path.abspath(__file__))) / "master-plan-stale-guard.py"
+        spec = importlib.util.spec_from_file_location("_mpsg_answers", guard_path)
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        raw = read_markdown(PROJECT_ROOT / ".claude" / "harness-answers.yml")
+        if guard._answer(raw, "plan_tier") != "1":
+            return None
+        name = guard._answer(raw, "single_plan_file")
+        if not name or name.startswith(("${", "<")):
+            return None
+        path = Path(name) if os.path.isabs(name) else PROJECT_ROOT / name
+        text = read_markdown(path)
+        if not text:
+            return None
+        return parse_plan_progress(
+            text, current_session.get("session_id", ""), current_session.get("work_topic", "")
+        )
+    except Exception:
+        return None
+
+
 def main():
     """메인 함수"""
     try:
@@ -112,6 +144,7 @@ def main():
             gate_docs,
             comprehension,
             engine_version=read_engine_version(),
+            plan_progress=read_plan_progress(current_session),
         )
 
         # 파일 저장

@@ -363,6 +363,78 @@
             line-height: 1.5;
         }
 
+        /* ── 전체 계획 중 지금 (DASH-PLAN-PROGRESS-1-b) — 배너 아래, 막대는 .plan-bar-* 재사용 ── */
+        .progress-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 30px 14px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 8px solid #2f9e6e;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            color: #2f9e6e;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .progress-head {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .progress-guess {
+            display: inline-block;
+            font-size: 12px;
+            color: #8a5a00;
+            background: #fff4d6;
+            border-radius: 6px;
+            padding: 3px 8px;
+            margin-bottom: 10px;
+        }
+
+        .progress-note {
+            font-size: 13px;
+            color: #777;
+            margin: 4px 0 8px;
+        }
+
+        .progress-phases {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 4px;
+        }
+
+        .progress-chip {
+            font-size: 12px;
+            color: #666;
+            background: #f3f4f7;
+            border-radius: 12px;
+            padding: 3px 10px;
+        }
+
+        .progress-chip.now {
+            color: #1d6b49;
+            background: #dcf3e8;
+            font-weight: 700;
+        }
+
+        .progress-chip.done {
+            color: #555;
+            background: #e9ecf2;
+        }
+
+        .progress-rows {
+            font-weight: 400;
+            color: #888;
+        }
+
         /* ── Gate A 계획 검토 패널 (DASHBOARD-PLAN-VIZ-1) ──
            기존 토큰 재사용: 보라 #667eea · 카드 white/12px/그림자.
            새 색은 위험(주황·빨강)에만 쓴다 — 색이 늘면 강조가 죽는다. */
@@ -735,6 +807,10 @@
             .plan-risk-table td {
                 padding: 6px;
                 font-size: 11px;
+            }
+
+            .progress-panel {
+                padding: 14px 18px 12px;
             }
 
             .plan-bar-row {

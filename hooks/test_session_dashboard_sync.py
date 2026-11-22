@@ -309,5 +309,97 @@ class TestSyncedPageNamesTheEngineVersion(unittest.TestCase):
         self.assertIn("고정 입력 배너 제목 회귀 가드", html)
 
 
+#: plan_tier 1 계획 문서 꼴(이 서버의 실제 문서 모양만 — 이름은 일반 글자)
+_PLAN_DOC = """# 실행 계획
+
+## Phase 1 — 기반
+
+| Session ID | 제목 | Gate |
+|------------|------|------|
+| S-261101-01 | 첫 작업 | ✅E (2026-11-01) |
+| S-261101-02 | 둘째 작업 | ✅E (2026-11-02) |
+| {sid} | 지금 작업 | A (승인 대기) |
+
+### Phase 1 완료 기준
+- [x] 관문 1
+- [x] 관문 2
+- [x] 관문 3
+- [x] 관문 4
+- [ ] 관문 5
+
+## Phase 2 — 학습 <모델> & 확장
+
+| Session ID | 제목 | Gate |
+|------------|------|------|
+
+## Phase 3 — 사업화
+"""
+
+
+class TestSyncedPageShowsPlanProgress(unittest.TestCase):
+    """동기화가 계획 문서를 읽어 맨 위에 「전체 계획 중 지금」 칸을 그린다(DASH-PLAN-PROGRESS-1-b, 2026-11-22)."""
+
+    def sync(self, answers=None, plan=None, plan_name="WORK_PLAN.md"):
+        base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, base, True)
+        (Path(base) / "CURRENT_SESSION.md").write_text(FIXTURE_CURRENT_SESSION_MD, encoding="utf-8")
+        (Path(base) / "SESSION_INDEX.md").write_text(FIXTURE_SESSION_INDEX_MD, encoding="utf-8")
+        if answers is not None:
+            (Path(base) / ".claude").mkdir()
+            (Path(base) / ".claude" / "harness-answers.yml").write_text(answers, encoding="utf-8")
+        if plan is not None:
+            (Path(base) / plan_name).write_text(plan, encoding="utf-8")
+        env = dict(os.environ, DASHBOARD_SYNC_BASE=base)
+        env.pop("CLAUDE_PROJECT_DIR", None)
+        p = subprocess.run([sys.executable, str(HOOKS_DIR / "session-dashboard-sync.py")], env=env,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+        out = Path(base) / "session-dashboard.html"
+        self.assertTrue(out.exists(), p.stderr)
+        return out.read_text(encoding="utf-8")
+
+    TIER1 = 'plan_tier: "1"\nsingle_plan_file: "WORK_PLAN.md"   # 단일 계획 문서\n'
+
+    def panel(self, html):
+        m = re.search(r'<div class="progress-panel">(.*?)\n        </div>\n', html, re.S)
+        return m.group(1) if m else None
+
+    def test_panel_shows_phase_criteria_and_rows_right_under_the_banner(self):
+        html = self.sync(self.TIER1, _PLAN_DOC.format(sid="HSA-FIXTURE-1"))
+        body = self.panel(html)
+        self.assertIsNotNone(body)
+        self.assertLess(html.index('class="purpose-banner"'), html.index('class="progress-panel"'))
+        self.assertLess(html.index('class="progress-panel"'), html.index("<header>"))
+        self.assertIn("Phase 1 / 3 · 기반", body)
+        self.assertIn("4 / 5 · 80%", body)
+        self.assertIn("✅E 2 · 그 밖 1", body)
+        self.assertIn("학습 &lt;모델&gt; &amp; 확장", body)               # 계획 글은 이스케이프한다
+        self.assertNotIn("추정", body)
+        self.assertRegex(body, r'progress-chip now">⏳ 1 기반')
+
+    def test_guessed_phase_says_it_is_a_guess_and_why(self):
+        body = self.panel(self.sync(self.TIER1, _PLAN_DOC.format(sid="S-261101-03")))
+        self.assertIn("추정 — 지금 세션이 계획 표에 아직 없어 마지막 기록 Phase 로 추정", body)
+
+    def test_numbered_criteria_show_no_bar(self):
+        plan = ("## Phase 1 — 착수\n\n1. 신청\n2. 공문\n\n| Session ID | Title | Gate |\n|---|---|---|\n"
+                "| HSA-FIXTURE-1 | 지금 작업 | A (승인 대기) |\n\n## Phase 2 — 생산\n")
+        body = self.panel(self.sync(self.TIER1, plan))
+        self.assertIn("Phase 1 / 2 · 착수", body)
+        self.assertIn("완료 기준 체크박스(- [ ])가 없어 비율을 내지 않는다", body)
+        self.assertNotIn("plan-bar-row", body)
+        # 세션 행도 체크박스도 없으면 지금 Phase 를 짚지 않는다(-a 의 규칙)
+        lost = self.panel(self.sync(self.TIER1, "## Phase 1 — 착수\n\n1. 신청\n\n## Phase 2 — 생산\n"))
+        self.assertIn("Phase 2개 — 지금 Phase 를 찾지 못함", lost)
+
+    def test_no_panel_without_a_tier1_plan(self):
+        plan = _PLAN_DOC.format(sid="HSA-FIXTURE-1")
+        for answers, doc in ((None, plan),                                            # 설정 없음
+                             ('plan_tier: "2"\nsingle_plan_file: "WORK_PLAN.md"\n', plan),  # plan_tier 2 는 아직
+                             (self.TIER1, None),                                       # 계획 문서 없음
+                             ('plan_tier: "1"\nsingle_plan_file: "<single_plan_file>"\n', plan)):  # 자리표시
+            html = self.sync(answers, doc)
+            self.assertNotIn("progress-panel", html.split("</style>", 1)[1], answers)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

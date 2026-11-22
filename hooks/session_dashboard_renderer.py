@@ -630,6 +630,72 @@ def render_gate_a_plan(plan):
 META_HEAD_CHARS = 140
 
 
+#: 지금 Phase 를 세션 ID 로 찾지 못했을 때의 이유 — 추정을 사실처럼 보이지 않는다(DASH-PLAN-PROGRESS-1-b)
+_PROGRESS_GUESS = {
+    "latest_row": "지금 세션이 계획 표에 아직 없어 마지막 기록 Phase 로 추정",
+    "criteria": "완료 기준이 남은 첫 Phase 로 추정",
+}
+
+
+def _progress_bar(label, done, total):
+    """범위 점검과 같은 막대 — 완료 기준 체크 수."""
+    pct = round(100 * done / total) if total else 0
+    return (
+        '            <div class="plan-bar-row">\n'
+        f'                <div class="plan-bar-label">{_esc(label)}</div>\n'
+        '                <div class="plan-bar-track">\n'
+        f'                    <div class="plan-bar-fill" style="width:{pct}%"></div>\n'
+        '                </div>\n'
+        f'                <div class="plan-bar-num">{done} / {total} · {pct}%</div>\n'
+        '            </div>\n'
+    )
+
+
+def render_plan_progress(progress):
+    """맨 위 「전체 계획 중 지금」 칸 — 지금 Phase 의 위치와 완료 기준 진행(`parse_plan_progress` 의 값).
+
+    진행률의 분모는 완료 기준 체크박스다(사용자 선택 2026-11-22) — 세션 표는 끝날 때 한 줄씩 붙어 행 비율은 늘 100% 에
+    가깝다. 세션 행 수는 칩에 참고로만 적는다. 값이 없으면(계획 문서 없음·plan_tier 2·읽기 실패) 아무것도 그리지 않는다.
+    """
+    if not progress or not progress.get("present") or not progress.get("phases"):
+        return ""
+    phases = progress["phases"]
+    cur = progress.get("current")
+    now = phases[cur] if cur is not None and 0 <= cur < len(phases) else None
+    html = '        <div class="progress-panel">\n'
+    html += '            <div class="progress-label">🧭 전체 계획 중 지금</div>\n'
+    if now:
+        html += (f'            <div class="progress-head">Phase {now["num"]} / {len(phases)}'
+                 f'{(" · " + _esc(now["title"])) if now["title"] else ""}</div>\n')
+        guess = _PROGRESS_GUESS.get(progress.get("current_by"))
+        if guess:
+            html += f'            <div class="progress-guess">추정 — {_esc(guess)}</div>\n'
+        if now["criteria_total"]:
+            html += _progress_bar("이 Phase 완료 기준", now["criteria_done"], now["criteria_total"])
+        else:
+            html += '            <div class="progress-note">이 Phase 는 완료 기준 체크박스(- [ ])가 없어 비율을 내지 않는다</div>\n'
+    else:
+        html += f'            <div class="progress-head">Phase {len(phases)}개 — 지금 Phase 를 찾지 못함</div>\n'
+    if progress.get("criteria_total"):
+        html += _progress_bar("전체 완료 기준", progress["criteria_done"], progress["criteria_total"])
+    chips = ""
+    for i, p in enumerate(phases):
+        complete = p["criteria_total"] and p["criteria_done"] == p["criteria_total"]
+        mark, tone = ("⏳", " now") if i == cur else (("✅", " done") if complete else ("☐", ""))
+        rows = ""
+        if p["rows_total"]:
+            other = p["rows_total"] - p["rows_done"]
+            rows = f' <span class="progress-rows">(✅E {p["rows_done"]}{f" · 그 밖 {other}" if other else ""})</span>'
+        chips += (f'                <span class="progress-chip{tone}">{mark} {p["num"]}'
+                  f'{(" " + _esc(p["title"])) if p["title"] else ""}{rows}</span>\n')
+    html += f'            <div class="progress-phases">\n{chips}            </div>\n'
+    chain = progress.get("chain")
+    if chain:
+        html += f'            <div class="progress-note">나눈 회차 {chain["index"]} / {chain["total"]}</div>\n'
+    html += '        </div>\n'
+    return html
+
+
 def _meta_value(text):
     """머리 칸의 값. 짧으면 그대로, 길면 앞부분(글자 경계에서 자름) + 접힌 전문."""
     text = str(text or "")
@@ -681,6 +747,7 @@ def generate_html(
     gate_docs=None,
     comprehension=None,
     engine_version=None,
+    plan_progress=None,
 ):
     """HTML 생성
 
@@ -803,6 +870,11 @@ def generate_html(
             )
         except Exception:
             comp_html = ""
+    # 전체 계획 중 지금 — 배너 바로 아래, 이해 패널 앞(맨 위만 보고 결정한다). 값이 없거나 그리다 실패하면 빈 문자열
+    try:
+        progress_html = render_plan_progress(plan_progress)
+    except Exception:
+        progress_html = ""
     plan_html = render_gate_a_plan(gate_a_plan)
     # 계획 전문 — 요약 바로 아래. 요약이 「한눈에」라면 이쪽이 「읽고 이해」다
     plan_html += render_gate_documents(gate_docs)
@@ -827,7 +899,7 @@ def generate_html(
             <div class="purpose-label">🎯 지금 하는 작업</div>
             <div class="purpose-title">{purpose_text}</div>{purpose_note_html}
         </div>
-{comp_html}
+{progress_html}{comp_html}
         <header>
             <h1>🎓 {(project + ' — ') if project else ''}세션 대시보드</h1>
 
