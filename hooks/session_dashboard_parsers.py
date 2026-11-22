@@ -900,3 +900,101 @@ def scope_gauges(checks):
         label = re.split(r"\s*≤", text)[0].strip()
         out.append((label, int(actual.group(1)), int(limit.group(1))))
     return out
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 전체 계획 중 지금 (DASH-PLAN-PROGRESS-1-a, 2026-11-22)
+#
+# 계획 문서(plan_tier 1 의 `## Phase N` 절)에서 지금 Phase 의 위치와 완료 기준 진행을 읽는다. 진행률의 분모는
+# 완료 기준 체크박스다 — 세션 표는 세션이 끝날 때 한 줄씩 붙어 「끝난 행 ÷ 표의 행」이 거의 늘 100% 다(사용자 선택).
+# ─────────────────────────────────────────────────────────────────────
+
+_PHASE_HEAD = re.compile(r"^##[ \t]+Phase[ \t]+(\d+)\b[ \t]*[—–:\-]?[ \t]*(.*)$", re.M)
+_ANY_H2 = re.compile(r"^##[ \t]+\S", re.M)
+_CHECKBOX = re.compile(r"^[ \t]*[-*][ \t]+\[([ xX])\]", re.M)
+_SESSION_ID_CELL = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+")
+_DONE_MARK = re.compile(r"✅\s?E")
+_CHAIN = re.compile(r"(\d+)\s*/\s*(\d+)")
+
+
+def parse_plan_progress(plan_text, session_id="", work_topic=""):
+    """계획 문서 글 → Phase 위치·완료 기준·세션 행 수와 나눈 회차.
+
+    지금 Phase 는 ① 지금 세션 ID 가 든 절 ② 없으면 세션 행이 있는 마지막 Phase(세션 행은 끝날 때 붙는다 — 추정)
+    ③ 그것도 없으면 완료 기준이 남은 첫 Phase 순으로 찾고, 찾은 방법을 `current_by` 로 돌려준다. Phase 머리가 없거나
+    읽다가 실패하면 `{"present": False}` — 대시보드의 다른 패널처럼 틀린 값보다 빈칸이 낫다.
+    """
+    try:
+        return _parse_plan_progress(plan_text or "", (session_id or "").strip(), work_topic or "")
+    except Exception:
+        return {"present": False}
+
+
+def _parse_plan_progress(text, session_id, work_topic):
+    heads = _outside_fences(list(_PHASE_HEAD.finditer(text)), text)
+    if not heads:
+        return {"present": False}
+    h2 = [m.start() for m in _outside_fences(list(_ANY_H2.finditer(text)), text)]
+    spans = _fence_spans(text)
+    phases = []
+    for m in heads:
+        end = next((p for p in h2 if p > m.start()), len(text))
+        body = text[m.end():end]
+        # 코드 블록 안의 체크박스·표는 이 Phase 의 것이 아니다
+        base = m.end()
+        live = [ln for ln, at in _lines_with_offset(body, base) if not any(a <= at < b for a, b in spans)]
+        boxes = [c for ln in live for c in _CHECKBOX.findall(ln)]
+        rows = []
+        for ln in live:
+            if not ln.strip().startswith("|"):
+                continue
+            cells = split_table_cells(ln)
+            if cells and _SESSION_ID_CELL.fullmatch(_strip_md(cells[0])):
+                rows.append(cells)
+        ids = {_strip_md(r[0]) for r in rows}
+        phases.append({
+            "num": int(m.group(1)),
+            "title": _strip_md(m.group(2)),
+            "criteria_done": sum(1 for c in boxes if c in "xX"),
+            "criteria_total": len(boxes),
+            "rows_done": sum(1 for r in rows if any(_DONE_MARK.search(c) for c in r[1:])),
+            "rows_total": len(rows),
+            "has_current": bool(session_id) and (session_id in ids
+                                                 or re.search(rf"(?<![\w-]){re.escape(session_id)}(?![\w-])", body) is not None),
+        })
+    current, how = None, None
+    for i, p in enumerate(phases):
+        if p["has_current"]:
+            current, how = i, "session"
+            break
+    if current is None:
+        with_rows = [i for i, p in enumerate(phases) if p["rows_total"]]
+        if with_rows:
+            current, how = with_rows[-1], "latest_row"
+    if current is None:
+        open_ = [i for i, p in enumerate(phases) if p["criteria_done"] < p["criteria_total"]]
+        if open_:
+            current, how = open_[0], "criteria"
+    chain = None
+    found = _CHAIN.findall(work_topic)
+    if found:
+        n, total = int(found[-1][0]), int(found[-1][1])
+        if total >= 2 and 1 <= n <= total:
+            chain = {"index": n, "total": total}
+    return {
+        "present": True,
+        "phases": phases,
+        "current": current,
+        "current_by": how,
+        "criteria_done": sum(p["criteria_done"] for p in phases),
+        "criteria_total": sum(p["criteria_total"] for p in phases),
+        "chain": chain,
+    }
+
+
+def _lines_with_offset(body, base):
+    """본문 줄과 그 줄이 원문에서 시작하는 위치."""
+    pos = base
+    for line in body.splitlines(keepends=True):
+        yield line.rstrip("\n"), pos
+        pos += len(line)

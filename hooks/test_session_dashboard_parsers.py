@@ -656,3 +656,125 @@ class TestParseLaneDecision(unittest.TestCase):
         import unittest.mock as um
         with um.patch.object(sdp, "_labeled_items", side_effect=RuntimeError):
             self.assertEqual(sdp.parse_lane_decision(_LANE_DOC)["lane"], "검토")
+
+
+#: plan_tier 1 계획 문서 꼴 — 이 서버의 실제 문서 두 개에서 머리·표·완료 기준 모양만 옮겼다(이름은 일반 글자)
+_PLAN_CHECKBOX = """# 실행 계획
+
+## 원칙
+- [ ] 이 체크박스는 Phase 밖이라 세지 않는다
+
+## Phase 1 — 기반 세션 기록
+
+| Session ID | 제목 | Gate | 산출물 | 날짜 |
+|------------|------|------|--------|------|
+| S-261101-01 | 첫 작업 | ✅E (2026-11-01) | 끝 | 2026-11-01 |
+| S-261101-02 | 둘째 작업 | ✅ E (2026-11-02) | 끝 | 2026-11-02 |
+| S-261122-08 | 지금 작업 | A (승인 대기) | — | 2026-11-22 |
+
+### Phase 1 완료 기준
+- [x] 관문 1 — 첫 대화
+- [x] 관문 2 — 지연
+- [x] 관문 3 — 기기
+- [x] 관문 4 — 적재
+- [ ] 관문 5 — 9주 사용
+
+## Phase 2 — 학습 모델 (미착수)
+
+| Session ID | 제목 | Gate | 산출물 | 날짜 |
+|------------|------|------|--------|------|
+| S-261114-03 | 실험 A | ✅E (2026-11-14) | 끝 | 2026-11-14 |
+
+## Phase 3 — 확장 (미착수)
+
+| Session ID | 제목 | Gate | 산출물 | 날짜 |
+|------------|------|------|--------|------|
+"""
+
+_PLAN_NUMBERED = """# WORK_PLAN
+
+## Phase Model
+
+| Phase | Window | Closes on |
+|-------|--------|-----------|
+| **Phase 1 — 착수** | W1 | 승인 |
+
+**Phase 1 completion criteria**:
+1. 신청 제출
+2. 공문 수령
+
+## Phase 1 — 착수
+
+| Session ID | Title | Gate | Status |
+|------------|-------|------|--------|
+| CORPUS-BASELINE-1 | 기준선 | ✅E (2026-08-29) | ✅ |
+
+## Phase 2 — 생산
+
+| Session ID | Title | Gate | Status |
+|------------|-------|------|--------|
+| HARNESS-TEST-1 | 시험 | ✅E (2026-08-29) | ✅ |
+| DEMO-UI-1-a | 화면 | ✅E (2026-08-30) | ✅ |
+
+```
+## Phase 9 — 코드 블록 안은 머리가 아니다
+- [ ] 이것도 세지 않는다
+```
+
+## 5. 인수인계 메모
+- [ ] Phase 밖
+"""
+
+
+class TestParsePlanProgress(unittest.TestCase):
+    """대시보드 「전체 계획 중 지금」의 값 — Phase 위치와 완료 기준 체크(DASH-PLAN-PROGRESS-1-a, 2026-11-22)."""
+
+    def test_checkbox_criteria_and_session_found_in_its_phase(self):
+        p = sdp.parse_plan_progress(_PLAN_CHECKBOX, "S-261122-08")
+        self.assertTrue(p["present"])
+        self.assertEqual([x["num"] for x in p["phases"]], [1, 2, 3])
+        self.assertEqual((p["current"], p["current_by"]), (0, "session"))
+        one = p["phases"][0]
+        self.assertEqual((one["title"], one["criteria_done"], one["criteria_total"]), ("기반 세션 기록", 4, 5))
+        self.assertEqual((one["rows_done"], one["rows_total"]), (2, 3))      # 「✅ E」 띄어 쓴 꼴도 끝난 행
+        self.assertEqual((p["criteria_done"], p["criteria_total"]), (4, 5))  # Phase 밖 체크박스는 빠진다
+        self.assertEqual(p["phases"][2]["rows_total"], 0)                     # 머리 행만 있는 표
+
+    def test_session_not_in_any_table_falls_back_to_last_phase_with_rows(self):
+        p = sdp.parse_plan_progress(_PLAN_CHECKBOX, "S-261123-01")
+        self.assertEqual((p["current"], p["current_by"]), (1, "latest_row"))
+        self.assertFalse(any(x["has_current"] for x in p["phases"]))
+
+    def test_numbered_criteria_give_no_ratio(self):
+        p = sdp.parse_plan_progress(_PLAN_NUMBERED, "DEMO-UI-1-a")
+        self.assertEqual((p["criteria_done"], p["criteria_total"]), (0, 0))
+        self.assertEqual((p["current"], p["current_by"]), (1, "session"))
+        self.assertEqual((p["phases"][1]["rows_done"], p["phases"][1]["rows_total"]), (2, 2))
+
+    def test_phase_model_and_fenced_heads_are_not_phases(self):
+        p = sdp.parse_plan_progress(_PLAN_NUMBERED)
+        self.assertEqual([x["num"] for x in p["phases"]], [1, 2])
+        self.assertEqual(p["phases"][1]["criteria_total"], 0)                # 코드 블록·다음 절의 체크박스는 빠진다
+        self.assertEqual((p["current"], p["current_by"]), (1, "latest_row"))
+        # 세션 ID 의 앞부분만 같은 다른 세션을 지금 세션으로 짚지 않는다
+        self.assertEqual(sdp.parse_plan_progress(_PLAN_NUMBERED, "DEMO-UI-1")["current_by"], "latest_row")
+
+    def test_no_phase_heads_is_not_present(self):
+        for text in ("", "# 계획\n\n## 1. 우선순위\n- [ ] 할 일\n", None):
+            self.assertEqual(sdp.parse_plan_progress(text, "X-1"), {"present": False})
+        only_criteria = "## Phase 1 — 준비\n- [x] 하나\n- [ ] 둘\n\n## Phase 2 — 다음\n- [ ] 셋\n"
+        p = sdp.parse_plan_progress(only_criteria)
+        self.assertEqual((p["current"], p["current_by"]), (0, "criteria"))
+
+    def test_chain_reads_the_last_n_of_m_in_the_topic(self):
+        p = sdp.parse_plan_progress(_PLAN_CHECKBOX, "", "설정 블록 — 하네스 기능 3/3")
+        self.assertEqual(p["chain"], {"index": 3, "total": 3})
+        self.assertEqual(sdp.parse_plan_progress(_PLAN_CHECKBOX, "", "8화면 중 4/8 — 체인 2/3")["chain"],
+                         {"index": 2, "total": 3})
+        for topic in ("단일 1/1", "범위 5/3", "숫자 없음", ""):
+            self.assertIsNone(sdp.parse_plan_progress(_PLAN_CHECKBOX, "", topic)["chain"], topic)
+
+    def test_failure_is_not_present(self):
+        import unittest.mock as um
+        with um.patch.object(sdp, "split_table_cells", side_effect=RuntimeError):
+            self.assertEqual(sdp.parse_plan_progress(_PLAN_CHECKBOX, "S-261122-08"), {"present": False})
