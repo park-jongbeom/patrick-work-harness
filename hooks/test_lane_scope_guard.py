@@ -98,6 +98,21 @@ class LaneGuardCase(unittest.TestCase):
         listing = "\n".join(f"{i}. `{p}` (수정)" for i, p in enumerate(files, 1))
         self.write("CURRENT_SESSION.md", PLAN.format(base=base or self.base, n=len(files), files=listing))
 
+    def set_split_plan(self, files, flags="없음"):
+        """새 형식 레인 판정(LANE-LOOP-1-a) — 멈춤 트리거·표시 트리거."""
+        self.set_plan(files)
+        with open(os.path.join(self.repo, "CURRENT_SESSION.md"), encoding="utf-8") as f:
+            doc = f.read()
+        self.write("CURRENT_SESSION.md", doc.replace(
+            "- **걸린 트리거**: 없음\n", f"- **멈춤 트리거**: 없음\n- **표시 트리거**: {flags}\n"))
+
+    def assertPassedWithFlag(self, result, needle):
+        rc, out = result
+        self.assertPassed(result)
+        self.assertIn("자율 레인 범위 확인 통과", out["systemMessage"])
+        self.assertIn("표시", out["systemMessage"])
+        self.assertIn(needle, out["systemMessage"])
+
     def implement(self):
         """계획대로 고친 정상 상태."""
         self.write("src/slug.py", "def slug(s):\n    return s.strip().replace(' ', '-')\n")
@@ -274,6 +289,127 @@ class TestFailClosed(LaneGuardCase):
         shutil.rmtree(os.path.join(self.repo, ".git"))
         os.makedirs(os.path.join(self.repo, ".git"))     # 대화 기록 자리만 남긴다
         self.assertDenied(self.gate_e(), "확인 불가")
+
+
+class TestSplitFormat(LaneGuardCase):
+    """새 형식 계획 — 멈춤 범주·설정 보호 경로·계획 밖 파일만 막고 나머지는 표시한다 (LANE-LOOP-1-a)."""
+
+    def test_existing_test_change_in_plan_passes_with_a_flag(self):
+        self.implement()
+        self.write("tests/test_old.py", "def test_old():\n    assert 1 == 1\n")
+        self.set_split_plan(PLANNED + ["tests/test_old.py"], "기존 시험 수정 — tests/test_old.py")
+        self.assertPassedWithFlag(self.gate_e(), "기존 시험 변경: tests/test_old.py")
+
+    def test_dependency_manifest_in_plan_passes_with_a_flag(self):
+        self.implement()
+        self.write("requirements.txt", "pytest\nrequests\n")
+        self.set_split_plan(PLANNED + ["requirements.txt"])
+        self.assertPassedWithFlag(self.gate_e(), "requirements.txt")
+
+    def test_too_many_files_is_a_flag(self):
+        files = [f"src/m{i}.py" for i in range(6)]
+        for p in files:
+            self.write(p, "x = 1\n")
+        self.set_split_plan(files)
+        self.assertPassedWithFlag(self.gate_e(), "파일 6개")
+
+    def test_too_many_lines_is_a_flag(self):
+        self.implement()
+        self.write("src/slug.py", "x = 1\n" * 401)
+        self.set_split_plan(PLANNED)
+        self.assertPassedWithFlag(self.gate_e(), "줄")
+
+    def test_two_top_level_modules_is_a_flag(self):
+        self.write("src/slug.py", "x = 2\n")
+        self.write("lib/util.py", "y = 1\n")
+        self.set_split_plan(["src/slug.py", "lib/util.py"])
+        self.assertPassedWithFlag(self.gate_e(), "최상위")
+
+    def test_migration_is_still_denied(self):
+        self.implement()
+        self.write("migrations/001.sql", "create table t (id int, name text);\n")
+        self.set_split_plan(PLANNED + ["migrations/001.sql"])
+        self.assertDenied(self.gate_e(), "migrations/001.sql")
+
+    def test_claude_folder_is_still_denied(self):
+        self.implement()
+        self.write(".claude/settings.json", "{}\n")
+        self.set_split_plan(PLANNED + [".claude/settings.json"])
+        self.assertDenied(self.gate_e(), ".claude/settings.json")
+
+    def test_configured_protected_path_is_still_denied(self):
+        self.implement()
+        self.write("config/app.yml", "a: 1\n")
+        self.set_split_plan(PLANNED + ["config/app.yml"])
+        self.assertDenied(self.gate_e(), "config/app.yml")
+
+    def test_file_outside_plan_is_still_denied(self):
+        self.implement()
+        self.write("src/other.py", "x = 2\n")
+        self.set_split_plan(PLANNED)
+        self.assertDenied(self.gate_e(), "src/other.py")
+
+    def test_edit_asks_only_for_stop_paths(self):
+        self.set_split_plan(PLANNED)
+        self.assertEqual(self.edit("requirements.txt"), (0, None))
+        self.assertEqual(self.edit("tests/test_old.py"), (0, None))
+        self.assertAsked(self.edit("migrations/001.sql"), "migrations/001.sql")
+        self.assertAsked(self.edit("config/app.yml"), "config/app.yml")
+
+
+TARGET = [gate_a_call(), user("자율 레인 승인: Phase 3 까지")]
+
+
+def text_user(text, **extra):
+    """실제 기록 꼴 — content 가 text 블록 목록인 사용자 줄."""
+    return {"type": "user", "message": {"content": [{"type": "text", "text": text}]}, **extra}
+
+
+class TestLoopApproval(LaneGuardCase):
+    """목표가 있는 승인은 모델이 다음 사이클로 부른 gate-a 로 풀리지 않고, 사용자의 새 입력으로 풀린다 (LANE-LOOP-1-a)."""
+
+    def setUp(self):
+        super().setUp()
+        self.implement()
+        self.write("src/other.py", "x = 2\n")       # 계획 밖 — 승인이 살아 있으면 거부된다
+
+    def test_model_started_next_cycle_keeps_the_guard_on(self):
+        self.assertDenied(self.gate_e(TARGET + [gate_a_call()]), "src/other.py")
+
+    def test_user_prompt_after_approval_turns_it_off(self):
+        self.assertEqual(self.gate_e(TARGET + [gate_a_call(), text_user("잠깐, 다른 것부터 보자")]), (0, None))
+
+    def test_typed_gate_a_turns_it_off(self):
+        typed = text_user("<command-message>gate-a</command-message>\n<command-name>/gate-a</command-name>")
+        self.assertEqual(self.gate_e(TARGET + [typed]), (0, None))
+
+    def test_interrupt_turns_it_off(self):
+        self.assertEqual(self.gate_e(TARGET + [text_user("[Request interrupted by user]")]), (0, None))
+
+    def test_harness_lines_do_not_turn_it_off(self):
+        """작업 알림(태그뿐)·도구 결과·스킬 본문·압축 요약은 사용자 입력이 아니다."""
+        lines = [text_user("<task-notification>\n<task-id>t1</task-id>\n</task-notification>"),
+                 {"type": "user", "message": {"content": [
+                     {"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}},
+                 text_user("Gate A 절차 본문", isMeta=True),
+                 text_user("요약: 이전 대화", isCompactSummary=True),
+                 gate_a_call()]
+        self.assertDenied(self.gate_e(TARGET + lines), "src/other.py")
+
+    def test_lane_approval_reads_the_target(self):
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import gate_transcript
+
+        def state(lines):
+            path = os.path.join(self.repo, ".git", "t.jsonl")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines))
+            return gate_transcript.lane_approval(path)
+
+        self.assertEqual(state(TARGET + [gate_a_call()]), {"approved": True, "target_phase": 3})
+        self.assertEqual(state(APPROVED), {"approved": True, "target_phase": None})
+        self.assertEqual(state(APPROVED + [gate_a_call()]), {"approved": False, "target_phase": None})
+        self.assertEqual(state(TARGET + [text_user("다른 일")]), {"approved": False, "target_phase": None})
 
 
 class TestLaneSettings(unittest.TestCase):

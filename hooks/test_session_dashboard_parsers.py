@@ -657,6 +657,43 @@ class TestParseLaneDecision(unittest.TestCase):
         with um.patch.object(sdp, "_labeled_items", side_effect=RuntimeError):
             self.assertEqual(sdp.parse_lane_decision(_LANE_DOC)["lane"], "검토")
 
+    def test_old_format_is_not_split(self):
+        self.assertIs(sdp.parse_lane_decision(_LANE_DOC)["split"], False)
+
+
+#: 새 형식(LANE-LOOP-1-a) — 멈춤 트리거가 「없음」이면 자율, 표시 트리거는 막지 않고 돌려준다
+_LANE_SPLIT_DOC = _LANE_DOC.replace(
+    "- **걸린 트리거**: 없음\n",
+    "- **멈춤 트리거**: 없음\n- **표시 트리거**: 기존 시험 수정 — tests/test_old.py\n")
+
+
+class TestParseLaneDecisionSplit(unittest.TestCase):
+    """반복하는 자율 레인의 판정 블록 (LANE-LOOP-1-a, 2026-11-23). 옛 형식처럼 fail-closed 다."""
+
+    def test_no_stop_trigger_with_flags_is_autonomous(self):
+        d = sdp.parse_lane_decision(_LANE_SPLIT_DOC)
+        self.assertEqual((d["lane"], d["reasons"], d["split"]), ("자율", [], True))
+        self.assertEqual(d["stop_triggers"], "없음")
+        self.assertEqual(d["flag_triggers"], "기존 시험 수정 — tests/test_old.py")
+
+    def test_stop_trigger_falls_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_SPLIT_DOC.replace(
+            "- **멈춤 트리거**: 없음", "- **멈춤 트리거**: 스키마 — migrations/002.sql"))
+        self.assertEqual(d["lane"], "검토")
+        self.assertTrue(any("멈춤 트리거" in r for r in d["reasons"]))
+
+    def test_mixed_old_and_new_labels_fall_back_to_review(self):
+        d = sdp.parse_lane_decision(_LANE_SPLIT_DOC.replace(
+            "- **멈춤 트리거**: 없음\n", "- **멈춤 트리거**: 없음\n- **걸린 트리거**: 없음\n"))
+        self.assertEqual(d["lane"], "검토")
+        self.assertTrue(any("섞임" in r for r in d["reasons"]))
+
+    def test_acceptance_command_is_still_required(self):
+        d = sdp.parse_lane_decision(_LANE_SPLIT_DOC.replace(
+            "`python3 -m pytest tests/test_slug.py -q`", "시험을 돌린다"))
+        self.assertEqual(d["lane"], "검토")
+        self.assertTrue(any("수락 명령" in r for r in d["reasons"]))
+
 
 #: plan_tier 1 계획 문서 꼴 — 이 서버의 실제 문서 두 개에서 머리·표·완료 기준 모양만 옮겼다(이름은 일반 글자)
 _PLAN_CHECKBOX = """# 실행 계획

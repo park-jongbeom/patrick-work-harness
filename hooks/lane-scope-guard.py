@@ -17,6 +17,11 @@
 극성: 다른 가드와 달리 **fail-closed** 다. 승인은 있는데 레인 판정을 못 읽거나, git·설정을 확인할 수
 없으면 막는다. 해제 카운터(몇 번 뒤 통과)는 두지 않는다 — 안전 승격이 세 번 뒤 조용히 풀리면 안 된다.
 
+새 형식 계획(레인 판정에 `멈춤 트리거` 라벨, LANE-LOOP-1-a 2026-11-23)은 자율 레인을 「목표 Phase 까지 반복」으로
+돌리는 계획이다. 이때는 멈춤 범주 경로(`STOP_PROTECTED`·설정의 `protected_paths`)와 계획 밖 파일만 막고, 기존 시험
+변경·`FLAG_PROTECTED`·파일 수·줄 상한·여러 최상위 모듈은 막지 않고 「표시」로 알린다. 옛 형식은 지금처럼 모두 막는다
+— 프로젝트는 옛 스킬 사본을 돈다.
+
 설정은 기준 커밋의 `.claude/harness-answers.yml` 에서 읽는다(`git show`). 실행 중인 세션이 작업
 트리에서 자기 정책을 풀지 못하게 하려는 것이다. 키·기본값·근거 → skills/SKILL_DETAIL.md §Lane Routing.
 """
@@ -38,20 +43,25 @@ BASE_DIR = os.path.abspath(
 )
 
 #: 기본 보호 경로. `/` 가 없으면 파일 이름에, 있으면 저장소 경로에 맞춘다(SKILL_DETAIL §Lane Routing).
-DEFAULT_PROTECTED = (
+#: 멈춤 범주 — 새 형식 계획에서도 막는다: 스키마·마이그레이션, 비밀, 세션이 자기 절차·정책을 바꾸는 길.
+STOP_PROTECTED = (
+    "*/migrations/*", "*/migrate/*", "*/alembic/*", "*.sql", "schema.prisma",
+    ".env*",
+    "/.claude/*", "/.husky/*", "/.git/hooks/*",
+)
+#: 표시 범주 — 새 형식 계획에서는 막지 않고 알린다(옛 형식에서는 막는다).
+FLAG_PROTECTED = (
     # 의존성 매니페스트·잠금 파일
     "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "requirements*.txt",
     "pyproject.toml", "poetry.lock", "Pipfile", "Pipfile.lock", "setup.py", "setup.cfg",
     "go.mod", "go.sum", "Cargo.toml", "Cargo.lock", "Gemfile", "Gemfile.lock",
     "composer.json", "composer.lock", "pom.xml", "build.gradle", "build.gradle.kts", "*.csproj",
-    # 스키마·마이그레이션
-    "*/migrations/*", "*/migrate/*", "*/alembic/*", "*.sql", "schema.prisma",
-    # 인증·보안
+    # 인증·보안 코드
     "*/auth/*", "*/security/*",
-    # CI·훅·Claude 설정·비밀
-    "/.github/*", "/.gitlab-ci.yml", "Jenkinsfile", "/.circleci/*", "/.husky/*", "/.git/hooks/*",
-    "/.claude/*", ".env*",
+    # CI
+    "/.github/*", "/.gitlab-ci.yml", "Jenkinsfile", "/.circleci/*",
 )
+DEFAULT_PROTECTED = STOP_PROTECTED + FLAG_PROTECTED
 #: Gate 절차가 스스로 쓰는 문서 — 계획에 없어도 된다.
 SESSION_DOCS = ("CURRENT_SESSION.md", "SESSION_INDEX.md", "session-dashboard.html")
 DOC_PATH_KEYS = ("archive_path", "worklog_path", "learning_path", "process_evolution_path",
@@ -169,23 +179,36 @@ def answers_at(base):
 
 
 def scope_violations(plan):
-    """Gate E 진입 전 대조. 반환: (위반 목록, 요약 한 줄)."""
+    """Gate E 진입 전 대조. 반환: (위반 목록, 요약 한 줄) — `lane_card.py` 가 쓰는 꼴. 표시는 요약 끝에 붙인다."""
+    problems, flags, summary = scope_check(plan)
+    if flags:
+        summary += f" · 표시 {len(flags)}건: " + "; ".join(flags)
+    return problems, summary
+
+
+def scope_check(plan):
+    """Gate E 진입 전 대조. 반환: (위반 목록, 표시 목록, 요약 한 줄).
+
+    새 형식 계획(`split`)은 멈춤 범주·설정 보호 경로·계획 밖 파일만 위반이고, 나머지 검사는 표시로 돌린다.
+    옛 형식은 모든 검사가 위반이다.
+    """
     from report_facts import category, changed_files, changed_lines
 
     if plan["lane"] != "자율":
-        return ["레인 판정을 자율로 읽지 못함 — " + "; ".join(plan["reasons"])], ""
+        return ["레인 판정을 자율로 읽지 못함 — " + "; ".join(plan["reasons"])], [], ""
     base = plan["base_commit"]
     if git("rev-parse", "--git-dir")[0] != 0:
         raise Unverifiable("git 저장소가 아님")
     if git("cat-file", "-e", f"{base}^{{commit}}")[0] != 0:
-        return [f"기준 커밋 {base} 이 저장소에 없음"], ""
+        return [f"기준 커밋 {base} 이 저장소에 없음"], [], ""
     if git("merge-base", "--is-ancestor", base, "HEAD")[0] != 0:
-        return [f"기준 커밋 {base} 이 HEAD 의 조상이 아님 — 이력이 다시 쓰였다"], ""
+        return [f"기준 커밋 {base} 이 HEAD 의 조상이 아님 — 이력이 다시 쓰였다"], [], ""
     answers = answers_at(base)
     cfg = lane_settings(answers)
     if not cfg["enabled"]:
-        return [f"기준 커밋 {base} 의 .claude/harness-answers.yml 에 autonomous_lane.enabled: true 가 없음"], ""
-    protected = DEFAULT_PROTECTED + tuple(cfg["protected_paths"])
+        return [f"기준 커밋 {base} 의 .claude/harness-answers.yml 에 autonomous_lane.enabled: true 가 없음"], [], ""
+    split = bool(plan.get("split"))
+    stop_paths = STOP_PROTECTED + tuple(cfg["protected_paths"])
     exempt = list(SESSION_DOCS) + doc_paths(answers)
     planned = {p.lstrip("./") if p.startswith("./") else p for p in plan["files"]}
 
@@ -195,15 +218,18 @@ def scope_violations(plan):
     except Exception as e:
         raise Unverifiable(f"변경 목록을 못 읽음: {e}")
 
-    problems, counted, modules, total_lines = [], set(), set(), 0
+    problems, flags, counted, modules, total_lines = [], [], set(), set(), 0
+    soft = flags if split else problems     # 새 형식에서 막지 않고 알리는 검사
     for status, path in changes:
         if any(path == d or path.startswith(d + "/") for d in exempt):
             continue
         is_test = category(path) == "tests"
-        if is_protected(path, protected):
-            problems.append(f"보호 경로 변경: {path}")
+        if is_protected(path, stop_paths):
+            problems.append(f"{'멈춤 범주' if split else '보호'} 경로 변경: {path}")
+        elif is_protected(path, FLAG_PROTECTED):
+            soft.append(f"{'표시 범주' if split else '보호'} 경로 변경: {path}")
         if is_test and status != "A" and existed_at(base, path):
-            problems.append(f"기존 시험 변경: {path}")
+            soft.append(f"기존 시험 변경: {path}")
         if path not in planned:
             problems.append(f"계획 밖 파일: {path}")
         total_lines += lines.get(path, 0)
@@ -212,14 +238,14 @@ def scope_violations(plan):
         if not is_test:
             modules.add(path.split("/", 1)[0] if "/" in path else "(루트)")
     if len(counted) > cfg["max_files"]:
-        problems.append(f"파일 {len(counted)}개 — 한도 {cfg['max_files']}개(새 시험 제외)")
+        soft.append(f"파일 {len(counted)}개 — 한도 {cfg['max_files']}개(새 시험 제외)")
     if total_lines > cfg["hard_max_lines"]:
-        problems.append(f"변경 {total_lines}줄 — 상한 {cfg['hard_max_lines']}줄")
+        soft.append(f"변경 {total_lines}줄 — 상한 {cfg['hard_max_lines']}줄")
     if len(modules) > 1:
-        problems.append(f"최상위 모듈 {len(modules)}개: {', '.join(sorted(modules))}")
+        soft.append(f"최상위 모듈 {len(modules)}개: {', '.join(sorted(modules))}")
     summary = (f"파일 {len(counted)}/{cfg['max_files']}, 줄 {total_lines}/{cfg['hard_max_lines']}, "
                f"기준 커밋 {base}")
-    return problems, summary
+    return problems, flags, summary
 
 
 def stop_reason(problems):
@@ -230,8 +256,9 @@ def stop_reason(problems):
 
 def on_gate_e(event):
     plan = read_plan()
+    flags = []
     try:
-        problems, summary = scope_violations(plan)
+        problems, flags, summary = scope_check(plan)
     except Unverifiable as e:
         problems, summary = [f"확인 불가 — {e}"], ""
     except Exception as e:  # 예상 못 한 실패도 막는 쪽
@@ -239,7 +266,8 @@ def on_gate_e(event):
     d_missing = "Gate D 기록 없음 — CURRENT_SESSION.md 에 `## Gate D` 블록과 `self-debug N회`·`FIX-B N건` 표지가 없다"
     has_d = gate_d_recorded(read_session())
     if not problems and has_d:
-        print(json.dumps({"systemMessage": f"[레인] 자율 레인 범위 확인 통과 ({summary})"},
+        shown = f" · 표시 {len(flags)}건: " + "; ".join(flags) if flags else ""
+        print(json.dumps({"systemMessage": f"[레인] 자율 레인 범위 확인 통과 ({summary}){shown}"},
                          ensure_ascii=False))
         return 0
     if not problems:
@@ -280,10 +308,12 @@ def on_edit(tool_input):
         extra = []
     from report_facts import category
 
+    # 새 형식으로 자율이 읽힌 계획만 좁게 묻는다 — 못 읽으면 옛 범위로 넓게 묻는다
+    split = plan["lane"] == "자율" and plan.get("split")
     why = ""
-    if is_protected(rel, DEFAULT_PROTECTED + tuple(extra)):
-        why = "보호 경로를"
-    elif category(rel) == "tests" and existed_at(base, rel):
+    if is_protected(rel, (STOP_PROTECTED if split else DEFAULT_PROTECTED) + tuple(extra)):
+        why = "멈춤 범주 경로를" if split else "보호 경로를"
+    elif not split and category(rel) == "tests" and existed_at(base, rel):
         why = "기준 커밋에 있던 시험을"
     if not why:
         return 0

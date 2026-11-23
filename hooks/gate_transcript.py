@@ -16,8 +16,9 @@
 대화 기록은 비동기로 쓰여 현재 턴의 최신 줄이 아직 없을 수 있다(공식 hooks 문서).
 호출하는 훅은 이 지연을 감안해 판정 방향을 정해야 한다.
 
-`autonomous_approved` 는 마지막 gate-a 뒤에 사용자가 「자율 레인 승인」을 직접 썼는지 본다(S7). 스킬 본문
-(`isMeta`)과 대화 압축 요약(`isCompactSummary`)도 user 줄로 기록되므로 뺀다 — gate-a 본문에 이 문구가 있다.
+`autonomous_approved`·`lane_approval` 은 사용자가 「자율 레인 승인」을 직접 썼고 그 승인이 아직 살아 있는지 본다(S7,
+반복 목표는 LANE-LOOP-1-a). 스킬 본문(`isMeta`)과 대화 압축 요약(`isCompactSummary`)도 user 줄로 기록되므로 뺀다
+— gate-a 본문에 이 문구가 있다.
 
 `wrote_to` 는 본 대화의 쓰기 도구(Edit·Write·MultiEdit)와 Bash 명령이 어떤 파일에 어떤 글자를 써 넣었는지 본다(2026-10-28).
 
@@ -32,6 +33,7 @@ GATE_SKILL = re.compile(r"(?:^|:)gate-([a-e])$")
 GATE_COMMAND = re.compile(r"<command-name>/(?:[\w-]+:)?gate-([a-e])</command-name>")
 AUTONOMOUS_APPROVAL = "자율 레인 승인"
 _TAGGED = re.compile(r"<([\w-]+)[^>]*>.*?</\1>", re.S)
+_PHASE_TARGET = re.compile(r"phase\s*(\d+)", re.I)
 
 
 def _awaited(line, pending):
@@ -103,14 +105,37 @@ def _user_texts(event):
 
 
 def autonomous_approved(transcript_path):
-    """마지막 gate-a 뒤에 사용자가 「자율 레인 승인」을 썼으면 True. 못 읽거나 없으면 False."""
+    """자율 레인 승인이 지금 살아 있으면 True. 못 읽거나 없으면 False — `lane_approval` 참고."""
+    return lane_approval(transcript_path)["approved"]
+
+
+def _is_user_prompt(texts):
+    """사용자가 직접 한 입력인가 — 보이는 글(중단 표시 포함), 직접 친 슬래시 명령, 붙여 넣은 글.
+
+    태그뿐인 줄(작업 알림 `<task-notification>`, 로컬 명령 출력 등)은 하네스·도구가 넣는 줄이다
+    (이 서버 엔진 대화 기록 40개 실측, LANE-LOOP-1-a).
+    """
+    return any(_TAGGED.sub("", t or "").strip() or "<command-name>" in (t or "") or "<pasted_content" in (t or "")
+               for t in texts)
+
+
+def lane_approval(transcript_path):
+    """자율 레인 승인 상태 → `{"approved": bool, "target_phase": int | None}` (LANE-LOOP-1-a, 2026-11-23).
+
+    - 켜짐: 사용자 입력의 보이는 글에 「자율 레인 승인」이 있을 때. 같은 글의 `Phase N` 이 반복 목표다.
+    - 꺼짐: 그 뒤 문구 없는 사용자 입력(사용자가 넘겨받음) · 직접 친 `/gate-a` · 목표 없는 승인에서 모델이 부른 gate-a.
+      목표가 있으면 모델이 다음 사이클로 부른 gate-a 로는 꺼지지 않는다 — 꺼지면 둘째 사이클부터 범위 가드가 빠진다.
+    스킬 본문(`isMeta`)·압축 요약(`isCompactSummary`)·하위 에이전트 줄·도구 결과는 사용자 입력이 아니다.
+    사용자 줄의 JSON 은 승인이 켜진 동안에만 푼다 — 검토 레인 대화의 비용은 그대로다.
+    """
+    approved, target = False, None
     if not transcript_path:
-        return False
-    approved = False
+        return {"approved": False, "target_phase": None}
     try:
         with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
-                if "gate-" not in line and AUTONOMOUS_APPROVAL not in line:
+                if "gate-" not in line and AUTONOMOUS_APPROVAL not in line \
+                        and not (approved and '"user"' in line):
                     continue
                 try:
                     event = json.loads(line)
@@ -123,18 +148,22 @@ def autonomous_approved(transcript_path):
                         if isinstance(block, dict) and block.get("type") == "tool_use" \
                                 and block.get("name") == "Skill":
                             m = GATE_SKILL.search(str((block.get("input") or {}).get("skill", "")))
-                            if m and m.group(1) == "a":
+                            if m and m.group(1) == "a" and target is None:
                                 approved = False
                 elif event.get("type") == "user":
-                    for text in _user_texts(event):
-                        if any(m.group(1) == "a" for m in GATE_COMMAND.finditer(text or "")):
-                            approved = False
-                        elif not (event.get("isMeta") or event.get("isCompactSummary")) \
-                                and AUTONOMOUS_APPROVAL in _TAGGED.sub("", text or ""):
-                            approved = True
+                    texts = _user_texts(event)
+                    if any(m.group(1) == "a" for t in texts for m in GATE_COMMAND.finditer(t or "")):
+                        approved, target = False, None
+                    elif not (event.get("isMeta") or event.get("isCompactSummary")) and _is_user_prompt(texts):
+                        visible = " ".join(_TAGGED.sub("", t or "") for t in texts)
+                        if AUTONOMOUS_APPROVAL in visible:
+                            m = _PHASE_TARGET.search(visible)
+                            approved, target = True, (int(m.group(1)) if m else None)
+                        else:
+                            approved, target = False, None
     except Exception:
-        return False
-    return approved
+        return {"approved": False, "target_phase": None}
+    return {"approved": approved, "target_phase": target if approved else None}
 
 
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit"}

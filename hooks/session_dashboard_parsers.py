@@ -763,14 +763,19 @@ def parse_lane_decision(content):
     """Gate A 계획의 `### 레인 판정` 블록을 읽는다 (S6, 2026-10-22).
 
     반환: `{"lane": "자율"|"검토", "reasons": [검토로 떨어진 이유…],
-            "triggers": str, "base_commit": str, "acceptance": [명령…], "files": [경로…]}`
+            "triggers": str, "base_commit": str, "acceptance": [명령…], "files": [경로…],
+            "split": bool, "stop_triggers": str, "flag_triggers": str}`
+
+    새 형식(LANE-LOOP-1-a, 2026-11-23): `멈춤 트리거` 라벨이 있으면 그 칸이 「없음」이어야 자율이고,
+    `표시 트리거` 는 막지 않고 돌려주기만 한다(`split: True`). 라벨이 없으면 옛 형식 — `걸린 트리거` 가
+    「없음」이어야 한다. 두 라벨이 섞이면 검토다.
 
     대시보드 파서들과 극성이 **반대**다 — 칸 하나라도 비었거나 형식이 다르거나
     예외가 나면 「검토」다(fail-closed). 레인 범위 훅(S7)이 이 결과로 자율 레인을
     열지 정하므로, 못 읽은 계획이 자율로 새면 안 된다.
     """
     out = {"lane": "검토", "reasons": [], "triggers": "", "base_commit": "",
-           "acceptance": [], "files": []}
+           "acceptance": [], "files": [], "split": False, "stop_triggers": "", "flag_triggers": ""}
     try:
         return _parse_lane_decision(content or "", out)
     except Exception:
@@ -787,6 +792,9 @@ def _parse_lane_decision(content, out):
     items = dict(_labeled_items(body))
     lane = _strip_md(items.get("레인", ""))
     out["triggers"] = _strip_md(items.get("걸린 트리거", ""))
+    out["split"] = "멈춤 트리거" in items
+    out["stop_triggers"] = _strip_md(items.get("멈춤 트리거", ""))
+    out["flag_triggers"] = _strip_md(items.get("표시 트리거", ""))
     base = _strip_md(items.get("기준 커밋", ""))
     out["acceptance"] = re.findall(r"`([^`\n]+)`", items.get("수락 명령", ""))
 
@@ -798,7 +806,12 @@ def _parse_lane_decision(content, out):
     reasons = out["reasons"]
     if not re.fullmatch(r"자율(?:\s*[(（].*)?", lane):
         reasons.append(f"레인 값이 자율이 아님: {lane or '(비어 있음)'}")
-    if not re.fullmatch(r"없음\.?", out["triggers"]):
+    if out["split"]:
+        if "걸린 트리거" in items:
+            reasons.append("옛 라벨(걸린 트리거)과 새 라벨(멈춤 트리거)이 섞임")
+        if not re.fullmatch(r"없음\.?", out["stop_triggers"]):
+            reasons.append(f"멈춤 트리거: {out['stop_triggers'] or '(비어 있음)'}")
+    elif not re.fullmatch(r"없음\.?", out["triggers"]):
         reasons.append(f"걸린 트리거: {out['triggers'] or '(비어 있음)'}")
     if re.fullmatch(r"[0-9a-f]{7,40}", base):
         out["base_commit"] = base
