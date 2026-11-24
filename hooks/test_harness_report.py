@@ -1221,3 +1221,88 @@ class TestWrittenGates(ReportCase):
         del data["sessions"][0]["gates_written"]                                  # 옛 엔진이 보낸 행
         self.assertRegex(hr.render(data, None, self.root, None), r"\| a \| — \| 0 \|")
 
+
+
+def queued(text, kind="human"):
+    """모델이 일하는 도중 들어온 글 — `attachment` 줄의 `queued_command`(LANE-LOOP-1-b 실측 꼴, test_lane_scope_guard 와 같음)."""
+    if kind == "human":
+        body = {"prompt": [{"type": "text", "text": text}], "commandMode": "prompt",
+                "origin": {"kind": "human"}, "humanTurn": True}
+    else:
+        body = {"prompt": text, "commandMode": "task-notification" if kind == "task-notification" else "prompt",
+                "origin": {"kind": kind}}
+    return {"type": "attachment", "timestamp": "2026-10-23T10:00:01Z", "attachment": {"type": "queued_command", **body}}
+
+
+def bash(tid, command):
+    return assistant(tools=[(tid, "Bash", {"command": command})])
+
+
+CARD = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lane_card.py" card --run --target 2'
+NEXT = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lane_card.py" next --target 2'
+
+
+class TestLaneLoop(ReportCase):
+    """자율 레인 반복을 센다 — 목표가 있는 승인, 사이클(`card --target`), 사이클 끝 판정(`next`) (LANE-LOOP-1-d)."""
+
+    def test_loop_approval_cycles_and_verdicts(self):
+        self.session([
+            user("자율 레인 승인: Phase 2 까지"),
+            bash("c1", CARD), tool_result("c1", "## 자율 레인 검토 카드 …"),
+            bash("n1", NEXT), tool_result("n1", "반복 판정: 계속 — Phase 2 까지 완료 기준 2/3 · 사이클 1/10"),
+            bash("c2", CARD), tool_result("c2", "## 자율 레인 검토 카드 …"),
+            bash("n2", NEXT), tool_result("n2", "반복 판정: 목표 도달 — Phase 2 까지 완료 기준 3/3 · 사이클 2/10"),
+        ])
+        r = self.rows()["s1"]
+        self.assertEqual((r["lane_loops"], r["autonomous_approvals"], r["lane_cycles"]), (1, 1, 2))
+        self.assertEqual(dict(r["lane_verdicts"]), {"계속": 1, "목표 도달": 1})
+
+    def test_approval_without_a_target_is_not_a_loop(self):
+        self.session([user("자율 레인 승인"), bash("c1", 'python3 lane_card.py card --run')])
+        r = self.rows()["s1"]
+        self.assertEqual((r["lane_loops"], r["autonomous_approvals"], r["lane_cycles"]), (0, 1, 0))
+
+    def test_prompts_typed_while_the_model_works_are_user_input(self):
+        self.session([
+            user("계획 세워라"),
+            queued("대조 검증 해달라"),                                   # 사람이 작업 도중 친 글
+            queued("자율 레인 승인: Phase 3 까지"),
+            queued("<task-notification><task-id>x</task-id></task-notification>", "task-notification"),
+            queued("하위 에이전트 보고", "peer"),
+        ])
+        r = self.rows()["s1"]
+        self.assertEqual((r["user_prompts"], r["cross_check_requests"]), (3, 1))
+        self.assertEqual((r["autonomous_approvals"], r["lane_loops"]), (1, 1))
+
+    def test_verdict_text_counts_only_from_a_next_call(self):
+        self.session([
+            bash("r1", "cat skills/SKILL_DETAIL.md"), tool_result("r1", "예: 반복 판정: 계속 — …"),   # 문서 출력
+            assistant(tools=[("r2", "Read", {"file_path": "/w/x.md"})]), tool_result("r2", "반복 판정: 멈춤 — …"),
+        ])
+        r = self.rows()["s1"]
+        self.assertEqual(sum(r["lane_verdicts"].values()), 0)
+
+    def test_loop_entries_in_the_decision_log_are_countable(self):
+        log = os.path.join(os.path.dirname(HERE), "DECISION_LOG.md")
+        loop = [(d, t) for d, t in hr.pending_entries(log) if "LANE-LOOP-1" in t]
+        self.assertGreaterEqual(len(loop), 3)
+        self.session([user("자율 레인 승인: Phase 2 까지", ts="2026-11-25T10:00:00Z"), bash("c1", CARD)])   # 결정일 뒤의 행
+        data = hr.collect(self.root)
+        old = dict(data["sessions"][0], session="s-old")
+        for key in ("lane_loops", "lane_cycles", "lane_verdicts"):    # 새 칸이 없는 옛 행(다른 PC)
+            old.pop(key)
+        data["sessions"].append(old)
+        progress = {p["title"]: p for p in hr.prediction_progress(log, data["sessions"])}
+        for _, title in loop:
+            p = progress[title]
+            self.assertTrue(p["countable"], f"「미등록」 또는 셀 수 없음: {title}")
+            self.assertEqual(p["count"], 1, title)                       # 새 행 1 + 옛 행 0
+
+    def test_report_head_line_only_when_a_loop_ran(self):
+        self.session([user("계획 세워라")])
+        data = hr.collect(self.root)
+        self.assertNotIn("자율 레인 반복", hr.render(data, None, self.root, None))
+        self.session([user("자율 레인 승인: Phase 2 까지"), bash("c1", CARD), bash("n1", NEXT),
+                      tool_result("n1", "반복 판정: 멈춤 — 막힘")], sid="s2")
+        md = hr.render(hr.collect(self.root), None, self.root, None)
+        self.assertIn("자율 레인 반복: 승인 1 · 사이클 1 · 판정 계속 0 · 목표 도달 0 · 상한 도달 0 · 멈춤 1", md)

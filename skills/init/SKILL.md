@@ -92,7 +92,7 @@ Ask the user (or infer from Step 1 scan) for the following fields:
 | `detail_plan_file` | Detail-plan filename + subdirectory (meaningful only when `plan_tier: "2"`) | `""` |
 | `single_plan_file` | Single plan-doc filename (meaningful only when `plan_tier: "1"`) | `WORK_PLAN.md` |
 | `single_plan_threshold` | Slimming line-count threshold for `single_plan_file` (meaningful only when `plan_tier: "1"`) | ask user — suggest 500 lines as a starting point, re-tune after ~10 sessions of observed growth |
-| `autonomous_lane` | Allow the autonomous lane (`gate-a/SKILL.md §0-Lane`): small, test-verifiable plans run C→D→E without human stops and end in a review card. Needs a git repository and `archive_path` (the card ledger lives there). The lane guard comes from the plugin's `hooks.json` or `install.sh` — `/init` does not wire it. Limits and defaults → `SKILL_DETAIL.md §Lane Routing` | `false` |
+| `autonomous_lane` | Allow the autonomous lane (`gate-a/SKILL.md §0-Lane`): a plan with an acceptance command and no 멈춤 trigger (push·deploy, data deletion, secrets, schema, several repositories, `.claude/`) runs C→D→E without human stops; other triggers only show on the review card. 「자율 레인 승인: Phase N 까지」 repeats cycles until that Phase's completion criteria are checked (`plan_tier: "1"` only, at most `max_cycles`), committing each cycle locally, and asks for the cards' verdicts at the end. Needs a git repository and `archive_path` (the card ledger lives there). The lane guard comes from the plugin's `hooks.json` or `install.sh` — `/init` does not wire it. Triggers and defaults → `SKILL_DETAIL.md §Lane Routing`, the loop → `§Lane Loop` | `false` |
 | `vault_ref` | Obsidian vault excerpt at session start (`hooks/vault-context.py`) and the `vault-ref` skill in Gate A. Ask whether this project's work is recorded in an Obsidian vault. Yes → the vault folder (several candidates when PCs differ; the `VAULT_REF_PATH` environment variable wins), a hub note, sections to quote (`"<note> :: <head>"`), the daily folder and a daily sub-heading or tag. Never point it at a note under `90 Private` | `false` |
 
 ### Step 3 — Write `.claude/harness-answers.yml` (D-2 provenance sidecar)
@@ -128,6 +128,7 @@ autonomous_lane:
   max_lines: 200
   hard_max_lines: 400
   protected_paths: []            # added to the default list; never replaces it
+  max_cycles: 10                 # §Lane Loop — cycles in one loop before it stops for the cards
 # vault_ref: hooks/vault-context.py · skills/vault-ref (keep this comment off the key line)
 vault_ref:
   enabled: <answers.vault_ref>      # false = no excerpt, nothing printed

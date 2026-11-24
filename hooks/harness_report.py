@@ -123,6 +123,14 @@ LOOKUP_ENTRY = re.compile(r"^- \[(\d{4}-\d{2}-\d{2})\] (.+?)  \(", re.M)
 #: 손으로 부른 `--query` 조회는 대개 `| grep "^- \["`·`| sed -n 3,20p` 로 머리를 떼고 본다(이 서버 77회 중 54회) — 명령으로 알아본다
 LOOKUP_RUN = re.compile(r"python[0-9.]*(?:\.exe)?[\"']?\s+(?:-\S+\s+)*[\"']?[^\s\"']*lessons_lookup\.py")
 LESSON_HEADING = re.compile(r"^#{2,4}[ \t]+\[(\d{4}-\d{2}-\d{2})\][ \t]*(.*)$", re.M)
+#: 자율 레인 반복(LANE-LOOP-1-d, 2026-11-24) — 사이클 하나 = 목표를 붙인 카드 한 장(`card --target N`), 사이클 끝 판정 = `next` 출력 첫 줄.
+#: 판정 글은 `next` 를 부른 명령의 결과에서만 센다 — 같은 글자가 문서를 출력한 결과에도 나온다.
+#: 명령 자리(줄 머리, `;`·`&&`·`|`·`(` 뒤)에서 부른 것만 센다 — 같은 명령을 글로 담은 heredoc(시험 파일 쓰기)이 사이클로
+#: 세어졌다(LANE-LOOP-1-d Gate D, 이 서버 기록 1건).
+_LANE_CALL = r"""(?:^|[;&|(])[ \t]*(?:\S*python[0-9.]*(?:\.exe)?["']?[ \t]+(?:-\S+[ \t]+)*)?["']?[^\s"';&|]*lane_card\.py["']?[ \t]+"""
+LANE_CARD_RUN = re.compile(_LANE_CALL + r"card\b[^\n]*--target[ \t]+\d+", re.M)
+LANE_NEXT_RUN = re.compile(_LANE_CALL + r"next\b", re.M)
+LANE_VERDICT = re.compile(r"반복 판정: (계속|목표 도달|상한 도달|멈춤)")
 LESSON_HEADING_SCRIPT = re.compile(r"""(?:^|\\n|["'])#{2,4}[ \t]+\[(\d{4}-\d{2}-\d{2})\][ \t]*([^\n"'\\]*)""", re.M)
 RECUR_LINE = re.compile(r"^[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n\"'\\]{0,30})", re.M)
 RECUR_LINE_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n"'\\]{0,30})""", re.M)
@@ -398,11 +406,13 @@ def _date_window(first, last):
 
 def read_session(path):
     """대화 기록 한 개 → 세션 행. 반환: (행, 해석하지 못한 줄 수)."""
-    from gate_transcript import AUTONOMOUS_APPROVAL, GATE_SKILL, SHELL_WRITE, WRITE_TOOLS, _TAGGED, _written_texts, gate_sequence
+    from gate_transcript import (AUTONOMOUS_APPROVAL, GATE_SKILL, SHELL_WRITE, WRITE_TOOLS, _PHASE_TARGET, _TAGGED,
+                                 _queued_human_texts, _written_texts, gate_sequence)
 
     row = {"session": os.path.splitext(os.path.basename(path))[0], "project": "", "first": "", "last": "",
            "models": collections.Counter(), "user_prompts": 0, "cross_check_requests": 0,
            "batch_requests": 0, "autonomous_approvals": 0, "skills": collections.Counter(),
+           "lane_loops": 0, "lane_cycles": 0, "lane_verdicts": collections.Counter(),
            "auto_mode_denials": 0, "safety_check_denials": 0, "special": collections.Counter()}
     guards = collections.defaultdict(_new_guard)
     durations = collections.defaultdict(list)
@@ -429,11 +439,28 @@ def read_session(path):
     # 새로 쓴 재발 줄(날짜와 앞 30자) → (순번, 교훈 파일 경로들, 기준 폴더들)
     lesson_gate, lookups, shown, new_lessons, recur_writes = "-", collections.Counter(), {}, set(), {}
     lookup_calls = set()                            # lessons_lookup.py 를 부른 Bash·PowerShell 호출
+    lane_next_calls = set()                         # lane_card.py next 를 부른 Bash·PowerShell 호출 — 그 결과의 판정만 센다
+    lane_card_calls = set()                         # card --target 호출 — 권한 거절·실패로 오류가 돌아오면 사이클에서 뺀다
     # Gate D 뒤 세션 원장 기록(session_ledger.py append) 없이 새 회차(Gate A, 또는 계획을 바로 써 Gate B 부터 연 회차)로 넘어간 수 —
     # 원장·오류 기록은 Gate E 에서 쓰인다. Gate 스킬 순서로 세지 않는다: Gate E 를 스킬 없이 이어 해 원장을 쓴 회차가 이 서버 5건 중
     # 2건이었다. 새 회차를 Gate 스킬 없이 연 경우는 보이지 않는다(하한, 2026-11-18).
     open_d, d_no_ledger, ledger_seen = False, 0, False     # 원장을 한 번도 쓰지 않은 대화(옛 설정의 프로젝트)는 세지 않는다
     written_gates = []                              # 세션 문서에 써 넣은 「현재 상태」의 순서 — 같은 값이 이어지면 한 번
+
+    def count_prompt(text):
+        """사용자가 친 글 하나를 센다 — 직접 친 글과 작업 도중 친 사람 글(`queued_command`)이 함께 쓴다(LANE-LOOP-1-d).
+        작업 도중 친 글은 뒤에 `user` 줄로 다시 남지 않는다 — 이 서버 기록 301개 중 9개 대화에 24건(2026-11-24)."""
+        if APPROVAL_PHRASE.search(text):
+            approvals.append(seq)
+        row["user_prompts"] += 1
+        row["cross_check_requests"] += "대조 검증" in text
+        row["batch_requests"] += ("C~E 일괄" in text) or ("D~E 일괄" in text)
+        visible = _TAGGED.sub("", text)
+        if AUTONOMOUS_APPROVAL in visible:
+            row["autonomous_approvals"] += 1
+            row["lane_loops"] += bool(_PHASE_TARGET.search(visible))    # 목표 Phase 가 붙은 승인 = 반복
+        for name in COMMAND_NAME.findall(text):
+            row["skills"][name] += 1
 
     def enter_gate(letter):
         nonlocal lesson_gate, open_d, d_no_ledger
@@ -502,6 +529,13 @@ def read_session(path):
                         lookup_calls.add(tid)
                     if name in ("Bash", "PowerShell") and re.search(r"session_ledger\.py\S*\s+append", str(inp.get("command", ""))):
                         open_d, ledger_seen = False, True
+                    if name in ("Bash", "PowerShell") and not side:
+                        command = str(inp.get("command", ""))
+                        if LANE_CARD_RUN.search(command):
+                            row["lane_cycles"] += 1
+                            lane_card_calls.add(tid)
+                        if LANE_NEXT_RUN.search(command):
+                            lane_next_calls.add(tid)
                     if name == "Skill":
                         skill = str(inp.get("skill", ""))
                         row["skills"][skill.split(":")[-1]] += 1
@@ -596,14 +630,7 @@ def read_session(path):
                 if _is_typed_prompt(event):
                     text = " ".join(_texts(content))
                     items.append((len(calls), seq, "user", len(text)))
-                    if APPROVAL_PHRASE.search(text):
-                        approvals.append(seq)
-                    row["user_prompts"] += 1
-                    row["cross_check_requests"] += "대조 검증" in text
-                    row["batch_requests"] += ("C~E 일괄" in text) or ("D~E 일괄" in text)
-                    row["autonomous_approvals"] += AUTONOMOUS_APPROVAL in _TAGGED.sub("", text)
-                    for name in COMMAND_NAME.findall(text):
-                        row["skills"][name] += 1
+                    count_prompt(text)
                 if isinstance(content, list):
                     for block in content:
                         if not (isinstance(block, dict) and block.get("type") == "tool_result"):
@@ -615,6 +642,13 @@ def read_session(path):
                         plain = text if isinstance(raw, str) else "\n".join(
                             as_text(p.get("text")) for p in parts if isinstance(p, dict) and p.get("type") == "text")
                         tid = block.get("tool_use_id")
+                        if tid in lane_card_calls and block.get("is_error"):   # 돌지 않은 카드(실사용 1건: 권한 거절된 복합 명령)
+                            row["lane_cycles"] -= 1
+                            lane_card_calls.discard(tid)
+                        if tid in lane_next_calls:
+                            verdict = LANE_VERDICT.search(plain)
+                            if verdict:
+                                row["lane_verdicts"][verdict.group(1)] += 1
                         if tid in lookup_calls and (LOOKUP_HEAD in plain or LOOKUP_ENTRY.search(plain)):
                             seen_lookup(plain, lesson_gate)     # 교훈 줄까지 걸러 낸 「일치 없음」 조회는 보이지 않는다(하한)
                         if not side:
@@ -663,6 +697,9 @@ def read_session(path):
                     prompt = as_text(att.get("prompt"))
                     items.append((len(calls), seq, "notification" if prompt.lstrip().startswith("<task-notification>")
                                   else "user", len(prompt)))
+                    human = _queued_human_texts(event)
+                    if human:
+                        count_prompt(" ".join(human))
                 elif not side and atype in CONTEXT_ATTACHMENTS:
                     value = att.get("content") if atype == "file" else {k: v for k, v in att.items() if k != "type"}
                     items.append((len(calls), seq, CONTEXT_ATTACHMENTS[atype], _text_size(value)))
@@ -1033,6 +1070,14 @@ METRICS = [
     ("레인 가드는 플러그인과 install.sh", _guard("lane-scope-guard.py", "fired"), None, "레인 가드 발동 수와 소요 시간(세션 표)"),
     ("레인 가드가 Gate D 기록을", _sum("autonomous_approvals"), 10, "「자율 레인 승인」 수"),
     ("사전 등록 — 자율 레인의", _sum("autonomous_approvals"), 20, "「자율 레인 승인」 수 — 판정은 카드 원장"),
+    ("자율 레인을 「목표 Phase 까지 반복」으로", _sum("lane_cycles"), 20,
+     "반복 사이클 수(`lane_card.py card --target`) — 반복 5회가 먼저면 그때. 판정은 카드 원장"),
+    ("자율 레인 반복의 사이클 판정을", _sum("lane_loops"), 5,
+     "목표가 있는 「자율 레인 승인」 수 — 끝난 이유는 세션 행의 `lane_verdicts`"),
+    ("자율 레인 반복을 스킬 절차로", _sum("lane_loops"), 5,
+     "목표가 있는 「자율 레인 승인」 수 — 순서 어긋남은 카드 원장의 체크한 기준과 `lane_verdicts` 의 멈춤"),
+    ("자율 레인 반복을 문서와 사용 보고서에", _sum("lane_loops"), 5,
+     "목표가 있는 「자율 레인 승인」 수 — 사이클 수(`lane_cycles`)를 카드 원장과 맞댄다"),
     ("하네스 문맥 비용을 사용 보고서가", lambda rows: sum(1 for r in rows if _engine_skill_session(r)), 10,
      "최신 엔진(플러그인·install.sh)으로 하네스 스킬을 적재한 세션 수 — 몫은 「문맥 비용」 표"),
     ("모델 판정 재생은 사례마다 두 번", None, None, "다음 재생 측정"),
@@ -1239,6 +1284,13 @@ def render(data, progress, projects_dir, since):
              f"- 읽은 곳: `{projects_dir}`" + (f" (마지막 활동 {since} 이후)" if since else ""),
              f"- 세션 {len(sessions)}개 · 해석하지 못한 줄 {data['bad_lines']}개 · 읽지 못한 대화 기록 {len(data.get('failed_sessions', []))}개"]
     lines += [f"  - {f}" for f in data.get("failed_sessions", [])[:10]]
+    loops, cycles = sum(r.get("lane_loops", 0) for r in sessions), sum(r.get("lane_cycles", 0) for r in sessions)
+    if loops or cycles:
+        verdicts = collections.Counter()
+        for r in sessions:
+            verdicts.update(r.get("lane_verdicts") or {})
+        lines.append(f"- 자율 레인 반복: 승인 {loops} · 사이클 {cycles} · 판정 "
+                     + " · ".join(f"{v} {verdicts.get(v, 0)}" for v in ("계속", "목표 도달", "상한 도달", "멈춤")))
     if not sessions or hook_events == 0:
         lines.append("- ⚠️ **형식 확인 필요** — 세션이나 훅 기록이 하나도 없다. 대화 기록 형식이 바뀌었거나 경로가 틀렸을 수 있다.")
     by_project = collections.defaultdict(list)
