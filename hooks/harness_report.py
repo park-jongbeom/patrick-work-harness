@@ -1013,7 +1013,8 @@ def load_sessions(paths, since=None):
 
 # ── DECISION_LOG 예측 진행 ─────────────────────────────────────────────
 # 제목 앞부분 → (세는 방법, 확인 시점의 목표, 설명). 세는 방법이 None 이면 이 스크립트로 셀 수 없고,
-# 설명이 자료 출처다. 새 결정을 기록하면 여기에 한 줄을 더한다(없으면 「미등록」으로 보고된다).
+# 설명이 자료 출처다. 새 결정을 기록하면 여기에 한 줄을 더한다 — 줄이 없거나 제목이 바뀌어 빗나가면
+# 시험(`TestMetricsCoverDecisionLog`)이 실패한다(REPORT-METRICS-COVER-1: 대기 66건 중 18건이 「미등록」이었다).
 def _sum(key):
     return lambda rows: sum(r.get(key, 0) for r in rows)
 
@@ -1102,7 +1103,7 @@ METRICS = [
     ("Gate E 가드가 이 대화에서 Gate D", _guard("gate-e-sync-guard.py", "block"), 10, "Gate E 가드 차단 수(사유는 메시지 — 오탐은 사람이 판정)"),
     ("제품 저장소 재생 2차", None, None, "범위 가드 절차를 고칠지의 사용자 결정"),
     ("범위 가드 확인 실험", None, None, "일괄 중 FIX-B 이월·Gate B 전 일괄 승인 처리의 사용자 결정"),
-    ("일괄 승인이 Gate B 전에 와도", _a_to_c, None, "Gate A 다음 Gate B 없이 Gate C 로 간 세션 수(스킬 호출 기준, 하한) — 확인 시점 R0 뒤 한 달"),
+    ("Gate B 전에 받은 일괄 승인은", _a_to_c, None, "Gate A 다음 Gate B 없이 Gate C 로 간 세션 수(스킬 호출 기준, 하한) — 확인 시점 R0 뒤 한 달"),
     ("사용 집계기가 플러그인 스킬 이름을", None, None, "다음 월간 집계(skill_usage_aggregator)와 다음 동기화의 린트"),
     ("커밋 메시지 가드가 -am", None, 3, "엔진 저장소 릴리스 — 정당한 커밋이 막힌 경우"),
     ("Gate B 스킵은 증거가 아니다", _gate_b_asked, 20, "Gate B 질문 회차 수 — 결과는 「Gate B 질문 결과」 표, 스킵 행 통과는 대화 기록"),
@@ -1153,6 +1154,28 @@ METRICS = [
     ("Gate 회차를 세션 문서의 상태 줄로도", lambda rows: sum(max(r["gates"].split().count("d"), (r.get("gates_written") or "").split().count("d"))
                                                 for r in rows if "gates_written" in r), 20,
      "문서 Gate 칸이 있는 행의 Gate D 수 — 문서 Gate 가 빈 하네스 세션·스킬 순서와의 D 수 차이는 「Gate 순서」 표의 두 칸"),
+    # REPORT-METRICS-COVER-1(2026-11-24) — 줄 없이 남아 있던 대기 예측. 셀 수 있는 것은 다른 줄이 이미 쓰는 셈만 쓴다.
+    ("하네스 개선의 근거는 대화 기록에서", None, None, "R0 뒤 첫 월간 보고서 — 하네스 출처 표, 이 표의 「셀 수 있음」 값이 0 에서 움직이는지"),
+    ("모든 세션의 결과를 Gate E 에서", lambda rows: sum((r.get("gates") or "").split().count("e") for r in rows), 10,
+     "Gate E 실행 수 — 원장 줄 비율·사람 지적은 세션 원장(`session_ledger.py`)"),
+    ("install.sh 가 스킬 안의 하네스 스크립트", None, None, "R0 뒤 첫 월간 보고서 — install.sh 설치 프로젝트의 카드·원장 명령 「파일 없음」 오류"),
+    ("/init 은 훅을 확인만 하고", None, None, "R0 뒤 첫 월간 보고서 — 「not associated with a plugin」 훅 오류, 같은 훅이 한 응답에 두 번"),
+    ("전체 시험 러너는 건너뛴 시험의", None, None, "다음 컨테이너 확인 — 시험 러너 끝줄의 건너뜀 수와 이유"),
+    ("install.sh 는 rsync 가 없으면", None, None, "다음 Windows·컨테이너 설치 — 설치 실패 보고, 두 복사 경로의 설치 파일 목록"),
+    ("사용 기록 전송에 프로젝트 제외 목록을", None, None, "(a) 전송을 다시 켠 뒤 첫 받은 파일의 제외 프로젝트 행 (b) 프로젝트 쪽 보고 — 문서 세션 5개"),
+    ("세션 문서 값의 굵게·코드 표시를", None, None, "다음 릴리스 3회 — 이슈 보고와 받은 요약의 Gate B 판정 줄"),
+    ("셸로 쓴 새 문맥 검토 기록은", _fresh("fired"), 10, "새 문맥 검토 발동 수 — 「기록 없는 발동」은 「새 문맥 검토」 표"),
+    ("되돌리기 어려운 변경이면 Gate A 승인 줄", None, None, "갱신 뒤 알림 Gate B 회차 10회 — 사용자 확인(승인 자리의 줄은 보고서가 세지 않는다)"),
+    ("옵시디언 볼트 발췌를 하네스 세션 시작 훅으로", lambda rows: sum(1 for r in rows if (r.get("guards") or {}).get("vault-context.py", {}).get("context")), 10,
+     "볼트 발췌가 맥락에 들어간 세션 수 — 오류·가장 느린 실행은 가드 표, 발췌 머리는 사용자 확인"),
+    ("볼트 읽기 스킬과 Gate A 「볼트 참조」", lambda rows: sum(1 for r in rows if (r.get("guards") or {}).get("vault-context.py", {}).get("context")), 10,
+     "1/3 과 같은 표본 — vault-ref 호출 수와 Gate A 수는 스킬별 호출, 「### 볼트 참조」 절은 사용자 확인"),
+    ("`/init`·`/harness-update` 가 볼트 설정 블록을", None, None, "v1.26.0 적용 직후 사용자 확인(H 축·발췌 한 번·권한 질문), 그 뒤는 1/3 표본"),
+    ("새 문맥 검토 발동을 출력 일부에서도", _fresh("fired"), 20, "새 문맥 검토 발동 수 — 「알 수 없음」 비율은 「새 문맥 검토」 표"),
+    ("대시보드 「전체 계획 중 지금」의 값을", None, None, "사용자 확인 — 대시보드 첫 화면의 「전체 계획 중 지금」(추정 Phase 지적)"),
+    ("대시보드 맨 위 배너 아래에 「전체 계획 중 지금」", None, None, "사용자 확인 — 대시보드 첫 화면(칸의 자리·쓸모 지적)"),
+    ("대시보드의 추정 Phase 는", None, None, "사용자 확인 — 갱신한 PC 의 대시보드에서 「지금 Phase 가 틀리다」 지적"),
+    ("사용 보고서 예측표의 「미등록」 18건에", None, None, "엔진 시험 `TestMetricsCoverDecisionLog` — 다음 릴리스까지의 결정 항목과 시험 실패 기록"),
 ]
 
 

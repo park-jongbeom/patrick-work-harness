@@ -8,6 +8,7 @@ Stop 훅은 `stop_hook_summary`.
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -1371,3 +1372,26 @@ class TestJsonDenyAttribution(ReportCase):
         self.assertIn("Stop", self.rows()["s1"]["guards"])                 # 공백 든 머리말은 꼬리표가 아니다
         g = self.denied("[없는꼬리표] 막습니다")
         self.assertEqual(g["없는꼬리표"]["deny"], 1)
+
+
+class TestMetricsCoverDecisionLog(unittest.TestCase):
+    """DECISION_LOG 의 대기 예측마다 보고서 줄(`METRICS`)이 있다 — 줄 없이 결정을 적으면 예측표에 「미등록」으로만 남아
+    확인 시점에 판정 재료가 없었다(REPORT-METRICS-COVER-1: 대기 66건 중 18건, 그중 1건은 제목이 바뀌어 줄이 빗나감)."""
+
+    LOG = os.path.join(os.path.dirname(HERE), "DECISION_LOG.md")
+
+    def titles(self):
+        with open(self.LOG, encoding="utf-8") as f:
+            return [re.sub(r"^###\s*\[\d{4}-\d{2}-\d{2}\]\s*", "", ln.rstrip("\n")) for ln in f if ln.startswith("### [")]
+
+    def test_every_pending_decision_has_a_row(self):
+        missing = [p["title"] for p in hr.prediction_progress(self.LOG, []) if p["source"].startswith("미등록")]
+        self.assertEqual(missing, [], "결정을 적으면 hooks/harness_report.py 의 METRICS 에 "
+                         "(제목 앞부분, 셈 함수 또는 None, 목표 또는 None, 재료 설명) 한 줄을 더한다:\n" + "\n".join(missing))
+
+    def test_every_row_matches_a_title_and_no_title_matches_two_rows(self):
+        titles = self.titles()
+        dead = [m[0] for m in hr.METRICS if not any(t.startswith(m[0]) for t in titles)]
+        twice = [t for t in titles if sum(t.startswith(m[0]) for m in hr.METRICS) > 1]
+        self.assertEqual(dead, [], "어느 결정 제목에도 맞지 않는 줄 — 제목이 바뀌었으면 줄의 앞부분을 맞춘다")
+        self.assertEqual(twice, [], "두 줄이 맞는 제목 — 앞부분을 길게")
