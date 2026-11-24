@@ -745,8 +745,9 @@ def _parse_comprehension(content, out):
 
 
 #: 레인 판정 블록의 라벨 (S6, 2026-10-22). SKILL_DETAIL.md §Lane Routing 의 예시와 같아야 한다
-#: — 엔진 린트가 그 예시를 이 함수로 읽어 확인한다.
-LANE_LABELS = ("레인", "걸린 트리거", "기준 커밋", "수락 명령")
+#: — 엔진 린트가 그 예시를 이 함수로 읽어 확인한다. 새 형식(LANE-LOOP-1-c, 2026-11-24): 스킬은 `멈춤 트리거`·
+#: `표시 트리거` 를 가르친다. 옛 형식(`걸린 트리거`)도 `parse_lane_decision` 이 그대로 읽는다 — 옛 스킬 사본용.
+LANE_LABELS = ("레인", "멈춤 트리거", "표시 트리거", "기준 커밋", "수락 명령")
 
 
 def gate_d_recorded(content):

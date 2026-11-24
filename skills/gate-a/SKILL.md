@@ -191,9 +191,9 @@ Verdict: record in the required output item "주장-근거 대조 점검". **If 
 
 #### 0-Lane. Lane decision (review · autonomous)
 
-> **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) `lane-scope-guard` is wired — `grep -l lane-scope-guard` finds it in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` (plugin), `~/.claude/settings.json` (`install.sh`) or `.claude/settings.json`. Otherwise every plan takes the review lane (A→B→C→D→E).
+> **Off unless enabled.** Skip this check and omit the section unless **both** hold: (1) `git show HEAD:.claude/harness-answers.yml` sets `autonomous_lane:` → `enabled: true` — read at the commit, not the working tree, so a session cannot switch its own lane on; (2) `lane-scope-guard` is wired (how to check → `SKILL_DETAIL.md §Lane Routing`). Otherwise every plan takes the review lane (A→B→C→D→E).
 
-When both hold, `Read` `SKILL_DETAIL.md §Lane Routing` and apply its trigger table and block format. Write `### 레인 판정` right after `### 이해 브리핑`. A missing or malformed block reads as review.
+When (1) holds, `Read` `SKILL_DETAIL.md §Lane Routing`, check (2) there and apply its trigger table and block format. Write `### 레인 판정` right after `### 이해 브리핑`. A missing or malformed block reads as review. In a loop (`§Lane Loop`) a 자율 plan continues without step 4's STOP.
 
 1. **After reading all related files**, output the Gate A content as text
    - **이해 브리핑** (HARNESS-DASH-LEARN-1-b, mandatory) — write it as the **first `###` section of the Gate A block**, heading exactly `### 이해 브리핑`, with exactly these 4 bold-label bullets in this order:
@@ -293,7 +293,7 @@ If `FEATURE_SPEC.md` exists at the target repo root → `SKILL_DETAIL.md §Layer
 
 - 「진행」「다음 작업」 alone are not interpreted as Gate A approval
 - Explicit phrases recognized as approval: 「Gate A 승인」「계획대로 구현」「위 Gate A대로 구현해」 etc.
-- 「자율 레인 승인」 approves an autonomous-lane plan; continue in the autonomous-lane procedure (`gate-c/SKILL.md`). 「Gate A 승인」 on the same plan means the review lane. 「자율 레인 승인」 on a review-lane plan is **not** approval — say which trigger keeps it in review and wait.
+- 「자율 레인 승인」 approves an autonomous-lane plan; continue in the autonomous-lane procedure (`gate-c/SKILL.md`); with 「…: Phase N 까지」 it loops to that Phase (`SKILL_DETAIL.md §Lane Loop`). 「Gate A 승인」 on the same plan means the review lane. 「자율 레인 승인」 on a review-lane plan is **not** approval — say which trigger keeps it in review and wait.
 
 ## Dashboard Required Fields (PROC-MODEL-RUBRIC-2 revision)
 
@@ -316,4 +316,4 @@ Omitting it or replacing it with other content is a **PROC violation**.
 
 When the comprehension-gate verdict is 「발동」, add this line inside the block, after 다음 단계 — the approval is where the user sees it, since Gate B no longer stops: `**되돌리기 어려운 변경**: <발동 사유> — 승인하면 Gate B 에서 멈추지 않고 구현까지 갑니다. 멈춰 확인하려면 「게이트 걸어줘」.` Under it: `**가장 깨지기 쉬운 곳**: <the briefing item in one sentence>`.
 
-When the plan's lane is 자율, add this line inside the block, after 다음 단계: `**자율 레인**: 「자율 레인 승인」으로 승인하면 사람 정지 없이 구현·검증한 뒤 검토 카드로 확인을 받습니다. 「Gate A 승인」은 검토 레인으로 진행합니다.`
+When the plan's lane is 자율, add this line inside the block, after 다음 단계: `**자율 레인**: 「자율 레인 승인」이면 사람 정지 없이 구현·검증하고 검토 카드를 받습니다. 「자율 레인 승인: Phase N 까지」면 그 Phase 까지 반복합니다. 「Gate A 승인」은 검토 레인입니다.`

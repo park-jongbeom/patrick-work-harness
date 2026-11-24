@@ -1,6 +1,6 @@
 ---
 name: SKILL_DETAIL
-description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, tier-aware plan-doc update wording, or the lane-routing limits and evidence (§Lane Routing) are needed."
+description: "Shared model-rubric detail + plan-doc update pattern for gate-a~e, audit, doc-cleanup. Load on demand (not auto-loaded). Reference via Read when R-13 guard, tier-aware plan-doc update wording, the lane-routing limits and evidence (§Lane Routing), or the lane loop procedure (§Lane Loop) are needed."
 ---
 
 # Skill Common Model Rubric Detail
@@ -156,37 +156,44 @@ works and the reason the criterion must stay falsifiable.
 > Canonical detail for `gate-a/SKILL.md §0-Lane` (added 2026-10-22). gate-a keeps only the entry
 > condition; the trigger table, block format, settings, defaults and evidence live here.
 >
-> **Status**: the lane-scope guard and the autonomous-lane procedure ship in v1.11.0. Until a
-> project wires that guard, 0-Lane's entry condition (2) fails and every plan takes the review lane.
+> **Status**: the lane-scope guard and the autonomous-lane procedure ship in v1.11.0; the loop (`§Lane Loop`) and the
+> 멈춤·표시 split come from LANE-LOOP-1 (2026-11). 0-Lane's entry condition (2) holds when `grep -l lane-scope-guard`
+> finds the guard in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` (plugin), `~/.claude/settings.json` (`install.sh`) or
+> `.claude/settings.json`. Until a project wires it, every plan takes the review lane.
 
-A plan goes to the **autonomous lane** only when **no row below applies**. **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」. The user may always move a plan up to review; a plan with a trigger is never moved down to autonomous.
+A plan goes to the **autonomous lane** only when **no 멈춤 row below applies**. A 표시 row does not stop the plan — write it under `표시 트리거` and the review card shows it (user decision 2026-11-23: stop only on what cannot be undone, and on 막힘). **When unsure, review** — the opposite tie rule from R scoring's 「애매하면 0점」; a row you cannot place counts as 멈춤. The user may always move a plan up to review; a plan with a 멈춤 trigger is never moved down to autonomous.
 
-| Hard trigger (→ review) | Look for |
-|---|---|
-| Security · auth · permissions · crypto · secrets | auth/session/token code, `.env*`, any R5 item |
-| Schema · migration · stored data · serialization format | migrations, DDL, files other programs read back |
-| Destructive · irreversible · operational | deploys, data deletion, external side effects, push/publish |
-| More than one repository or top-level module | |
-| Dependency manifest or lock file | `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, lock files |
-| Verification apparatus | existing tests and fixtures, CI, hooks, settings, Gate skills, `.claude/` |
-| Public contract | API endpoints, CLI flags, hook input/output |
-| Any R item (R1–R5) | architecture, concurrency, algorithm, math, security policy |
-| Ambiguity | any open question or undecided point in this plan |
-| No acceptance command | no command whose output decides pass/fail |
-| Size or protected path | over `max_files` changed files (new test files excluded) or `max_lines` estimated lines; any `protected_paths` match |
-| Not a git repository | |
+| Trigger | Look for | 멈춤·표시 |
+|---|---|---|
+| Secrets · credentials | `.env*`, keys and tokens in files | 멈춤 |
+| Security · auth · permissions · crypto code | auth/session/token code, any R5 item | 표시 |
+| Schema · migration · stored data · serialization format | migrations, DDL, files other programs read back | 멈춤 |
+| Destructive · irreversible · operational | deploys, data deletion, external side effects, push/publish | 멈춤 |
+| More than one repository | | 멈춤 |
+| More than one top-level module | | 표시 |
+| Dependency manifest or lock file | `package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, lock files | 표시 |
+| Harness policy · git hooks | `.claude/` (settings, skills, hook wiring), `.husky/`, `.git/hooks/` | 멈춤 |
+| Verification apparatus | existing tests and fixtures, CI | 표시 |
+| Public contract | API endpoints, CLI flags, hook input/output | 표시 |
+| Any R item (R1–R5) | architecture, concurrency, algorithm, math, security policy | 표시 |
+| Ambiguity | any open question or undecided point in this plan — settled by `§Lane Loop`'s choice rule | 표시 |
+| No acceptance command | no command whose output decides pass/fail | 멈춤 |
+| Size | over `max_files` changed files (new test files excluded) or `max_lines` estimated lines | 표시 |
+| Protected path | any `protected_paths` match from the settings | 멈춤 |
+| Not a git repository | | 멈춤 |
 
 Write the result as the section right after `### 이해 브리핑`, in exactly this form (the lane guard reads it with `parse_lane_decision`; a blank or malformed field reads as review):
 
 ```markdown
 ### 레인 판정
 - **레인**: 자율
-- **걸린 트리거**: 없음
+- **멈춤 트리거**: 없음
+- **표시 트리거**: 기존 시험 수정 — tests/test_slug.py
 - **기준 커밋**: `3bb3b42`
 - **수락 명령**: `python3 -m pytest tests/test_slug.py -q`
 ```
 
-`기준 커밋` is `git rev-parse --short HEAD` at planning time. Put each acceptance command in backticks. Files come from `### 변경 파일`, so every entry there needs a `` `path` ``. For the review lane write `- **레인**: 검토` and `- **걸린 트리거**: {row} — {where}`; the other two fields may be left out.
+`기준 커밋` is `git rev-parse --short HEAD` at planning time. Put each acceptance command in backticks. Files come from `### 변경 파일`, so every entry there needs a `` `path` ``. `표시 트리거` lists each 표시 row that applies and where (`없음` if none). For the review lane write `- **레인**: 검토` and `- **멈춤 트리거**: {row} — {where}`; the other fields may be left out. The older single label `걸린 트리거` (any trigger → review) still parses for plans from older skill copies — never mix it with the new labels.
 
 **Settings** — `.claude/harness-answers.yml`, read at the base commit (`git show HEAD:…`), never from
 the working tree, so a running session cannot loosen its own policy (the same principle as a
@@ -199,11 +206,14 @@ autonomous_lane:
   max_lines: 200        # Gate A's estimate must stay under this (added + deleted, new tests included)
   hard_max_lines: 400   # the real diff is never accepted above this
   protected_paths: []   # added to the defaults below; never replaces them
+  max_cycles: 10        # §Lane Loop: cycles in one loop before it stops for the cards
 ```
 
 **Default protected paths**: dependency manifests and lock files; `**/migrations/**` and schema files;
 auth/security code; CI (`.github/`, `.gitlab-ci.yml`, `Jenkinsfile`); hooks (`.husky/`, `.git/hooks/`);
-`.claude/`; `.env*`; every test file that already exists at the base commit.
+`.claude/`; `.env*`; every test file that already exists at the base commit. With the 멈춤·표시 block the guard
+blocks only the 멈춤 paths (schema and migrations, `.env*`, `.claude/`, git hooks), `protected_paths` and files outside
+the plan; the other defaults, the file count and `hard_max_lines` become 표시 on the card.
 
 **Why these numbers.** 5 files and 200 lines are starting values chosen from this harness's own
 session archive (599 sessions: 74% already touched ≤ 5 files), not a cited standard. External
@@ -231,6 +241,44 @@ lean the other way, or ambiguous work drifts into the autonomous lane.
 section, a blank field, a lane value other than 자율, any trigger, a non-hash base commit, no
 backticked acceptance command, or a file entry without a `` `path` ``. Every other parser in the
 dashboard fails open; this one decides whether the autonomous lane opens, so it must not.
+
+## §Lane Loop (자율 레인 반복)
+
+> Canonical procedure for 「자율 레인 승인: Phase N 까지」 (LANE-LOOP-1, user decision 2026-11-23); gate-a, gate-c and gate-e
+> point here. The scripts decide and this section says when to call them — `lane_card.py` `card --target N`, `next --target N`,
+> `pending`, `verdict`, all under `${CLAUDE_PLUGIN_ROOT}/hooks/`. The lane guard keeps the scope throughout.
+
+**Start.** N is a Phase of the `plan_tier: "1"` plan document (`single_plan_file`). Every Phase up to N needs checkbox
+completion criteria, or `next` stops after the first cycle. Before cycle 1 run `lane_card.py pending`: if it lists cards, show
+them and record their verdicts first — unjudged cards with the same target would count as this loop's cycles.
+
+**Each cycle** runs Gate A → C → D → E with no human stop and no Gate B:
+- **Gate A** — cycle 1 is the approved plan. A later cycle plans the first remaining criterion `next` listed and rewrites the
+  session document for the new session (the previous cycle is already archived). A 자율 plan goes on to Gate C without step
+  4's STOP. If Gate A stops for any other reason — the plan reads 검토, the model check, the R-12 scope guard — the loop ends
+  there: STOP as a normal Gate A.
+- **Choices the plan leaves open** (Gate A or C): follow a precedent — DECISION_LOG, the plan document, an earlier answer from
+  the user — and cite it. With none, take the recommended option. Write one line for each in the Gate block:
+  `- **결정**: {무엇} — 근거: {출처}` or `- **결정**: {무엇} — 근거 없음`; the card lists the 근거 없음 ones. A choice that would
+  touch a 멈춤 row is a 막힘, not a choice.
+- **Gate E** — this order replaces gate-e step 0, and the order matters:
+  1. Check the boxes of the criteria this cycle met in the plan document. Check only — deleting or rewording a criterion
+     stops the loop (the card compares the criteria with the base commit).
+  2. `lane_card.py card --run --target N` — paste its output verbatim and do not stop. A non-zero exit (no `archive_path`)
+     ends the loop: tell the user.
+  3. gate-e steps 1–5 as usual.
+  4. Commit this cycle locally — the plan's files and the harness documents this cycle wrote (plan document, archive, the
+     card ledger `lane-ledger.jsonl` in `archive_path`, a WORKLOG inside the repository), staged by explicit path (never
+     `git add -A`), in the project's commit format. **Never push.** `next` stops on any uncommitted file outside the three
+     session documents — a forgotten ledger ends the loop after cycle 1.
+  5. `lane_card.py next --target N` — paste its first line. 「계속」 → call `/gate-a` with the Skill tool for the next cycle.
+     목표 도달 · 상한 도달 · 멈춤 → run `lane_card.py pending`, paste it and **STOP**. The user answers 「모두 승인」 or
+     「{세션 ID} 지적: 심각|경미 — 내용」; record each card with `lane_card.py verdict --session {세션 ID} --verdict …`.
+
+**Ending early.** A 막힘 (`gate-c/SKILL.md §Autonomous lane`) ends the loop — including a permission prompt the user
+rejected, which the approval reader cannot see because it lives only in the tool result. Write `막힘: {reason}`, run
+`pending`, paste it and STOP. Any message the user types during the loop also ends it: answer that message instead.
+Resuming takes a new 「자율 레인 승인: Phase N 까지」.
 
 ## §Deliverable Document Checks (Gate D — a document someone else will read)
 

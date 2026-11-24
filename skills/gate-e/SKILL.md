@@ -9,7 +9,7 @@ effort: low
 ---
 
 0. **Autonomous lane only — review card** (sessions approved with 「자율 레인 승인」; skip otherwise). This is the lane's one
-   human stop after approval.
+   human stop after approval. With a target Phase, follow `SKILL_DETAIL.md §Lane Loop` instead — no stop here.
    - Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/lane_card.py" card --run` and paste its output verbatim. The script re-runs the
      plan's acceptance commands and counts the diff itself — do not restate or soften its flags.
    - If the script exits non-zero (no `archive_path` to hold the ledger), stop and tell the user; do not continue without a card.
