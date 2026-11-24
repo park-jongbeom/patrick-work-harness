@@ -929,12 +929,14 @@ _CHECKBOX = re.compile(r"^[ \t]*[-*][ \t]+\[([ xX])\]", re.M)
 _SESSION_ID_CELL = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+")
 _DONE_MARK = re.compile(r"✅\s?E")
 _CHAIN = re.compile(r"(\d+)\s*/\s*(\d+)")
+_ROW_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def parse_plan_progress(plan_text, session_id="", work_topic=""):
     """계획 문서 글 → Phase 위치·완료 기준·세션 행 수와 나눈 회차.
 
-    지금 Phase 는 ① 지금 세션 ID 가 든 절 ② 없으면 세션 행이 있는 마지막 Phase(세션 행은 끝날 때 붙는다 — 추정)
+    지금 Phase 는 ① 지금 세션 ID 가 든 절 ② 없으면 세션 행의 가장 최근 날짜가 가장 늦은 Phase(같으면 뒤 자리, 날짜가
+    하나도 없으면 마지막 자리 — 세션 행은 끝날 때 붙는다, 추정)
     ③ 그것도 없으면 완료 기준이 남은 첫 Phase 순으로 찾고, 찾은 방법을 `current_by` 로 돌려준다. Phase 머리가 없거나
     읽다가 실패하면 `{"present": False}` — 대시보드의 다른 패널처럼 틀린 값보다 빈칸이 낫다.
     """
@@ -950,7 +952,7 @@ def _parse_plan_progress(text, session_id, work_topic):
         return {"present": False}
     h2 = [m.start() for m in _outside_fences(list(_ANY_H2.finditer(text)), text)]
     spans = _fence_spans(text)
-    phases = []
+    phases, newest = [], []                             # newest: Phase 마다 세션 행의 가장 늦은 날짜("" = 날짜 없음)
     for m in heads:
         end = next((p for p in h2 if p > m.start()), len(text))
         body = text[m.end():end]
@@ -966,6 +968,7 @@ def _parse_plan_progress(text, session_id, work_topic):
             if cells and _SESSION_ID_CELL.fullmatch(_strip_md(cells[0])):
                 rows.append(cells)
         ids = {_strip_md(r[0]) for r in rows}
+        newest.append(max((d for r in rows for d in _ROW_DATE.findall(" ".join(r))), default=""))
         phases.append({
             "num": int(m.group(1)),
             "title": _strip_md(m.group(2)),
@@ -982,9 +985,11 @@ def _parse_plan_progress(text, session_id, work_topic):
             current, how = i, "session"
             break
     if current is None:
+        # 자리 순서가 아니라 가장 최근에 기록된 Phase — 새 세션을 앞 Phase 에 계속 쌓는 실제 문서에서 옛 행만 있는
+        # 뒤 Phase(미착수)를 「지금」으로 보였다(DASH-PHASE-GUESS-1). 날짜가 없으면 ""라 자리 순서와 같다.
         with_rows = [i for i, p in enumerate(phases) if p["rows_total"]]
         if with_rows:
-            current, how = with_rows[-1], "latest_row"
+            current, how = max(with_rows, key=lambda i: (newest[i], i)), "latest_row"
     if current is None:
         open_ = [i for i, p in enumerate(phases) if p["criteria_done"] < p["criteria_total"]]
         if open_:

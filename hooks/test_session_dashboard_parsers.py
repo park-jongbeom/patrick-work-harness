@@ -777,10 +777,26 @@ class TestParsePlanProgress(unittest.TestCase):
         self.assertEqual((p["criteria_done"], p["criteria_total"]), (4, 5))  # Phase 밖 체크박스는 빠진다
         self.assertEqual(p["phases"][2]["rows_total"], 0)                     # 머리 행만 있는 표
 
-    def test_session_not_in_any_table_falls_back_to_last_phase_with_rows(self):
+    def test_session_not_in_any_table_falls_back_to_the_phase_with_the_newest_row(self):
+        # 새 세션은 Phase 1 표에 쌓이고(최근 11-22) Phase 2 에는 옛 행만(11-14) — 실제 계획 문서의 꼴(DASH-PHASE-GUESS-1).
+        # 자리 순서로 고르면 미착수 Phase 2 를 「지금」으로 보였다.
         p = sdp.parse_plan_progress(_PLAN_CHECKBOX, "S-261123-01")
-        self.assertEqual((p["current"], p["current_by"]), (1, "latest_row"))
+        self.assertEqual((p["current"], p["current_by"]), (0, "latest_row"))
         self.assertFalse(any(x["has_current"] for x in p["phases"]))
+
+    def test_newest_row_rules_dates_ties_and_undated_tables(self):
+        def plan(rows1, rows2):
+            head = "| Session ID | 제목 | Gate |\n|---|---|---|\n"
+            return f"## Phase 1 — 가\n\n{head}{rows1}\n## Phase 2 — 나\n\n{head}{rows2}"
+        cases = [
+            ("| A-1 | 가 | ✅E |\n", "| B-1 | 나 | ✅E |\n", 1),                                   # 날짜 없음 → 마지막 자리
+            ("| A-1 | 가 | ✅E (2026-11-20) |\n", "| B-1 | 나 | ✅E (2026-11-20) |\n", 1),             # 같은 날 → 뒤 자리
+            ("| A-1 | 가 | ✅E (2026-11-20) |\n", "| B-1 | 나 | ✅E |\n", 0),                         # 날짜 있는 Phase 가 이긴다
+            ("| A-1 | 가 | ✅E (2026-11-20) |\n", "| B-1 | 나 | 예정 (2026-12-15) |\n", 1),          # 행에 적힌 날짜는 기록으로 본다
+        ]
+        for rows1, rows2, want in cases:
+            p = sdp.parse_plan_progress(plan(rows1, rows2), "Z-9")
+            self.assertEqual((p["current"], p["current_by"]), (want, "latest_row"), (rows1, rows2))
 
     def test_numbered_criteria_give_no_ratio(self):
         p = sdp.parse_plan_progress(_PLAN_NUMBERED, "DEMO-UI-1-a")
