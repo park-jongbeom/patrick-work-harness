@@ -261,7 +261,11 @@ them and record their verdicts first — unjudged cards with the same target wou
   the user — and cite it. With none, take the recommended option. Write one line for each in the Gate block:
   `- **결정**: {무엇} — 근거: {출처}` or `- **결정**: {무엇} — 근거 없음`; the card lists the 근거 없음 ones. A choice that would
   touch a 멈춤 row is a 막힘, not a choice.
-- **Gate E** — this order replaces gate-e step 0, and the order matters:
+- **Gate D** — `/gate-d` as usual with one retry, including step 6: write its block with `self-debug N회` and
+  `FIX-B N건 · DEP N건` before Gate E. Only the STOP is skipped.
+- **Gate E** — call `/gate-e` with the Skill tool. The lane guard checks the scope and the Gate D block there and sends you
+  back if the block is missing; doing Gate E without the skill skips that check (seen in the first live run, 2026-11-24).
+  gate-e step 0 points back here — this order replaces it, and the order matters:
   1. Check the boxes of the criteria this cycle met in the plan document. Check only — deleting or rewording a criterion
      stops the loop (the card compares the criteria with the base commit).
   2. `lane_card.py card --run --target N` — paste its output verbatim and do not stop. A non-zero exit (no `archive_path`)

@@ -1306,3 +1306,20 @@ class TestLaneLoop(ReportCase):
                       tool_result("n1", "반복 판정: 멈춤 — 막힘")], sid="s2")
         md = hr.render(hr.collect(self.root), None, self.root, None)
         self.assertIn("자율 레인 반복: 승인 1 · 사이클 1 · 판정 계속 0 · 목표 도달 0 · 상한 도달 0 · 멈춤 1", md)
+
+    def test_command_text_inside_a_heredoc_is_not_a_cycle(self):
+        """시험 파일을 쓰는 heredoc 안의 명령 글은 실행이 아니다(LANE-LOOP-1-d Gate D, 이 서버 기록 1건)."""
+        self.session([
+            bash("h1", "cat >> t.py <<'EOF'\nCARD = '" + CARD + "'\nEOF"), tool_result("h1", ""),
+            bash("c1", CARD), tool_result("c1", "## 자율 레인 검토 카드 …"),
+        ])
+        self.assertEqual(self.rows()["s1"]["lane_cycles"], 1)
+
+    def test_a_card_call_that_errored_is_not_a_cycle(self):
+        """권한이 거절된 복합 명령은 돌지 않았다 — 실사용(LANE-LOOP-1-d)에서 카드 1장이 사이클 2로 세어졌다."""
+        denied = "This Bash command contains multiple operations. The following part requires approval: sed -i …"
+        self.session([
+            bash("c1", "sed -i 's/- \\[ \\]/- [x]/' PLAN.md && " + CARD), tool_result("c1", denied, error=True),
+            bash("c2", CARD), tool_result("c2", "## 자율 레인 검토 카드 …"),
+        ])
+        self.assertEqual(self.rows()["s1"]["lane_cycles"], 1)
