@@ -412,6 +412,59 @@ class TestLoopApproval(LaneGuardCase):
         self.assertEqual(state(TARGET + [text_user("다른 일")]), {"approved": False, "target_phase": None})
 
 
+def queued(prompt, kind="human"):
+    """모델이 일하는 도중 들어온 글 — `attachment` 줄의 `queued_command` (Claude Code 2.1.289~2.1.314 실측 꼴).
+
+    사람이 친 글은 `prompt` 가 text 블록 목록이고 `humanTurn` 이 붙는다. 작업 알림·하위 에이전트 보고는 문자열이다.
+    """
+    if kind == "human":
+        body = {"prompt": [{"type": "text", "text": prompt}], "commandMode": "prompt",
+                "origin": {"kind": "human"}, "humanTurn": True}
+    else:
+        body = {"prompt": prompt, "commandMode": "task-notification" if kind == "task-notification" else "prompt",
+                "origin": {"kind": kind}}
+    return {"type": "attachment", "isSidechain": False, "attachment": {"type": "queued_command", **body}}
+
+
+class TestQueuedPrompt(LaneGuardCase):
+    """작업 도중 친 사용자 글은 `user` 줄이 아니라 `attachment` 줄로만 남는다 — 그것도 사용자 입력이다 (LANE-LOOP-1-b)."""
+
+    def setUp(self):
+        super().setUp()
+        self.implement()
+        self.write("src/other.py", "x = 2\n")       # 계획 밖 — 승인이 살아 있으면 거부된다
+
+    def state(self, lines):
+        sys.path.insert(0, os.path.dirname(SCRIPT))
+        import gate_transcript
+
+        path = os.path.join(self.repo, ".git", "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines))
+        return gate_transcript.lane_approval(path)
+
+    def test_queued_human_prompt_turns_it_off(self):
+        self.assertEqual(self.gate_e(TARGET + [gate_a_call(), queued("멈춰, 이건 내가 볼게")]), (0, None))
+
+    def test_queued_notifications_do_not_turn_it_off(self):
+        lines = [queued("<task-notification>\n<task-id>b1</task-id>\n</task-notification>", "task-notification"),
+                 queued('<agent-message from="a1">\n[Subagent hand-back] 보고\n</agent-message>', "peer"),
+                 gate_a_call()]
+        self.assertDenied(self.gate_e(TARGET + lines), "src/other.py")
+
+    def test_queued_approval_turns_it_on_with_the_target(self):
+        self.assertEqual(self.state([gate_a_call(), queued("자율 레인 승인: Phase 2 까지")]),
+                         {"approved": True, "target_phase": 2})
+
+    def test_queued_typed_gate_a_turns_it_off(self):
+        typed = queued("<command-message>gate-a</command-message>\n<command-name>/gate-a</command-name>")
+        self.assertEqual(self.state(TARGET + [typed]), {"approved": False, "target_phase": None})
+
+    def test_string_prompt_with_human_turn_counts(self):
+        line = {"type": "attachment", "attachment": {"type": "queued_command", "prompt": "그만", "humanTurn": True}}
+        self.assertEqual(self.state(TARGET + [line]), {"approved": False, "target_phase": None})
+
+
 class TestLaneSettings(unittest.TestCase):
     """설정 읽기 — 틀린 YAML 은 아니지만 읽지 못하던 두 경우(S8c, 2026-10-22)."""
 

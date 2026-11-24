@@ -69,7 +69,8 @@ DOC_PATH_KEYS = ("archive_path", "worklog_path", "learning_path", "process_evolu
 #: 키가 없을 때의 기본 경로. 옛 프로젝트에는 은퇴한 집계 훅이 남긴 기록이 있다.
 #: 빠뜨리면 하네스가 스스로 쓴 기록이 「계획 밖 파일」로 잡힌다(S8c 실사용에서 발견).
 DOC_PATH_DEFAULTS = {"learning_path": "plans/learning", "process_evolution_path": "plans/process_evolution"}
-LIMIT_DEFAULTS = {"max_files": 5, "max_lines": 200, "hard_max_lines": 400}
+#: max_cycles — 목표 Phase 까지 반복할 때 사이클 상한(LANE-LOOP-1-b, `lane_card.py next` 가 읽는다).
+LIMIT_DEFAULTS = {"max_files": 5, "max_lines": 200, "hard_max_lines": 400, "max_cycles": 10}
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 
@@ -176,14 +177,6 @@ def gate_d_recorded(content):
 def answers_at(base):
     rc, text = git("show", f"{base}:.claude/harness-answers.yml")
     return text if rc == 0 else ""
-
-
-def scope_violations(plan):
-    """Gate E 진입 전 대조. 반환: (위반 목록, 요약 한 줄) — `lane_card.py` 가 쓰는 꼴. 표시는 요약 끝에 붙인다."""
-    problems, flags, summary = scope_check(plan)
-    if flags:
-        summary += f" · 표시 {len(flags)}건: " + "; ".join(flags)
-    return problems, summary
 
 
 def scope_check(plan):

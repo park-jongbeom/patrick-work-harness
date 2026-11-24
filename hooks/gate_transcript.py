@@ -119,6 +119,25 @@ def _is_user_prompt(texts):
                for t in texts)
 
 
+def _queued_human_texts(event):
+    """모델이 일하는 도중 사용자가 친 글 — 없으면 None (LANE-LOOP-1-b, 2026-11-24).
+
+    이 글은 `user` 줄이 아니라 `attachment` 줄(`queued_command`)로만 남고, 뒤에 같은 글의 `user` 줄이 없다.
+    같은 꼴로 작업 알림(`origin.kind: task-notification`)과 하위 에이전트 보고(`peer`)도 오므로 사람(`human`)만 센다
+    (이 서버 엔진 대화 기록 11개 실측: 70줄 중 알림 52 · 보고 15 · 사람 3, Claude Code 2.1.289~2.1.314).
+    """
+    queued = event.get("attachment")
+    if event.get("type") != "attachment" or not isinstance(queued, dict) or queued.get("type") != "queued_command":
+        return None
+    origin = queued.get("origin")
+    if not ((isinstance(origin, dict) and origin.get("kind") == "human") or queued.get("humanTurn") is True):
+        return None
+    prompt = queued.get("prompt")
+    if isinstance(prompt, str):
+        return [prompt]
+    return [b.get("text", "") for b in prompt or [] if isinstance(b, dict) and b.get("type") == "text"]
+
+
 def lane_approval(transcript_path):
     """자율 레인 승인 상태 → `{"approved": bool, "target_phase": int | None}` (LANE-LOOP-1-a, 2026-11-23).
 
@@ -126,7 +145,9 @@ def lane_approval(transcript_path):
     - 꺼짐: 그 뒤 문구 없는 사용자 입력(사용자가 넘겨받음) · 직접 친 `/gate-a` · 목표 없는 승인에서 모델이 부른 gate-a.
       목표가 있으면 모델이 다음 사이클로 부른 gate-a 로는 꺼지지 않는다 — 꺼지면 둘째 사이클부터 범위 가드가 빠진다.
     스킬 본문(`isMeta`)·압축 요약(`isCompactSummary`)·하위 에이전트 줄·도구 결과는 사용자 입력이 아니다.
-    사용자 줄의 JSON 은 승인이 켜진 동안에만 푼다 — 검토 레인 대화의 비용은 그대로다.
+    모델이 일하는 도중 친 글(`attachment` 줄 — `_queued_human_texts`)은 사용자 입력이다.
+    사용자 줄의 JSON 은 승인이 켜진 동안에만 푼다 — 검토 레인 대화의 비용은 그대로다. 그때도 도구 결과 줄
+    (`"tool_use_id"`)은 풀지 않는다: 글 블록이 함께 든 줄이 실측 4,108줄 중 0이었고, 풀면 큰 기록에서 3배 느렸다.
     """
     approved, target = False, None
     if not transcript_path:
@@ -134,8 +155,8 @@ def lane_approval(transcript_path):
     try:
         with open(transcript_path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
-                if "gate-" not in line and AUTONOMOUS_APPROVAL not in line \
-                        and not (approved and '"user"' in line):
+                if "gate-" not in line and AUTONOMOUS_APPROVAL not in line and not (approved and (
+                        ('"user"' in line and '"tool_use_id"' not in line) or '"queued_command"' in line)):
                     continue
                 try:
                     event = json.loads(line)
@@ -150,8 +171,10 @@ def lane_approval(transcript_path):
                             m = GATE_SKILL.search(str((block.get("input") or {}).get("skill", "")))
                             if m and m.group(1) == "a" and target is None:
                                 approved = False
-                elif event.get("type") == "user":
-                    texts = _user_texts(event)
+                elif event.get("type") in ("user", "attachment"):
+                    texts = _user_texts(event) if event.get("type") == "user" else _queued_human_texts(event)
+                    if texts is None:
+                        continue
                     if any(m.group(1) == "a" for t in texts for m in GATE_COMMAND.finditer(t or "")):
                         approved, target = False, None
                     elif not (event.get("isMeta") or event.get("isCompactSummary")) and _is_user_prompt(texts):
