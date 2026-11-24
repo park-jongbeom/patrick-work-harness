@@ -252,16 +252,21 @@ dashboard fails open; this one decides whether the autonomous lane opens, so it 
 completion criteria, or `next` stops after the first cycle. Before cycle 1 run `lane_card.py pending`: if it lists cards, show
 them and record their verdicts first — unjudged cards with the same target would count as this loop's cycles.
 
-**Each cycle** runs Gate A → C → D → E with no human stop and no Gate B:
+**Each cycle** runs Gate A → C → D → E with no human stop and no Gate B. Call `/gate-c`, `/gate-d` and `/gate-e` with the
+Skill tool — the lane's rules live in those skills (gate-c §Autonomous lane: never edit a test, an acceptance command, CI or
+`.claude/` to make a check pass; one retry; 막힘), and the lane guard checks at `/gate-e`. In the second live run C and D were
+done without the skills, so those rules were never loaded (2026-11-24).
 - **Gate A** — cycle 1 is the approved plan. A later cycle plans the first remaining criterion `next` listed and rewrites the
   session document for the new session (the previous cycle is already archived). A 자율 plan goes on to Gate C without step
   4's STOP. If Gate A stops for any other reason — the plan reads 검토, the model check, the R-12 scope guard — the loop ends
   there: STOP as a normal Gate A.
+- **Gate C** — `/gate-c`: implement the plan under its §Autonomous lane rules. A check you can pass only by changing a test
+  or an acceptance command is a 막힘.
 - **Choices the plan leaves open** (Gate A or C): follow a precedent — DECISION_LOG, the plan document, an earlier answer from
   the user — and cite it. With none, take the recommended option. Write one line for each in the Gate block:
   `- **결정**: {무엇} — 근거: {출처}` or `- **결정**: {무엇} — 근거 없음`; the card lists the 근거 없음 ones. A choice that would
   touch a 멈춤 row is a 막힘, not a choice.
-- **Gate D** — `/gate-d` as usual with one retry, including step 6: write its block with `self-debug N회` and
+- **Gate D** — call `/gate-d` with the Skill tool, one retry, including step 6: write its block with `self-debug N회` and
   `FIX-B N건 · DEP N건` before Gate E. Only the STOP is skipped.
 - **Gate E** — call `/gate-e` with the Skill tool. The lane guard checks the scope and the Gate D block there and sends you
   back if the block is missing; doing Gate E without the skill skips that check (seen in the first live run, 2026-11-24).
