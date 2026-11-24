@@ -242,7 +242,8 @@ def scope_check(plan):
 
 
 def stop_reason(problems):
-    return ("자율 레인 범위를 벗어나 Gate E 기록을 멈춥니다 — 사람 확인이 필요합니다.\n"
+    # 머리의 「[레인]」은 사용 보고서가 이 거부의 주인을 찾는 꼬리표다 — JSON 거부는 명령 없이 글로만 남는다(REPORT-JSON-DENY-1)
+    return ("[레인] 자율 레인 범위를 벗어나 Gate E 기록을 멈춥니다 — 사람 확인이 필요합니다.\n"
             + "\n".join(f"  - {p}" for p in problems)
             + "\n  변경을 계획 범위로 되돌린 뒤 다시 /gate-e 를 부르거나, 새 /gate-a 로 검토 레인 계획을 세우세요.")
 

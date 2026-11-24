@@ -79,8 +79,9 @@ def question_is_from_earlier_plan(transcript_path):
 
 
 def reason_text(skill, pending):
+    # 머리의 「[이해도]」는 사용 보고서가 이 거부의 주인을 찾는 꼬리표다 — JSON 거부는 명령 없이 글로만 남는다(REPORT-JSON-DENY-1)
     return (
-        f"Gate B 확인이 응답을 기다리고 있어 /{skill} 단계를 시작하지 않습니다 — "
+        f"[이해도] Gate B 확인이 응답을 기다리고 있어 /{skill} 단계를 시작하지 않습니다 — "
         f"{', '.join(pending)}. 「진행」이라고 답하거나 바꿀 것·답을 적어 주세요. 그냥 넘어가려면 「스킵」 "
         f"(gate-b 가 평가를 기록하면 풀립니다)."
     )

@@ -52,7 +52,12 @@ HOOK_ERROR = re.compile(r"^PreToolUse:\w+ hook error: \[(.*?)\]: ", re.S)
 #: 같은 칸의 다른 줄 — 실행 실패(`Failed to run`·`non-blocking status`)와 JSON 차단 본문 — 은 첨부에도 남아 거기서 센다.
 STOP_EXIT2 = re.compile(r"^\[(.*?)\]: ", re.S)
 PY_NAME = re.compile(r"([\w.-]+\.py)")
-NOTICE_TAG = re.compile(r"^\[([A-Z0-9][A-Z0-9_-]+)\]")
+#: 꼬리표 — 대문자 영문(「[PROC]」)과 공백 없는 짧은 한글(「[레인]」「[이해도]」, REPORT-JSON-DENY-1). 「[검증 게이트]」처럼 공백이 든 머리말은 아니다.
+TAG_CHARS = "A-Z0-9가-힣_-"
+NOTICE_TAG = re.compile(rf"^\[([A-Z0-9가-힣][{TAG_CHARS}]+)\]")
+#: JSON 으로 거부한 훅은 첨부 줄 없이 도구 결과 글로만 남고 명령이 없다(이 서버 기록 301개: 거부 첨부 0, 묻기 첨부 22,
+#: 2.1.307~2.1.330) — 글 머리의 꼬리표로 주인을 찾는다. 「[명령]: 」 꼴(`HOOK_ERROR`)과는 꼬리표 뒤가 공백인 것으로 갈린다.
+HOOK_DENY_TAG = re.compile(rf"^\w+:\w+ hook error: \[([A-Z0-9가-힣][{TAG_CHARS}]+)\] ")
 COMMAND_NAME = re.compile(r"<command-name>/(?:[\w-]+:)?([\w-]+)</command-name>")
 AUTO_MODE_DENIAL = "denied by the Claude Code auto mode classifier"
 SAFETY_DENIAL = "denied by a built-in Claude Code safety check"
@@ -201,7 +206,7 @@ def _notice_owners():
             text = open(os.path.join(HERE, name), encoding="utf-8").read()
         except OSError:
             continue
-        for tag in re.findall(r"[\"']\[([A-Z][A-Z0-9_-]+)\]", text):
+        for tag in re.findall(rf"[\"']\[([A-Z가-힣][{TAG_CHARS}]+)\]", text):
             owners[tag].add(name)
     return {tag: next(iter(files)) for tag, files in owners.items() if len(files) == 1}
 
@@ -677,7 +682,12 @@ def read_session(path):
                             row["auto_mode_denials"] += 1
                         if SAFETY_DENIAL in text:
                             row["safety_check_denials"] += 1
-                        m = HOOK_ERROR.match(text)
+                        tagged = HOOK_DENY_TAG.match(text)
+                        m = None if tagged else HOOK_ERROR.match(text)
+                        if tagged:
+                            owner = NOTICE_OWNERS.get(tagged.group(1), tagged.group(1))
+                            guards[owner]["deny"] += 1
+                            guards[owner]["fired"] += 1
                         if m:
                             guards[guard_name(m.group(1))]["deny"] += 1
                             guards[guard_name(m.group(1))]["fired"] += 1
@@ -1083,6 +1093,9 @@ METRICS = [
     ("모델 판정 재생은 사례마다 두 번", None, None, "다음 재생 측정"),
     ("docker 가드는 남기되", _guard("docker-command-guard.py", "deny"), 10, "docker 가드 거부 수(정탐 여부는 사람이 판정)"),
     ("사용 보고서는 알림 꼬리표를", None, None, "월간 보고서 가드 표의 대문자 꼬리표 행 수"),
+    ("사용 보고서가 JSON 으로 거부한 가드를",
+     lambda rows: _guard("lane-scope-guard.py", "deny")(rows) + _guard("comprehension-pending-guard.py", "deny")(rows), None,
+     "레인·이해도 대기 가드 거부 수 — 도구 결과 「hook error: [레인]/[이해도]」 수와 맞댄다"),
     ("이해도 원장 만료 알림은 최근 만료", None, None, "원장의 verified 갱신 수(R0 전후 한 달)"),
     ("최신 엔진 대조 실험", None, None, "어려운 과제 대조 실험(재료는 저장소 밖)"),
     ("제품 저장소의 실제 과거 작업 재생", None, None, "계약을 문장에 적지 않은 재생 실험"),

@@ -1323,3 +1323,51 @@ class TestLaneLoop(ReportCase):
             bash("c2", CARD), tool_result("c2", "## 자율 레인 검토 카드 …"),
         ])
         self.assertEqual(self.rows()["s1"]["lane_cycles"], 1)
+
+
+def _guard_module(filename):
+    """이름에 `-` 가 든 가드 파일을 모듈로 — 가드가 실제로 내는 글을 시험에 그대로 쓴다."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(filename.replace("-", "_")[:-3], os.path.join(HERE, filename))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestJsonDenyAttribution(ReportCase):
+    """JSON 으로 거부한 훅은 첨부 줄 없이 도구 결과 글 「…hook error: …」로만 남는다 — 명령이 없어 꼬리표로 주인을 찾는다
+    (REPORT-JSON-DENY-1: 이 서버 기록 301개에서 거부 첨부 0, 그 거부 9건이 어느 가드에도 세어지지 않았다)."""
+
+    def denied(self, text, tool="Skill"):
+        self.session([assistant(tools=[("t1", tool, {"skill": "gate-e"})]),
+                      tool_result("t1", f"PreToolUse:{tool} hook error: {text}", error=True)])
+        return self.rows()["s1"]["guards"]
+
+    def test_lane_guard_deny_and_stop_count_for_the_lane_guard(self):
+        lane = _guard_module("lane-scope-guard.py")
+        g = self.denied(lane.stop_reason(["계획 밖 파일: src/x.py"]))
+        self.assertEqual((g["lane-scope-guard.py"]["deny"], g["lane-scope-guard.py"]["fired"]), (1, 1))
+        g = self.denied("[레인] Gate D 기록 없음 — CURRENT_SESSION.md 에 `## Gate D` 블록과 표지가 없다.")   # 실사용 그대로
+        self.assertEqual(g["lane-scope-guard.py"]["deny"], 1)
+
+    def test_comprehension_guard_deny_counts_for_its_guard(self):
+        comp = _guard_module("comprehension-pending-guard.py")
+        g = self.denied(comp.reason_text("gate-c", ["Q1"]))
+        self.assertEqual(g["comprehension-pending-guard.py"]["deny"], 1)
+
+    def test_lane_notice_without_a_command_goes_to_the_lane_guard(self):
+        self.session([hook("hook_system_message", "PreToolUse:Skill",
+                           content="[레인] 자율 레인 범위 확인 통과 (파일 2/5, 줄 8/400, 기준 커밋 245e39b)")])
+        g = self.rows()["s1"]["guards"]
+        self.assertEqual(g["lane-scope-guard.py"]["notice"], 1)
+        self.assertNotIn("PreToolUse:Skill", g)
+
+    def test_command_form_still_counts_for_the_command(self):
+        g = self.denied("[python3 /h/hooks/commit-msg-guard.py]: [PROC] 커밋 메시지 형식 위반", tool="Bash")
+        self.assertEqual(g["commit-msg-guard.py"]["deny"], 1)
+
+    def test_headings_with_spaces_are_not_tags_and_unknown_tags_keep_their_name(self):
+        self.session([hook("hook_system_message", "Stop", content="[검증 게이트] 안내 글")])
+        self.assertIn("Stop", self.rows()["s1"]["guards"])                 # 공백 든 머리말은 꼬리표가 아니다
+        g = self.denied("[없는꼬리표] 막습니다")
+        self.assertEqual(g["없는꼬리표"]["deny"], 1)
