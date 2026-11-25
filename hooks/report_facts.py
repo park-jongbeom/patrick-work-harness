@@ -203,7 +203,8 @@ def to_markdown(f):
             lines.append(f"  - {cat}: " + ", ".join(f"`{i}`" for i in items))
     t = f.get("tests")
     if t is not None:
-        if "error" in t:
+        # 합계의 `error` 는 오류 난 시험 수(정수)다 — 읽기 실패 사유(글)일 때만 확인 불가(첫 판부터 늘 「확인 불가 — 0」이었다)
+        if isinstance(t.get("error"), str):
             lines.append(f"- 시험 합계: 확인 불가 — {t['error']}")
         else:
             lines.append(f"- 시험 **{t['passed']}/{t['tests']} 통과** "

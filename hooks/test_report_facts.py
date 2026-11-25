@@ -103,6 +103,16 @@ class TestReportFacts(unittest.TestCase):
         totals = rf.junit_totals([os.path.join(self.repo, "j.xml")])
         self.assertEqual(totals, {"tests": 3, "passed": 1, "failed": 1, "error": 0, "skipped": 1})
 
+    def test_junit_totals_are_printed_not_read_as_a_failure(self):
+        """합계의 오류 수 칸(`error`: 0)을 읽기 실패로 보아 늘 「확인 불가 — 0」을 찍었다(첫 판부터, REPORT-FACTS-JUNIT-1)."""
+        self._write("j.xml", '<testsuites><testsuite><testcase name="a"/><testcase name="b">'
+                             '<failure/></testcase><testcase name="c"><skipped/></testcase>'
+                             '</testsuite></testsuites>')
+        rc, md = run(self.repo, "--junit", os.path.join(self.repo, "j.xml"))
+        self.assertEqual(rc, 0)
+        self.assertIn("- 시험 **1/3 통과** (실패 1 · 오류 0 · 건너뜀 1)", md)
+        self.assertNotIn("확인 불가", md)
+
     def test_fail_on_base_table(self):
         """새 시험을 기준 커밋에 얹어 돌리면 test_new 만 실패, test_guard 는 회귀 방지용(통과)."""
         self._write("impl.py", "x = 2  # FIXED\n")

@@ -1214,6 +1214,7 @@ METRICS = [
     ("사용 보고서 예측표의 「미등록」 18건에", None, None, "엔진 시험 `TestMetricsCoverDecisionLog` — 다음 릴리스까지의 결정 항목과 시험 실패 기록"),
     ("사용 요약이 세션 원장의 사람 지적 수를", lambda rows: sum((r.get("ledger") or {}).get("cross_lines", 0) for r in rows), 10,
      "「대조 검증」 요청 뒤 원장 회차 수 — 그중 지적 0 은 「Gate 순서」 표의 원장 칸"),
+    ("사실 블록이 JUnit 시험 합계를", None, None, "다음 `--junit` 사실 블록 — 시험 합계 줄이 「N/M 통과」로 나오는지(Gate D 기록)"),
 ]
 
 
