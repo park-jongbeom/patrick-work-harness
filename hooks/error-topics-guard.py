@@ -22,8 +22,9 @@ harness_runtime_charter §4: "기계가 막을 수 있는 것은 기계에 맡�
         세션 ID 가 "FIX-B" prefix OR
         CURRENT_SESSION/SESSION_INDEX 본문에 "self-debug N회"(N≥1) OR
         "FIX-B N건"(N≥1)
-  (3) 작업 코드 저장소 error_topics/*.md 에 세션 ID 를 제목에 단 항목이 없거나,
-      있어도 필수 칸(적용 조건·근거)이 비어 있음 (HARNESS-LESSON-1)
+  (3) 작업 코드 저장소 error_topics/*.md 에 세션 ID 를 제목에 단 항목도, 세션 ID 가 든
+      「재발」 줄을 단 기존 항목도 없거나, 있어도 필수 칸(적용 조건·근거)이 비어 있음
+      (HARNESS-LESSON-1 · 재발 줄 #8)
 
 방어 원칙 (fail-open): 파일 부재·파싱 실패·예외·코드 저장소 부재는
   무조건 exit 0 (오탐 차단 금지).
@@ -241,11 +242,37 @@ def topics_dirs(repos, custom_dir):
             for r in repos]
 
 
-def entry_sections(session_id, dirs):
-    """제목 줄에 세션 ID 가 있는 항목 섹션들 — (경로, 섹션 본문) 목록.
+def _section(lines, i):
+    """i 번째 줄(제목)부터 같은 수준 이상의 다음 제목 직전까지."""
+    level = len(re.match(r"^(#{1,6})", lines[i]).group(1))
+    end = len(lines)
+    for j in range(i + 1, len(lines)):
+        m2 = re.match(r"^(#{1,6})\s", lines[j])
+        if m2 and len(m2.group(1)) <= level:
+            end = j
+            break
+    return "\n".join(lines[i:end])
 
+
+def _recur_patterns():
+    """(재발 줄, 교훈 제목) 규칙 — 사용 요약이 재발을 셀 때 쓰는 것을 그대로 쓴다. 못 가져오면 None."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from harness_report import LESSON_HEADING, RECUR_LINE
+        return RECUR_LINE, LESSON_HEADING
+    except Exception:
+        return None
+
+
+def entry_sections(session_id, dirs):
+    """이 세션의 항목 섹션들 — (경로, 섹션 본문) 목록.
+
+    제목 줄에 세션 ID 가 있는 섹션, 그리고 세션 ID 가 든 `- **재발**: [날짜] …` 줄의 바로 위 날짜 제목 섹션.
+    gate-e 는 같은 원인이면 새 항목 대신 기존 항목에 재발 줄을 달라고 한다 — 제목만 보던 때는 그 세션을 막아
+    같은 교훈을 한 번 더 적게 했다(#8, 2026-11-25). 재발 규칙을 못 가져오면 제목만 본다.
     섹션은 그 제목부터 같은 수준 이상의 다음 제목 직전까지다.
     """
+    patterns = False  # 재발 줄을 처음 만날 때 가져온다
     sections = []
     for topics_dir in dirs:
         for path in sorted(glob.glob(os.path.join(topics_dir, "*.md"))):
@@ -253,18 +280,22 @@ def entry_sections(session_id, dirs):
             if not text or session_id not in text:
                 continue
             lines = text.splitlines()
+            starts = set()
             for i, line in enumerate(lines):
                 m = re.match(r"^(#{1,6})\s+(.*)$", line)
-                if not m or session_id not in m.group(2):
+                if m:
+                    if session_id in m.group(2):
+                        starts.add(i)
                     continue
-                level = len(m.group(1))
-                end = len(lines)
-                for j in range(i + 1, len(lines)):
-                    m2 = re.match(r"^(#{1,6})\s", lines[j])
-                    if m2 and len(m2.group(1)) <= level:
-                        end = j
-                        break
-                sections.append((path, "\n".join(lines[i:end])))
+                if session_id not in line or "**재발**" not in line:
+                    continue
+                if patterns is False:
+                    patterns = _recur_patterns()
+                if patterns and patterns[0].match(line):
+                    head = next((k for k in range(i - 1, -1, -1) if patterns[1].match(lines[k])), None)
+                    if head is not None:
+                        starts.add(head)
+            sections += [(path, _section(lines, i)) for i in sorted(starts)]
     return sections
 
 
@@ -282,7 +313,7 @@ def missing_fields(section_text):
 def logged_status(session_id, dirs):
     """('ok', None) | ('incomplete', 누락 칸 목록) | ('absent', None).
 
-    제목에 세션 ID 가 있고 필수 칸이 모두 찬 항목이 하나라도 있으면 ok.
+    이 세션의 항목(제목 또는 재발 줄 — entry_sections) 중 필수 칸이 모두 찬 것이 하나라도 있으면 ok.
     """
     sections = entry_sections(session_id, dirs)
     if not sections:
@@ -421,7 +452,7 @@ def main():
         block(
             f"[ERROR-TOPICS] 오류 케이스 항목의 필수 칸이 비어 있음 "
             f"({attempts}/{MAX_BLOCKS})\n"
-            f"  세션 '{sid}' 항목은 있으나 {fields} 칸이 없거나 비어 있습니다.\n"
+            f"  세션 '{sid}' 항목(제목 또는 재발 줄)은 있으나 {fields} 칸이 없거나 비어 있습니다.\n"
             f"  조치: 그 항목에 gate-e Step 3 형식대로 채우세요 — 적용 조건은 다음\n"
             f"    Gate A 가 이 교훈을 꺼낼 상황(「~할 때」), 근거는 세션 ID·명령·출력 발췌.\n"
             f"    대상: {repo_hint}\n"
@@ -431,10 +462,11 @@ def main():
         f"[ERROR-TOPICS] 오류 케이스 미적재 감지 — error_topics 적재 필요 "
         f"({attempts}/{MAX_BLOCKS})\n"
         f"  세션 '{sid}' 는 오류 흔적(self-debug/FIX-B)이 있으나\n"
-        f"  작업 저장소 error_topics/*.md 에 이 세션 ID 를 제목에 단 항목이 없습니다.\n"
-        f"  조치: 아래 경로의 적절한 주제 파일(testing.md·gate_process.md 등)에\n"
-        f"    '## [YYYY-MM-DD] {sid} — 한줄 요약' 섹션을 gate-e Step 3 형식\n"
-        f"    (적용 조건·근거 칸 포함)으로 이 응답 턴에서 append 하세요.\n"
+        f"  작업 저장소 error_topics/*.md 에 이 세션 ID 를 제목에 단 항목이 없습니다(기존 항목의 재발 줄도 없음).\n"
+        f"  조치: 같은 원인의 항목이 이미 있으면 그 항목에\n"
+        f"    '- **재발**: [YYYY-MM-DD] {sid} — 무엇이 달랐나' 한 줄을, 없으면 아래 경로의\n"
+        f"    적절한 주제 파일(testing.md·gate_process.md 등)에 '## [YYYY-MM-DD] {sid} — 한줄 요약'\n"
+        f"    섹션을 gate-e Step 3 형식(적용 조건·근거 칸 포함)으로 이 응답 턴에서 append 하세요.\n"
         f"    대상: {repo_hint}\n"
         f"  ※ 재활용 가치 없는 1회성 실수면 적재 후에도 무관 — MAX {MAX_BLOCKS}회 후 자동 해제됩니다."
     )

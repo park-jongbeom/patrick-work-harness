@@ -313,6 +313,51 @@ def test_complete_entry_among_incomplete_allows():
     print("  PASS: 완성 항목 1건 이상 → 허용")
 
 
+def test_recurrence_line_allows():
+    """같은 원인이면 기존 항목에 「재발」 줄만 단다(gate-e Step 3) — 그 줄도 이 세션의 기록이다 (#8)."""
+    clear_counter("t-recur")
+    body = full_entry("OLD-SESS-1") + "- **재발**: [2026-11-18] FIX-B-RECUR-1 — 같은 원인, 다른 파일\n"
+    code, err = run_hook(
+        current_md("FIX-B-RECUR-1"),
+        session_id="t-recur",
+        topics={"my-api": {"testing.md": body}},
+    )
+    assert code == 0, (code, err)
+    clear_counter("t-recur")
+    print("  PASS: 기존 항목의 재발 줄 → 허용")
+
+
+def test_recurrence_in_incomplete_entry_blocks():
+    """재발 줄을 단 항목도 필수 칸이 차야 한다 — 빈 칸만 알린다."""
+    clear_counter("t-recur-noevid")
+    body = full_entry("OLD-SESS-2").replace("- **근거**: OLD-SESS-2 · `./gradlew spotlessCheck` exit 1\n", "")
+    body += "- **재발**: [2026-11-18] FIX-B-RECUR-2 — 같은 원인\n"
+    code, err = run_hook(
+        current_md("FIX-B-RECUR-2"),
+        session_id="t-recur-noevid",
+        topics={"my-api": {"testing.md": body}},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert "**근거**" in err and "**적용 조건**" not in err, err
+    clear_counter("t-recur-noevid")
+    print("  PASS: 근거 칸이 빈 항목의 재발 줄 → 근거만 누락으로 차단(exit 2)")
+
+
+def test_undated_recurrence_line_blocks():
+    """날짜 없는 재발 줄은 사용 요약도 세지 않는다 — 미적재로 막고, 안내문이 재발 줄 꼴을 알려 준다."""
+    clear_counter("t-recur-nodate")
+    body = full_entry("OLD-SESS-3") + "- **재발**: FIX-B-RECUR-3 — 날짜 없음\n"
+    code, err = run_hook(
+        current_md("FIX-B-RECUR-3"),
+        session_id="t-recur-nodate",
+        topics={"my-api": {"testing.md": body}},
+    )
+    assert code == 2, f"expected 2, got {code}"
+    assert "제목에 단 항목이 없습니다" in err and "**재발**: [YYYY-MM-DD] FIX-B-RECUR-3" in err, err
+    clear_counter("t-recur-nodate")
+    print("  PASS: 날짜 없는 재발 줄 → 미적재 차단, 안내문에 재발 줄 꼴(exit 2)")
+
+
 def test_unlogged_fixb_prefix_blocks():
     """오류 흔적(세션ID FIX-B prefix) + 미적재 → 차단(exit 2)."""
     clear_counter("t-unlogged")
@@ -473,6 +518,9 @@ if __name__ == "__main__":
         test_entry_missing_evidence_blocks,
         test_sid_only_in_body_blocks,
         test_complete_entry_among_incomplete_allows,
+        test_recurrence_line_allows,
+        test_recurrence_in_incomplete_entry_blocks,
+        test_undated_recurrence_line_blocks,
         test_unlogged_fixb_prefix_blocks,
         test_unlogged_selfdebug_blocks,
         test_emphasized_done_status_still_checked,

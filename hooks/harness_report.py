@@ -1217,6 +1217,8 @@ METRICS = [
     ("사실 블록이 JUnit 시험 합계를", None, None, "다음 `--junit` 사실 블록 — 시험 합계 줄이 「N/M 통과」로 나오는지(Gate D 기록)"),
     ("Gate C 끝 블록의 `/compact` 권장 줄을", lambda rows: sum((r.get("gates") or "").split().count("c") for r in rows), 20,
      "Gate C 회차 수 — 수동 압축은 「문맥 비용」 표의 압축 칸, 줄을 되살릴지는 사용자 지적"),
+    ("error-topics-guard 가 기존 항목의 「재발」 줄도", lambda rows: sum(1 for r in rows if (r.get("lessons") or {}).get("recur")), 10,
+     "재발 줄을 쓴 세션 수 — 그중 새 교훈도 함께 쓴 세션은 「교훈 조회·재발」 표(결정 때 13/14), 이 가드 차단은 가드 표"),
 ]
 
 
