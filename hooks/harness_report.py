@@ -136,6 +136,10 @@ _LANE_CALL = r"""(?:^|[;&|(])[ \t]*(?:\S*python[0-9.]*(?:\.exe)?["']?[ \t]+(?:-\
 LANE_CARD_RUN = re.compile(_LANE_CALL + r"card\b[^\n]*--target[ \t]+\d+", re.M)
 LANE_NEXT_RUN = re.compile(_LANE_CALL + r"next\b", re.M)
 LANE_VERDICT = re.compile(r"반복 판정: (계속|목표 도달|상한 도달|멈춤)")
+#: 세션 원장(REPORT-LEDGER-FINDINGS-1, 2026-11-25) — Gate E 의 원장 호출과 그 출력 한 줄(`session_ledger.py` 의 print, 처음 판부터
+#: 같은 꼴). 원장 파일은 작업(세션 ID) 단위라 대화 단위인 이 행과 잇는 열쇠가 없다 — 같은 대화에 남는 출력에서 읽는다.
+LEDGER_RUN = re.compile(r"session_ledger\.py\S*\s+append")
+LEDGER_OUT = re.compile(r"세션 원장 기록:[^\n]*?사람 지적 (\d+)건")
 LESSON_HEADING_SCRIPT = re.compile(r"""(?:^|\\n|["'])#{2,4}[ \t]+\[(\d{4}-\d{2}-\d{2})\][ \t]*([^\n"'\\]*)""", re.M)
 RECUR_LINE = re.compile(r"^[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n\"'\\]{0,30})", re.M)
 RECUR_LINE_SCRIPT = re.compile(r"""(?:^|\\n|["'])[ \t]*[-*][ \t]+\*\*재발\*\*[ \t]*[:：][ \t]*(\[\d{4}-\d{2}-\d{2}\][^\n"'\\]{0,30})""", re.M)
@@ -409,6 +413,32 @@ def _date_window(first, last):
     return lambda d: lo <= d <= hi
 
 
+class _LedgerTally:
+    """원장 줄과 사람 지적을 센다 — 2026-10-22 결정의 「「대조 검증」 회차에서 지적 0 비율」을 받은 기록으로 판정하려고.
+
+    「대조 검증」 요청은 그 뒤 첫 원장 줄(그 회차의 Gate E)에 붙는다 — 원장 뒤에 친 요청은 다음 회차로 간다(한계). 원장을 남기지
+    못한 호출(남길 곳 없음·실패)은 줄이 아니고 요청 표시도 지우지 않는다. 지적 수는 모델이 넘긴 값이고, 지적 글은 싣지 않는다."""
+
+    def __init__(self):
+        self.counts = {"lines": 0, "findings": 0, "cross_lines": 0, "cross_zero": 0}
+        self.cross = False
+
+    def prompt(self, text):
+        self.cross = self.cross or "대조 검증" in text
+
+    def result(self, text):
+        m = LEDGER_OUT.search(text)
+        if not m:
+            return
+        found = int(m.group(1))
+        self.counts["lines"] += 1
+        self.counts["findings"] += found
+        if self.cross:
+            self.counts["cross_lines"] += 1
+            self.counts["cross_zero"] += int(found == 0)
+        self.cross = False
+
+
 def read_session(path):
     """대화 기록 한 개 → 세션 행. 반환: (행, 해석하지 못한 줄 수)."""
     from gate_transcript import (AUTONOMOUS_APPROVAL, GATE_SKILL, SHELL_WRITE, WRITE_TOOLS, _PHASE_TARGET, _TAGGED,
@@ -450,6 +480,7 @@ def read_session(path):
     # 원장·오류 기록은 Gate E 에서 쓰인다. Gate 스킬 순서로 세지 않는다: Gate E 를 스킬 없이 이어 해 원장을 쓴 회차가 이 서버 5건 중
     # 2건이었다. 새 회차를 Gate 스킬 없이 연 경우는 보이지 않는다(하한, 2026-11-18).
     open_d, d_no_ledger, ledger_seen = False, 0, False     # 원장을 한 번도 쓰지 않은 대화(옛 설정의 프로젝트)는 세지 않는다
+    tally, ledger_calls = _LedgerTally(), set()     # 원장 출력의 사람 지적 수 — 그 호출의 결과에서만 읽는다
     written_gates = []                              # 세션 문서에 써 넣은 「현재 상태」의 순서 — 같은 값이 이어지면 한 번
 
     def count_prompt(text):
@@ -459,6 +490,7 @@ def read_session(path):
             approvals.append(seq)
         row["user_prompts"] += 1
         row["cross_check_requests"] += "대조 검증" in text
+        tally.prompt(text)
         row["batch_requests"] += ("C~E 일괄" in text) or ("D~E 일괄" in text)
         visible = _TAGGED.sub("", text)
         if AUTONOMOUS_APPROVAL in visible:
@@ -532,8 +564,9 @@ def read_session(path):
                         code_edits.append((seq, _in_project(target, cwd)))
                     if name in ("Bash", "PowerShell") and LOOKUP_RUN.search(str(inp.get("command", ""))):
                         lookup_calls.add(tid)
-                    if name in ("Bash", "PowerShell") and re.search(r"session_ledger\.py\S*\s+append", str(inp.get("command", ""))):
+                    if name in ("Bash", "PowerShell") and LEDGER_RUN.search(str(inp.get("command", ""))):
                         open_d, ledger_seen = False, True
+                        ledger_calls.add(tid)
                     if name in ("Bash", "PowerShell") and not side:
                         command = str(inp.get("command", ""))
                         if LANE_CARD_RUN.search(command):
@@ -654,6 +687,8 @@ def read_session(path):
                             verdict = LANE_VERDICT.search(plain)
                             if verdict:
                                 row["lane_verdicts"][verdict.group(1)] += 1
+                        if tid in ledger_calls:
+                            tally.result(plain)
                         if tid in lookup_calls and (LOOKUP_HEAD in plain or LOOKUP_ENTRY.search(plain)):
                             seen_lookup(plain, lesson_gate)     # 교훈 줄까지 걸러 낸 「일치 없음」 조회는 보이지 않는다(하한)
                         if not side:
@@ -819,6 +854,7 @@ def read_session(path):
             recur_shown[before[-1]] += 1
     # 수만 — 교훈 제목·세션 ID 는 남기지 않는다. 비어도 둔다(칸이 있으면 이 판 이후의 행이다)
     row["d_without_ledger"] = d_no_ledger if ledger_seen else None
+    row["ledger"] = dict(tally.counts)
     row["gates_written"] = " ".join(written_gates)
     row["lessons"] = {"lookups": dict(lookups), "shown": len(shown), "new": sum(1 for k in new_lessons if in_window(k[0])),
                       "recur": recur, "recur_shown": dict(recur_shown), "recur_unresolved": unresolved}
@@ -1176,6 +1212,8 @@ METRICS = [
     ("대시보드 맨 위 배너 아래에 「전체 계획 중 지금」", None, None, "사용자 확인 — 대시보드 첫 화면(칸의 자리·쓸모 지적)"),
     ("대시보드의 추정 Phase 는", None, None, "사용자 확인 — 갱신한 PC 의 대시보드에서 「지금 Phase 가 틀리다」 지적"),
     ("사용 보고서 예측표의 「미등록」 18건에", None, None, "엔진 시험 `TestMetricsCoverDecisionLog` — 다음 릴리스까지의 결정 항목과 시험 실패 기록"),
+    ("사용 요약이 세션 원장의 사람 지적 수를", lambda rows: sum((r.get("ledger") or {}).get("cross_lines", 0) for r in rows), 10,
+     "「대조 검증」 요청 뒤 원장 회차 수 — 그중 지적 0 은 「Gate 순서」 표의 원장 칸"),
 ]
 
 
@@ -1448,13 +1486,19 @@ def render(data, progress, projects_dir, since):
               "오류 기록은 Gate E 에서 쓰여 함께 빠진다. 진행 중인 마지막 회차와 Gate 스킬 없이 연 회차는 보이지 않는다(하한). — 는 이 칸을 "
               "모르는 옛 엔진의 행이거나 원장을 한 번도 쓰지 않은 대화.",
               "- Gate = Gate 스킬 호출 순서. 문서 Gate = 대화가 세션 문서에 써 넣은 「현재 상태」 값의 순서(같은 값이 이어지면 한 번) — "
-              "스킬을 부르지 않고 이어 한 회차도 보인다. 둘이 크게 다르면 스킬 없이 진행한 회차다. — 는 이 칸을 모르는 옛 엔진의 행.", "",
-              "| 프로젝트 | 세션 | 마지막 활동 | Gate | 문서 Gate | C 직후 E | D 뒤 원장 없이 새 회차 |", "|---|---|---|---|---|---|---|"]
+              "스킬을 부르지 않고 이어 한 회차도 보인다. 둘이 크게 다르면 스킬 없이 진행한 회차다. — 는 이 칸을 모르는 옛 엔진의 행.",
+              "- 원장 = Gate E 원장 출력(「사람 지적 N건」)에서 읽은 원장 줄 · 사람 지적 합 · 「대조 검증」 요청 뒤 첫 원장 줄 수(그중 지적 0). "
+              "지적 수는 모델이 넘긴 값이고, 원장 뒤에 친 「대조 검증」은 다음 회차에 붙는다. 원장을 남길 곳(`archive_path`)이 없는 "
+              "프로젝트는 0. — 는 이 칸을 모르는 옛 엔진의 행.", "",
+              "| 프로젝트 | 세션 | 마지막 활동 | Gate | 문서 Gate | C 직후 E | D 뒤 원장 없이 새 회차 | 원장 줄 · 사람 지적 · 대조 검증(지적 0) |",
+              "|---|---|---|---|---|---|---|---|"]
     for r in sorted(sessions, key=lambda r: r["last"], reverse=True):
         if r["gates"] or r.get("gates_written"):
             written = (r["gates_written"] or "없음") if "gates_written" in r else "—"
+            led = r.get("ledger")
+            led = "—" if led is None else f"{led['lines']} · {led['findings']} · {led['cross_lines']}({led['cross_zero']})"
             lines.append(f"| {r['project']} | `{r['session'][:8]}` | {r['last'][:10]} | {r['gates'] or '없음'} | {written} | "
-                         f"{r['c_to_e']} | {'—' if r.get('d_without_ledger') is None else r['d_without_ledger']} |")
+                         f"{r['c_to_e']} | {'—' if r.get('d_without_ledger') is None else r['d_without_ledger']} | {led} |")
     lines += ["", "## Gate B 질문 결과 (회차별 사람의 응답)", "",
               "- Gate 순서가 아니라 질문에 어떻게 응답했는지 본다. Skill·슬래시 호출 없이 진행한 회차는 빠진다(하한).",
               "- 「답함」은 글자만 본다 — 되묻기나 불만도 답으로 센다(상한). 답의 정오와 사람의 실제 이해는 재지 않는다.",

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -1324,6 +1325,77 @@ class TestLaneLoop(ReportCase):
             bash("c2", CARD), tool_result("c2", "## 자율 레인 검토 카드 …"),
         ])
         self.assertEqual(self.rows()["s1"]["lane_cycles"], 1)
+
+
+LEDGER_CALL = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/session_ledger.py" append --base abc --model m'
+
+
+def ledger_out(found, sid="S-1"):
+    return f"세션 원장 기록: {sid} · 레인 검토 · 파일 2·10줄 · 사람 지적 {found}건"
+
+
+class TestLedgerFindings(ReportCase):
+    """Gate E 원장 출력의 「사람 지적 N건」을 행에 싣는다 — 지적 수가 각 PC 의 원장 파일에만 있어 2026-10-22 결정의 뒤 절
+    (「대조 검증」 회차에서 지적 0 비율)을 받은 기록으로 판정하지 못했다(CHECKPOINT-JUDGE-3, REPORT-LEDGER-FINDINGS-1)."""
+
+    def test_lines_findings_and_cross_checked_cycles(self):
+        self.session([
+            user("대조 검증 해라"), bash("l1", LEDGER_CALL), tool_result("l1", ledger_out(2)),        # 대조 뒤 지적 2
+            user("다음 작업"), bash("l2", LEDGER_CALL), tool_result("l2", ledger_out(0)),            # 요청 없이 0
+            queued("대조 검증 해달라"), bash("l3", LEDGER_CALL),                                      # 작업 도중 친 요청 뒤 0
+            tool_result("l3", ledger_out(0, "S-3") + " · 깃발: 기준 커밋 없음 — 변경 수치를 세지 않음"),
+        ])
+        self.assertEqual(self.rows()["s1"]["ledger"], {"lines": 3, "findings": 2, "cross_lines": 2, "cross_zero": 1})
+
+    def test_failed_calls_and_other_commands_are_not_ledger_lines(self):
+        fail = "세션 원장을 남길 곳이 없습니다 — .claude/harness-answers.yml 에 archive_path 가 필요합니다."
+        self.session([
+            user("대조 검증 해라"), bash("l1", LEDGER_CALL), tool_result("l1", fail, error=True),     # 줄이 아니고 요청은 남는다
+            bash("c1", "cat docs/archive/ARCHIVE_x.md"), tool_result("c1", ledger_out(5)),           # 원장 호출이 아닌 명령의 출력
+            bash("l2", LEDGER_CALL), tool_result("l2", ledger_out(1)),
+        ])
+        self.session([user("계획 세워라")], sid="s2")
+        rows = self.rows()
+        self.assertEqual(rows["s1"]["ledger"], {"lines": 1, "findings": 1, "cross_lines": 1, "cross_zero": 0})
+        self.assertEqual(rows["s2"]["ledger"], {"lines": 0, "findings": 0, "cross_lines": 0, "cross_zero": 0})
+        self.assertTrue(all(type(v) is int for v in rows["s1"]["ledger"].values()))   # 수만 — 지적 글은 싣지 않는다
+
+    def test_reads_the_line_the_ledger_script_really_prints(self):
+        """문구가 바뀌면 오류 없이 0 이 나와 「지적 0건」으로 보인다 — 원장 스크립트를 실제로 돌린 출력으로 맞댄다."""
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo, True)
+        subprocess.run(["git", "init", "-q", repo], check=True, capture_output=True, stdin=subprocess.DEVNULL)
+        answers = os.path.join(repo, ".claude", "harness-answers.yml")
+        os.makedirs(os.path.dirname(answers))
+        with open(os.path.join(repo, "CURRENT_SESSION.md"), "w", encoding="utf-8") as f:
+            f.write("> **세션 ID**: T-LEDGER-OUT\n")
+
+        def run(answers_text):
+            with open(answers, "w", encoding="utf-8") as f:
+                f.write(answers_text)
+            return subprocess.run([sys.executable, os.path.join(HERE, "session_ledger.py"), "append", "--repo", repo,
+                                   "--finding", "수 틀림", "--finding", "파일 빠짐"], capture_output=True, text=True,
+                                  encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"}, stdin=subprocess.DEVNULL)
+
+        failed, ok = run("project: t\n"), run('archive_path: "docs/archive"\n')
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.session([user("대조 검증 해라"),
+                      bash("l1", LEDGER_CALL), tool_result("l1", failed.stdout + failed.stderr, error=True),
+                      bash("l2", LEDGER_CALL), tool_result("l2", ok.stdout)])
+        self.assertEqual(self.rows()["s1"]["ledger"], {"lines": 1, "findings": 2, "cross_lines": 1, "cross_zero": 0})
+
+    def test_gate_order_table_and_prediction_row(self):
+        self.session([gate("a"), user("대조 검증 해라"), bash("l1", LEDGER_CALL), tool_result("l1", ledger_out(0))])
+        data = hr.collect(self.root)
+        old = dict(data["sessions"][0], session="s-old")
+        old.pop("ledger")                                                   # 이 칸을 모르는 옛 엔진의 행
+        data["sessions"].append(old)
+        md = hr.render(data, None, self.root, None)
+        self.assertRegex(md, r"\| `s1` \|[^\n]*\| 1 · 0 · 1\(1\) \|\n")
+        self.assertRegex(md, r"\| `s-old` \|[^\n]*\| — \|\n")
+        count = next(m for m in hr.METRICS if m[0].startswith("사용 요약이 세션 원장의 사람 지적 수를"))[1]
+        self.assertEqual(count(data["sessions"]), 1)                       # 새 행 1 + 옛 행 0
 
 
 def _guard_module(filename):
