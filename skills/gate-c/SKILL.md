@@ -102,5 +102,4 @@ Omitting it or replacing it with other content is a **PROC violation**.
 ---
 **다음 단계**: Gate C 확인 후 「Gate D 시작」또는 「검증」으로 응답하면 `/gate-d` (Gate D 검증)가 시작됩니다.
 **권장 모델 전환**: ${CURRENT_SESSION_FILE} "Gate별 권장 모델" 표를 참조하여 필요 시 `/model {모델}` 실행 후 진행하세요.
-💡 **compact 권장 시점**: Gate C 구현이 끝난 지금이 `/compact` 최적 타이밍입니다. Gate D는 테스트 결과라는 새로운 맥락으로 시작하므로, C의 시행착오 컨텍스트를 정리하면 토큰을 절약할 수 있습니다.
 ```

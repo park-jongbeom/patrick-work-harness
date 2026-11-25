@@ -1215,6 +1215,8 @@ METRICS = [
     ("사용 요약이 세션 원장의 사람 지적 수를", lambda rows: sum((r.get("ledger") or {}).get("cross_lines", 0) for r in rows), 10,
      "「대조 검증」 요청 뒤 원장 회차 수 — 그중 지적 0 은 「Gate 순서」 표의 원장 칸"),
     ("사실 블록이 JUnit 시험 합계를", None, None, "다음 `--junit` 사실 블록 — 시험 합계 줄이 「N/M 통과」로 나오는지(Gate D 기록)"),
+    ("Gate C 끝 블록의 `/compact` 권장 줄을", lambda rows: sum((r.get("gates") or "").split().count("c") for r in rows), 20,
+     "Gate C 회차 수 — 수동 압축은 「문맥 비용」 표의 압축 칸, 줄을 되살릴지는 사용자 지적"),
 ]
 
 
